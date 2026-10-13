@@ -23,3 +23,5 @@ massive:
     option_chain: 60
   implied_move:
     expiration_lookahead_days: 14   # окно поиска ближайшей экспирации после реакции на отчёт
+    # IV выше — почти наверняка проценты вместо долей (единица в документации не указана) → DataError.
+    max_plausible_iv: 5.0

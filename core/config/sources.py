@@ -21,6 +21,7 @@ class MassiveCacheTtl(StrictModel):
 
 class MassiveImpliedMove(StrictModel):
     expiration_lookahead_days: PositiveInt
+    max_plausible_iv: PositiveFloat
 
 
 class MassiveSettings(StrictModel):

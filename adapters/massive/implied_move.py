@@ -1,17 +1,28 @@
-"""Ожидаемое рынком движение на отчёте по цене ATM-стрэддла (SPEC §8, §9)."""
+"""Ожидаемое рынком движение на отчёте по ATM-стрэддлу (SPEC §8, §9).
 
+Два способа, в порядке предпочтения:
+- straddle_mid — середины котировок колла и пута (нужен тариф с котировками опционов);
+- iv_approx — по IV тех же контрактов: стрэддл ≈ √(2/π) · S · σ · √T
+  (тариф Options Starter, котировок нет).
+"""
+
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
-from typing import Protocol
+from datetime import date, datetime, timedelta
+from typing import Literal, Protocol
 
 from adapters.errors import DataError
 from adapters.massive.models import OptionQuote, OptionSnapshot
 from core.domain.types import ReportTime
-from core.session_guard import is_trading_day
+from core.session_guard import is_trading_day, session, to_et
 
 SOURCE = "massive"
 ONE_DAY = timedelta(days=1)
+SECONDS_PER_YEAR = 365 * 24 * 60 * 60
+ATM_STRADDLE_FACTOR = math.sqrt(2 / math.pi)  # ≈ 0.798: цена ATM-стрэддла ≈ 0.8 · S · σ · √T
+
+ImpliedMoveMethod = Literal["straddle_mid", "iv_approx"]
 
 
 class OptionChainSource(Protocol):
@@ -34,6 +45,7 @@ class ImpliedMove:
     underlying_price: float
     straddle: float
     move: float  # доля цены: 0.05 = ±5%
+    method: ImpliedMoveMethod
 
 
 def reaction_day(report_date: date, report_time: ReportTime) -> date:
@@ -51,12 +63,16 @@ def implied_move(
     ticker: str,
     report_date: date,
     report_time: ReportTime,
+    *,
+    as_of: datetime,
     lookahead_days: int,
+    max_plausible_iv: float,
 ) -> ImpliedMove:
-    """(колл + пут на страйке, ближайшем к цене) / цена — на ближайшей экспирации ≥ дня реакции.
+    """Ожидаемое движение на ближайшей экспирации не раньше дня реакции, страйк — ближайший к цене.
 
-    Нет котировок, цены базового актива или экспирации в окне — DataError: система не угадывает.
+    Нет цены, экспирации, ни котировок, ни IV — DataError: система не угадывает.
     """
+    to_et(as_of)  # наивное время — ошибка
     reaction = reaction_day(report_date, report_time)
     chain = source.option_chain(
         ticker, expiration_gte=reaction, expiration_lte=reaction + timedelta(days=lookahead_days)
@@ -69,7 +85,15 @@ def implied_move(
     contracts = [c for c in chain if c.details.expiration_date == expiration]
     price = _underlying_price(ticker, contracts)
     strike, call, put = _atm_pair(ticker, contracts, price)
-    straddle = _mid(ticker, call) + _mid(ticker, put)
+
+    method: ImpliedMoveMethod
+    quoted = _quoted_straddle(call, put)
+    if quoted is not None:
+        straddle, method = quoted, "straddle_mid"
+    else:
+        sigma = _atm_iv(ticker, call, put, max_plausible_iv)
+        years = _years_to_expiry(ticker, expiration, as_of)
+        straddle, method = ATM_STRADDLE_FACTOR * price * sigma * math.sqrt(years), "iv_approx"
     return ImpliedMove(
         ticker=ticker,
         reaction_day=reaction,
@@ -78,6 +102,7 @@ def implied_move(
         underlying_price=price,
         straddle=straddle,
         move=straddle / price,
+        method=method,
     )
 
 
@@ -91,26 +116,47 @@ def _underlying_price(ticker: str, contracts: Sequence[OptionSnapshot]) -> float
 
 def _atm_pair(
     ticker: str, contracts: Sequence[OptionSnapshot], price: float
-) -> tuple[float, OptionQuote, OptionQuote]:
-    calls = {
-        c.details.strike_price: c.last_quote for c in contracts if c.details.contract_type == "call"
-    }
-    puts = {
-        c.details.strike_price: c.last_quote for c in contracts if c.details.contract_type == "put"
-    }
+) -> tuple[float, OptionSnapshot, OptionSnapshot]:
+    calls = {c.details.strike_price: c for c in contracts if c.details.contract_type == "call"}
+    puts = {c.details.strike_price: c for c in contracts if c.details.contract_type == "put"}
     strikes = sorted(set(calls) & set(puts), key=lambda strike: (abs(strike - price), strike))
     if not strikes:
         raise DataError(SOURCE, f"{ticker}: no strike with both a call and a put")
     strike = strikes[0]
-    call, put = calls[strike], puts[strike]
-    if call is None or put is None:
-        raise DataError(
-            SOURCE, f"{ticker}: no quotes for ATM strike {strike} (options quotes plan?)"
-        )
-    return strike, call, put
+    return strike, calls[strike], puts[strike]
 
 
-def _mid(ticker: str, quote: OptionQuote) -> float:
-    if quote.bid <= 0 or quote.ask < quote.bid:
-        raise DataError(SOURCE, f"{ticker}: unusable quote bid={quote.bid} ask={quote.ask}")
+def _quoted_straddle(call: OptionSnapshot, put: OptionSnapshot) -> float | None:
+    call_mid, put_mid = _mid(call.last_quote), _mid(put.last_quote)
+    if call_mid is None or put_mid is None:
+        return None
+    return call_mid + put_mid
+
+
+def _mid(quote: OptionQuote | None) -> float | None:
+    if quote is None or quote.bid <= 0 or quote.ask < quote.bid:
+        return None
     return quote.midpoint if quote.midpoint is not None else (quote.bid + quote.ask) / 2
+
+
+def _atm_iv(
+    ticker: str, call: OptionSnapshot, put: OptionSnapshot, max_plausible_iv: float
+) -> float:
+    ivs = [call.implied_volatility, put.implied_volatility]
+    usable = [iv for iv in ivs if iv is not None and iv > 0]
+    if len(usable) != len(ivs):
+        raise DataError(SOURCE, f"{ticker}: ATM strike has neither usable quotes nor IV")
+    sigma = sum(usable) / len(usable)
+    if sigma > max_plausible_iv:
+        raise DataError(SOURCE, f"{ticker}: implausible IV {sigma} (percent instead of fraction?)")
+    return sigma
+
+
+def _years_to_expiry(ticker: str, expiration: date, as_of: datetime) -> float:
+    expiry_session = session(expiration)
+    if expiry_session is None:
+        raise DataError(SOURCE, f"{ticker}: expiration {expiration} is not a trading day")
+    seconds = (expiry_session.close - as_of).total_seconds()
+    if seconds <= 0:
+        raise DataError(SOURCE, f"{ticker}: expiration {expiration} has already closed")
+    return seconds / SECONDS_PER_YEAR
