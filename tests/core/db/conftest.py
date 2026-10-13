@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, create_engine, make_url, text
+from sqlalchemy import URL, Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session
 
 from core.config import ConfigError
@@ -15,12 +15,16 @@ from core.db.session import create_db_engine, database_url
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-@pytest.fixture(scope="session")
-def test_database_url() -> Iterator[str]:
+def _base_url() -> URL:
     try:
-        base = make_url(database_url())
+        return make_url(database_url())
     except ConfigError as exc:
         pytest.fail(f"{exc}. Database tests need Postgres: `make db-up && make test`.")
+
+
+@pytest.fixture(scope="session")
+def test_database_url() -> Iterator[str]:
+    base = _base_url()
     test_url = base.set(database=f"{base.database}_test")
     admin = create_engine(base, isolation_level="AUTOCOMMIT")
     name = test_url.database

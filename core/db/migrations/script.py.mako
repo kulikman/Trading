@@ -12,6 +12,9 @@ import sqlalchemy as sa
 from alembic import op
 ${imports if imports else ""}
 
+# Alembic reads these module attributes; __all__ marks them as used for static analysis.
+__all__ = ["branch_labels", "depends_on", "down_revision", "downgrade", "revision", "upgrade"]
+
 revision: str = ${repr(up_revision)}
 down_revision: str | Sequence[str] | None = ${repr(down_revision)}
 branch_labels: str | Sequence[str] | None = ${repr(branch_labels)}
