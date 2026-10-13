@@ -43,31 +43,50 @@ def test_last_quote(settings: MassiveSettings) -> None:
     assert quote.sip_time == datetime(2026, 10, 12, 19, 59, 58, tzinfo=UTC)
 
 
-def test_snapshot_keeps_undocumented_keys_raw(settings: MassiveSettings) -> None:
+def test_snapshot_recorded_keeps_undocumented_keys_raw(settings: MassiveSettings) -> None:
     fake = FakeMassive(
         {"/v2/snapshot/locale/us/markets/stocks/tickers/GS": lambda _: fixture("snapshot_gs")}
     )
     snapshot = make_client(settings, fake).snapshot("GS")
     assert snapshot.ticker == "GS"
     assert snapshot.prev_day is not None
-    assert snapshot.prev_day["c"] == 893.2
-    assert snapshot.todays_change_perc == 0.4254
+    assert snapshot.prev_day["c"] == 893.95
+    assert snapshot.day is not None
+    assert snapshot.day["dv"] == 3672378.765755  # в живом ответе это строка
+    assert snapshot.last_quote is None  # тариф без котировок
+    assert snapshot.last_trade is None  # и без сделок
 
 
-def test_option_contracts_send_filters(settings: MassiveSettings) -> None:
-    fake = FakeMassive(
-        {"/v3/reference/options/contracts": lambda _: fixture("options_contracts_gs")}
+def test_aggregates_recorded_response(settings: MassiveSettings) -> None:
+    path = "/v2/aggs/ticker/GS/range/1/day/2026-10-01/2026-10-12"
+    fake = FakeMassive({path: lambda _: fixture("aggs_gs_recorded")})
+    bars = make_client(settings, fake).aggregates(
+        "GS", 1, "day", date(2026, 10, 1), date(2026, 10, 12)
     )
+    assert len(bars) == 8
+    assert bars[0].start == datetime(2026, 10, 1, 4, 0, tzinfo=UTC)  # полночь ET
+    assert (bars[-1].start.date(), bars[-1].close) == (date(2026, 10, 12), 893.95)
+
+
+def test_option_contracts_recorded_send_filters(settings: MassiveSettings) -> None:
+    def contracts_route(request: httpx.Request) -> dict[str, Any]:
+        if "cursor" in request.url.params:
+            return {"status": "OK", "results": []}
+        return fixture("options_contracts_gs")
+
+    fake = FakeMassive({"/v3/reference/options/contracts": contracts_route})
     contracts = make_client(settings, fake).option_contracts(
         "GS",
         contract_type="call",
         expiration_gte=date(2026, 10, 13),
         expiration_lte=date(2026, 10, 30),
     )
-    assert [(c.contract_type, c.strike_price, c.expiration_date) for c in contracts] == [
-        ("call", 900, date(2026, 10, 16)),
-        ("put", 900, date(2026, 10, 16)),
-    ]
+    assert len(contracts) == 5
+    assert [c.strike_price for c in contracts] == [410, 420, 430, 440, 450]
+    assert {(c.contract_type, c.expiration_date) for c in contracts} == {
+        ("call", date(2026, 10, 16))
+    }
+    assert len(fake.requests) == 2  # вторая страница — по next_url
     params = fake.requests[0].url.params
     assert params["underlying_ticker"] == "GS"
     assert params["contract_type"] == "call"
@@ -167,3 +186,11 @@ def test_timestamps_accept_iso_strings() -> None:
     quote = StockQuote.model_validate({"P": 2, "S": 1, "p": 1, "s": 1, "t": "2026-10-12T19:59:58Z"})
     assert bar.start == datetime(2026, 10, 12, 4, 0, tzinfo=UTC)
     assert quote.sip_time == datetime(2026, 10, 12, 19, 59, 58, tzinfo=UTC)
+
+
+def test_plan_without_entitlement_is_data_error(settings: MassiveSettings) -> None:
+    fake = FakeMassive({CHAIN_PATH: lambda _: (403, fixture("not_entitled"))})
+    with pytest.raises(DataError, match=r"HTTP 403.*not entitled") as exc_info:
+        make_client(settings, fake).option_chain("GS")
+    assert exc_info.value.source == "massive"
+    assert len(fake.requests) == 1  # 403 не повторяется

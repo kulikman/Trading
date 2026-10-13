@@ -20,10 +20,13 @@ def fixture(name: str) -> dict[str, Any]:
     return data
 
 
-class FakeMassive:
-    """Отдаёт фикстуры по пути запроса и запоминает запросы."""
+Route = Callable[[httpx.Request], dict[str, Any] | tuple[int, dict[str, Any]]]
 
-    def __init__(self, routes: dict[str, Callable[[httpx.Request], dict[str, Any]]]) -> None:
+
+class FakeMassive:
+    """Отдаёт фикстуры по пути запроса и запоминает запросы. Маршрут может вернуть (код, тело)."""
+
+    def __init__(self, routes: dict[str, Route]) -> None:
         self.routes = routes
         self.requests: list[httpx.Request] = []
 
@@ -32,7 +35,9 @@ class FakeMassive:
         route = self.routes.get(request.url.path)
         if route is None:
             return httpx.Response(404, json={"status": "NOT_FOUND"})
-        return httpx.Response(200, json=route(request))
+        result = route(request)
+        status, body = result if isinstance(result, tuple) else (200, result)
+        return httpx.Response(status, json=body)
 
 
 @pytest.fixture
