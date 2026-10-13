@@ -6,6 +6,7 @@
 - Репозиторий переведён с шаблона Next.js + Supabase на Python-монорепо по `SPEC.md`. Шаблон доступен в истории git (коммит `fe4f9af`).
 
 ### Added
+- T05: адаптер Massive (`adapters/massive/`) — свечи, NBBO, снимок акции, справочник опционов, снимок цепочки (IV, греки, OI); `implied_move` по ATM-стрэддлу; общий HTTP-клиент с повторами и кэшем Redis (`adapters/http.py`, `adapters/cache.py`), `DataError`; `config/sources.yaml`; Redis в CI.
 - T04: `core/session_guard.py` — календарь NYSE (`pandas_market_calendars`): торговые дни, основная сессия с учётом сокращённых дней, следующее открытие, ET / МСК, недельная экспирация; `make test` проверяет покрытие (`core/` ≥ 85%, `session_guard` 100%).
 - `DASHBOARD.md` — ТЗ на веб-дашборд; T19 в `TASKS.md` разбита на T19a (API) и T19b (`web/`); задачи T06, T07, T09, T16, T17, T18 дополнены данными для дашборда.
 - T03: схема БД — 14 таблиц SPEC §5 (SQLAlchemy 2 + первая миграция Alembic), pydantic-модели домена в `core/domain/`, CHECK-ограничения из единых перечислений, `make migrate`, Postgres в CI.

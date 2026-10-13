@@ -7,6 +7,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from core.config.registry import Registry
+from core.config.sources import Sources
 from core.config.thresholds import Thresholds
 from core.config.universe import Universe
 
@@ -22,6 +23,7 @@ class AppConfig:
     universe: Universe
     thresholds: Thresholds
     registry: Registry
+    sources: Sources
 
 
 def load_universe(path: Path) -> Universe:
@@ -39,12 +41,18 @@ def load_registry(path: Path) -> Registry:
     return _load(path, Registry)
 
 
+def load_sources(path: Path) -> Sources:
+    """Читает и валидирует sources.yaml."""
+    return _load(path, Sources)
+
+
 def load_config(config_dir: Path = DEFAULT_CONFIG_DIR) -> AppConfig:
-    """Читает все три файла из каталога config/."""
+    """Читает все файлы из каталога config/."""
     return AppConfig(
         universe=load_universe(config_dir / "universe.yaml"),
         thresholds=load_thresholds(config_dir / "thresholds.yaml"),
         registry=load_registry(config_dir / "registry.yaml"),
+        sources=load_sources(config_dir / "sources.yaml"),
     )
 
 
@@ -75,10 +83,12 @@ __all__ = [
     "AppConfig",
     "ConfigError",
     "Registry",
+    "Sources",
     "Thresholds",
     "Universe",
     "load_config",
     "load_registry",
+    "load_sources",
     "load_thresholds",
     "load_universe",
 ]

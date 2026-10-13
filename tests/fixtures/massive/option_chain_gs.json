@@ -1,0 +1,382 @@
+{
+  "request_id": "fixture-chain",
+  "status": "OK",
+  "results": [
+    {
+      "break_even_price": 915.3,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 25.3,
+        "high": 26.8,
+        "last_updated": 1791835140000000000,
+        "low": 23.8,
+        "open": 25.3,
+        "previous_close": 24.8,
+        "volume": 412,
+        "vwap": 25.3
+      },
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-16",
+        "shares_per_contract": 100,
+        "strike_price": 890,
+        "ticker": "O:GS261016C00890000"
+      },
+      "greeks": {
+        "delta": 0.58,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.61,
+      "last_quote": {
+        "ask": 25.8,
+        "ask_size": 10,
+        "bid": 24.8,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 25.3,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 871.2,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 18.799999999999997,
+        "high": 20.2,
+        "last_updated": 1791835140000000000,
+        "low": 17.4,
+        "open": 18.799999999999997,
+        "previous_close": 18.299999999999997,
+        "volume": 412,
+        "vwap": 18.799999999999997
+      },
+      "details": {
+        "contract_type": "put",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-16",
+        "shares_per_contract": 100,
+        "strike_price": 890,
+        "ticker": "O:GS261016P00890000"
+      },
+      "greeks": {
+        "delta": -0.42,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.63,
+      "last_quote": {
+        "ask": 19.2,
+        "ask_size": 10,
+        "bid": 18.4,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 18.8,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 920.0,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 20.0,
+        "high": 21.5,
+        "last_updated": 1791835140000000000,
+        "low": 18.5,
+        "open": 20.0,
+        "previous_close": 19.5,
+        "volume": 412,
+        "vwap": 20.0
+      },
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-16",
+        "shares_per_contract": 100,
+        "strike_price": 900,
+        "ticker": "O:GS261016C00900000"
+      },
+      "greeks": {
+        "delta": 0.49,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.6,
+      "last_quote": {
+        "ask": 20.5,
+        "ask_size": 10,
+        "bid": 19.5,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 20.0,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 877.0,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 23.0,
+        "high": 24.4,
+        "last_updated": 1791835140000000000,
+        "low": 21.6,
+        "open": 23.0,
+        "previous_close": 22.5,
+        "volume": 412,
+        "vwap": 23.0
+      },
+      "details": {
+        "contract_type": "put",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-16",
+        "shares_per_contract": 100,
+        "strike_price": 900,
+        "ticker": "O:GS261016P00900000"
+      },
+      "greeks": {
+        "delta": -0.51,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.62,
+      "last_quote": {
+        "ask": 23.4,
+        "ask_size": 10,
+        "bid": 22.6,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 23.0,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 925.6,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 15.600000000000001,
+        "high": 17.1,
+        "last_updated": 1791835140000000000,
+        "low": 14.1,
+        "open": 15.600000000000001,
+        "previous_close": 15.100000000000001,
+        "volume": 412,
+        "vwap": 15.600000000000001
+      },
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-16",
+        "shares_per_contract": 100,
+        "strike_price": 910,
+        "ticker": "O:GS261016C00910000"
+      },
+      "greeks": {
+        "delta": 0.4,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.59,
+      "last_quote": {
+        "ask": 16.1,
+        "ask_size": 10,
+        "bid": 15.1,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 15.6,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 881.5,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 28.5,
+        "high": 30.0,
+        "last_updated": 1791835140000000000,
+        "low": 27.0,
+        "open": 28.5,
+        "previous_close": 28.0,
+        "volume": 412,
+        "vwap": 28.5
+      },
+      "details": {
+        "contract_type": "put",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-16",
+        "shares_per_contract": 100,
+        "strike_price": 910,
+        "ticker": "O:GS261016P00910000"
+      },
+      "greeks": {
+        "delta": -0.6,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.64,
+      "last_quote": {
+        "ask": 29.0,
+        "ask_size": 10,
+        "bid": 28.0,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 28.5,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 926.6,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 26.6,
+        "high": 28.2,
+        "last_updated": 1791835140000000000,
+        "low": 25.0,
+        "open": 26.6,
+        "previous_close": 26.1,
+        "volume": 412,
+        "vwap": 26.6
+      },
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-23",
+        "shares_per_contract": 100,
+        "strike_price": 900,
+        "ticker": "O:GS261023C00900000"
+      },
+      "greeks": {
+        "delta": 0.51,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.48,
+      "last_quote": {
+        "ask": 27.2,
+        "ask_size": 10,
+        "bid": 26.0,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 26.6,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 871.0,
+      "day": {
+        "change": 0.5,
+        "change_percent": 2.1,
+        "close": 29.0,
+        "high": 30.6,
+        "last_updated": 1791835140000000000,
+        "low": 27.4,
+        "open": 29.0,
+        "previous_close": 28.5,
+        "volume": 412,
+        "vwap": 29.0
+      },
+      "details": {
+        "contract_type": "put",
+        "exercise_style": "american",
+        "expiration_date": "2026-10-23",
+        "shares_per_contract": 100,
+        "strike_price": 900,
+        "ticker": "O:GS261023P00900000"
+      },
+      "greeks": {
+        "delta": -0.49,
+        "gamma": 0.004,
+        "theta": -1.9,
+        "vega": 0.41
+      },
+      "implied_volatility": 0.5,
+      "last_quote": {
+        "ask": 29.6,
+        "ask_size": 10,
+        "bid": 28.4,
+        "bid_size": 12,
+        "last_updated": 1791835140000000000,
+        "midpoint": 29.0,
+        "timeframe": "DELAYED"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 3.0,
+        "last_updated": 1791835140000000000,
+        "price": 897.0,
+        "ticker": "GS",
+        "timeframe": "DELAYED"
+      }
+    }
+  ]
+}

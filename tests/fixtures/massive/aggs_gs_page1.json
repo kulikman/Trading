@@ -1,0 +1,31 @@
+{
+  "ticker": "GS",
+  "adjusted": true,
+  "queryCount": 3,
+  "resultsCount": 2,
+  "request_id": "fixture-aggs-1",
+  "status": "OK",
+  "results": [
+    {
+      "o": 880.1,
+      "h": 889.9,
+      "l": 877.2,
+      "c": 888.4,
+      "v": 2104331,
+      "vw": 884.7,
+      "t": 1791432000000,
+      "n": 51023
+    },
+    {
+      "o": 888.0,
+      "h": 895.5,
+      "l": 886.1,
+      "c": 893.2,
+      "v": 1987220,
+      "vw": 891.3,
+      "t": 1791518400000,
+      "n": 48810
+    }
+  ],
+  "next_url": "https://api.massive.com/v2/aggs/ticker/GS/range/1/day/2026-10-08/2026-10-12?cursor=bGltaXQ9Mg"
+}
