@@ -16,9 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class Cache(Protocol):
-    def get(self, key: str) -> bytes | None: ...
+    def get(self, key: str) -> bytes | None:
+        """Значение или None, если ключа нет или срок истёк."""
 
-    def set(self, key: str, value: bytes, ttl_seconds: int) -> None: ...
+    def set(self, key: str, value: bytes, ttl_seconds: int) -> None:
+        """Сохранить значение на ttl_seconds."""
 
 
 class RedisCache:

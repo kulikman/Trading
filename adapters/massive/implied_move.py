@@ -21,7 +21,8 @@ class OptionChainSource(Protocol):
         *,
         expiration_gte: date | None = None,
         expiration_lte: date | None = None,
-    ) -> list[OptionSnapshot]: ...
+    ) -> list[OptionSnapshot]:
+        """Снимки опционов базового актива с экспирацией в заданном окне."""
 
 
 @dataclass(frozen=True)
