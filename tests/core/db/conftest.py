@@ -19,7 +19,8 @@ def _base_url() -> URL:
     try:
         return make_url(database_url())
     except ConfigError as exc:
-        pytest.fail(f"{exc}. Database tests need Postgres: `make db-up && make test`.")
+        message = f"{exc}. Database tests need Postgres: `make db-up && make test`."
+        raise pytest.fail.Exception(message) from exc
 
 
 @pytest.fixture(scope="session")
