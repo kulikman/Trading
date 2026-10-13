@@ -11,6 +11,9 @@ sizing:                              # SPEC §10
   # Чем выше p, тем больше риск; при p·b ≤ 1−p риск 0 — сделки нет.
   kelly_multiplier: 0.25
   kelly_multiplier_seasons_1_2: 0.125
+  # b, пока у конструкции меньше models.min_segment_obs закрытых сделок (правило 30) —
+  # решение заказчика 2026-10-13.
+  kelly_initial_b: 1.0
   # Объём позиции = риск / (stop_implied_moves · implied_move).
   stop_implied_moves: 2.0
   max_risk_per_trade: null           # без потолка — решение заказчика 2026-10-13
@@ -70,7 +73,7 @@ modes:                               # SPEC §10
     stop_atr_multiple: 1.5
     atr_period: 14
   B:
-    theta: null                      # подбирается `learn season`; до этого — paper_theta_seasons_1_2
+    theta: 0.50                      # стартовое, решение заказчика 2026-10-13; дальше подбирает `learn season`
   C:
     min_eps_surprise: 0.05
     min_revenue_surprise: 0.05

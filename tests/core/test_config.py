@@ -42,6 +42,8 @@ def test_repository_config_loads() -> None:
     assert config.thresholds.capital.module_usd == 100_000
     assert config.thresholds.risk_limits.cluster_max_positions is None
     assert config.thresholds.risk_limits.season_max_open_risk is None
+    assert config.thresholds.sizing.kelly_initial_b == 1.0
+    assert config.thresholds.modes.B.theta == 0.50
 
 
 def test_every_sector_has_at_least_three_companies() -> None:

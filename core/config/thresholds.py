@@ -14,6 +14,7 @@ class Capital(StrictModel):
 class Sizing(StrictModel):
     kelly_multiplier: Fraction
     kelly_multiplier_seasons_1_2: Fraction
+    kelly_initial_b: PositiveFloat
     stop_implied_moves: PositiveFloat
     max_risk_per_trade: Fraction | None
 
@@ -93,7 +94,7 @@ class ModeA(StrictModel):
 
 
 class ModeB(StrictModel):
-    theta: Fraction | None
+    theta: Fraction
 
 
 class ModeC(StrictModel):
