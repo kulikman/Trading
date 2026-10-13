@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "pandas-market-calendars>=5.5.0",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.1",
     "pyyaml>=6.0.3",
@@ -16,6 +17,7 @@ dependencies = [
 dev = [
     "freezegun>=1.5.5",
     "mypy>=2.4.0",
+    "pandas-stubs>=3.0.5.260914",
     "pre-commit>=4.7.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
@@ -57,6 +59,19 @@ files = [
   "core", "adapters", "agents", "strategies", "models", "decision",
   "execution", "notify", "learning", "backtest", "api", "tests",
 ]
+
+# pandas_market_calendars ships no type information; its use is confined to core/session_guard.py.
+[[tool.mypy.overrides]]
+module = ["pandas_market_calendars", "pandas_market_calendars.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = [
+  "core", "adapters", "agents", "strategies", "models", "decision",
+  "execution", "notify", "learning", "backtest", "api",
+]
+omit = ["core/db/migrations/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
