@@ -1,0 +1,118 @@
+# Пороги, лимиты и стартовые веса. Источник — SPEC.md §7, §9, §10, §17 и решения заказчика.
+# Код чисел не содержит: всё читается через core.config. Доли — от 0 до 1 (0.03 = 3%).
+# null = ограничение отключено решением заказчика.
+
+capital:
+  module_usd: 100000                 # решение заказчика 2026-10-13
+
+sizing:                              # SPEC §10
+  # Риск на сделку (доля капитала) = kelly_multiplier · (p·b − (1−p)) / b,
+  # p — вероятность модели, b = W/L по истории конструкции.
+  # Чем выше p, тем больше риск; при p·b ≤ 1−p риск 0 — сделки нет.
+  kelly_multiplier: 0.25
+  kelly_multiplier_seasons_1_2: 0.125
+  # Объём позиции = риск / (stop_implied_moves · implied_move).
+  stop_implied_moves: 2.0
+  max_risk_per_trade: null           # без потолка — решение заказчика 2026-10-13
+
+risk_limits:                         # SPEC §10
+  cluster_max_positions: null        # сектор × неделя; без лимита — решение заказчика 2026-10-13
+  season_max_open_risk: null         # без лимита — решение заказчика 2026-10-13
+  losing_streak:
+    losses: 5
+    pause_hours: 24                  # после паузы — только Paper
+  drawdown:
+    manual_review: 0.10
+    paper_only: 0.15
+  black_swan:
+    yellow: {size_multiplier: 0.7, min_confidence: null}
+    orange: {size_multiplier: 0.4, min_confidence: 0.80}
+    red: {size_multiplier: 0.0, min_confidence: null}   # новых входов нет
+
+liquidity:                           # SPEC §10
+  max_option_spread: 0.05            # спред опциона < 5% цены
+  max_stock_spread: 0.001            # спред акции < 0.1%
+
+edge:                                # SPEC §9
+  margin_over_costs: 0.03            # сделка при edge > costs + 0.03
+  paper_theta_seasons_1_2: 0.50
+  exploration_share_seasons_1_2: 0.20
+
+models:                              # SPEC §9, §7, §17
+  holdout_fraction: 0.25
+  isotonic_min_obs: 300
+  min_segment_obs: 30                # правило 30
+  feature_budget: 12
+  feature_merge_correlation: 0.8
+  quarantine:
+    max_brier: 0.30
+    min_reports: 6
+  # Только до первого `learn season`; дальше веса меняет обучение.
+  p_up_initial_betas:
+    disclosure: 2.0
+    revision_trend: 1.5
+    peer_surprise: 1.2
+    sector_trend: 0.6
+    short_interest: 0.3
+    skew: -0.5
+    guidance_risk: -0.8
+    pre_run: -1.0
+
+lifecycle:                           # SPEC §7
+  promote_min_obs: 30
+  live_small_weight: 0.05
+
+modes:                               # SPEC §10
+  A:
+    max_pre_run_30d: 0.10
+    max_vix: 25.0
+    min_sector_trend: 0
+    stop_atr_multiple: 1.5
+    atr_period: 14
+  B:
+    theta: null                      # подбирается `learn season`; до этого — paper_theta_seasons_1_2
+  C:
+    min_eps_surprise: 0.05
+    min_revenue_surprise: 0.05
+    min_volume_ratio: 2.0
+    max_entry_over_vwap: 0.003       # лимит ≤ VWAP первого часа + 0.3%
+    trailing_atr_multiple: 2.0
+    atr_period: 14
+    exit_sma_period: 5
+    max_hold_days: 20
+
+pre_run_3d:                          # SPEC §10, «Рост перед отчётом»
+  neutral_below: 0.03                # < +3% — без изменений
+  skip_above: 0.06                   # > +6% без причины — PRE_RUN
+  b_multiplier_3_to_6: 0.5           # +3…+6%: A нет, B × 0.5
+  rebound_at_or_below: -0.04         # ≤ −4%: A на отскок
+  b_multiplier_rebound: 1.2          # ≤ −4%: B × 1.2 при бычьем сигнале
+
+constructions:                       # SPEC §10
+  collar:
+    put_otm: 0.05
+    call_otm_min: 0.07
+    call_otm_max: 0.08
+  straddle:
+    min_move_ratio: 1.3
+    stop_premium_loss: 0.5           # стоп −50% премии
+    target_premium_gain: 1.0         # цель +100%
+  iron_condor:
+    max_move_ratio: 0.75
+    stop_premium_multiple: 2.0       # стоп 2× премии
+    target_premium_share: 0.5        # цель 50%
+  polymarket:
+    min_edge: 0.05                   # недооценка beat ≥ 5 п.п.
+
+data:                                # SPEC §6
+  max_price_mismatch: 0.003          # > 0.3% — DATA_MISMATCH
+
+execution:                           # SPEC §1, §11
+  no_market_orders_first_minutes: 5
+  fill_reminder_minutes: 15
+
+costs:                               # SPEC §17 п.3
+  paper_vs_real_alert: 0.20
+
+notify:                              # SPEC §12
+  watchdog_grace_minutes: 5
