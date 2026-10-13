@@ -1,68 +1,34 @@
-# Dependencies
-node_modules/
-.pnpm-store/
-# Cursor: track shared commands + rules; keep other IDE state untracked
-.cursor/*
-!.cursor/commands/
-!.cursor/commands/**
-!.cursor/rules/
-!.cursor/rules/**
-
 # Environment variables (NEVER commit secrets)
 .env
-.env.local
-.env.production.local
-.env.development.local
+.env.*
+!.env.example
 
-# Next.js
-.next/
-out/
-
-# Build
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 dist/
 build/
+*.egg-info/
 
-# IDE — track shared workspace settings, ignore personal state
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+# Node (web/, T19)
+node_modules/
+.next/
+
+# IDE / OS
 .idea/
+.vscode/
 *.swp
-*.swo
-*~
-
-# OS
 .DS_Store
-Thumbs.db
 
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
-
-# Vercel
-.vercel
-
-# Supabase
-supabase/.temp/
-
-# Testing
-coverage/
-playwright-report/
-test-results/
-
-# Sprint installers (local timestamped backups)
-.sprint-backups/
-
-# Claude Code local settings (personal overrides)
+# Claude Code local settings
 .claude/settings.local.json
-.claude/launch.json
 
-# Misc
+# Local reports and logs
 *.log
-!audit/conflicts.log
