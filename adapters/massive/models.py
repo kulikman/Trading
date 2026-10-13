@@ -3,18 +3,15 @@
 from datetime import UTC, date, datetime
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, Field, field_validator
+
+from adapters.api_model import ApiModel
+from core.domain.news import NewsItem
 
 NANOS_PER_SECOND = 1_000_000_000
 MILLIS_PER_SECOND = 1_000
 
 ContractType = Literal["call", "put", "other"]
-
-
-class ApiModel(BaseModel):
-    """Новые поля API не ломают разбор; неизвестные поля отбрасываются."""
-
-    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
 def _from_millis(value: Any) -> Any:
@@ -139,3 +136,48 @@ class OptionSnapshot(ApiModel):
     open_interest: float | None = None
     last_quote: OptionQuote | None = None
     underlying_asset: UnderlyingAsset | None = None
+
+
+class NewsPublisher(ApiModel):
+    name: str
+    homepage_url: str | None = None
+
+
+class NewsInsight(ApiModel):
+    """Тональность новости по тикеру — оценка Massive, не наша модель."""
+
+    ticker: str
+    sentiment: str | None = None
+    sentiment_reasoning: str | None = None
+
+
+class NewsArticle(ApiModel):
+    """Элемент /v2/reference/news. published_utc — RFC3339."""
+
+    id: str
+    title: str
+    article_url: str
+    published_utc: AwareDatetime
+    tickers: list[str]
+    author: str | None = None
+    description: str | None = None
+    keywords: list[str] | None = None
+    publisher: NewsPublisher | None = None
+    insights: list[NewsInsight] | None = None
+
+
+def news_item(article: NewsArticle) -> NewsItem:
+    """Статья Massive → доменная новость. Идентификатор с префиксом источника."""
+    return NewsItem(
+        id=f"massive:{article.id}",
+        source="massive",
+        published_at=article.published_utc,
+        title=article.title,
+        url=article.article_url,
+        tickers=article.tickers,
+        publisher=article.publisher.name if article.publisher else None,
+        author=article.author,
+        description=article.description,
+        keywords=article.keywords,
+        insights=[i.model_dump() for i in article.insights] if article.insights else None,
+    )

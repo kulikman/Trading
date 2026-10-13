@@ -1,0 +1,91 @@
+{
+  "symbol": "IBM",
+  "annualEarnings": [
+    {
+      "fiscalDateEnding": "2026-09-30",
+      "reportedEPS": "4.84"
+    },
+    {
+      "fiscalDateEnding": "2025-12-31",
+      "reportedEPS": "11.57"
+    },
+    {
+      "fiscalDateEnding": "2024-12-31",
+      "reportedEPS": "10.33"
+    }
+  ],
+  "quarterlyEarnings": [
+    {
+      "fiscalDateEnding": "2026-06-30",
+      "reportedDate": "2026-07-22",
+      "reportedEPS": "2.93",
+      "estimatedEPS": "2.93",
+      "surprise": "0",
+      "surprisePercentage": "0",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2026-03-31",
+      "reportedDate": "2026-04-22",
+      "reportedEPS": "1.91",
+      "estimatedEPS": "1.81",
+      "surprise": "0.1",
+      "surprisePercentage": "5.5249",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2025-12-31",
+      "reportedDate": "2026-01-28",
+      "reportedEPS": "4.52",
+      "estimatedEPS": "4.29",
+      "surprise": "0.23",
+      "surprisePercentage": "5.3613",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2025-09-30",
+      "reportedDate": "2025-10-22",
+      "reportedEPS": "2.65",
+      "estimatedEPS": "2.45",
+      "surprise": "0.2",
+      "surprisePercentage": "8.1633",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2025-06-30",
+      "reportedDate": "2025-07-23",
+      "reportedEPS": "2.8",
+      "estimatedEPS": "2.65",
+      "surprise": "0.15",
+      "surprisePercentage": "5.6604",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2025-03-31",
+      "reportedDate": "2025-04-23",
+      "reportedEPS": "1.6",
+      "estimatedEPS": "1.43",
+      "surprise": "0.17",
+      "surprisePercentage": "11.8881",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2024-12-31",
+      "reportedDate": "2025-01-29",
+      "reportedEPS": "3.92",
+      "estimatedEPS": "3.78",
+      "surprise": "0.14",
+      "surprisePercentage": "3.7037",
+      "reportTime": "post-market"
+    },
+    {
+      "fiscalDateEnding": "2024-09-30",
+      "reportedDate": "2024-10-23",
+      "reportedEPS": "2.3",
+      "estimatedEPS": "2.23",
+      "surprise": "0.07",
+      "surprisePercentage": "3.139",
+      "reportTime": "post-market"
+    }
+  ]
+}

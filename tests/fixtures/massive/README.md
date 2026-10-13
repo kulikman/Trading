@@ -5,6 +5,7 @@
 | `aggs_gs_recorded.json` | `GET /v2/aggs/ticker/GS/range/1/day/2026-10-01/2026-10-12` | **записан** 13.10.2026 |
 | `options_contracts_gs.json` | `GET /v3/reference/options/contracts` | **записан** 13.10.2026 (первая страница, с `next_url`) |
 | `snapshot_gs.json` | `GET /v2/snapshot/locale/us/markets/stocks/tickers/GS` | **записан** 13.10.2026 — тариф без котировок и сделок: `lastQuote` / `lastTrade` нет; `day.dv`, `min.dv` — строки |
+| `news_gs.json` | `GET /v2/reference/news?ticker=GS&limit=3` | **записан** 13.10.2026 (с `next_url`) |
 | `not_entitled.json` | `GET /v3/snapshot/options/GS` | **записан** 13.10.2026 — ответ 403 `NOT_AUTHORIZED` на текущем тарифе |
 | `aggs_gs_page1.json`, `aggs_gs_page2.json` | свечи, пагинация по `next_url` | собран по документации |
 | `last_nbbo_gs.json` | `GET /v2/last/nbbo/{ticker}` | собран по документации (на текущем тарифе — 403) |

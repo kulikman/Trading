@@ -23,6 +23,7 @@ from core.domain.earnings import (
     ReportAudit,
 )
 from core.domain.market import Company, PeerEdge, Sector, SectorSummary
+from core.domain.news import NewsItem
 from core.domain.plugin import Plugin
 from core.domain.trading import Decision, TradeCard, TradeCardTransition
 
@@ -41,6 +42,7 @@ EXPECTED_TABLES = {
     "trade_card",
     "trade_card_transition",
     "plugin",
+    "news_article",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -286,6 +288,21 @@ CASES: dict[str, Builder] = {
         orm.Plugin,
         Plugin(
             id="mode_c", version="0.1.0", kind="strategy", stage="paper", weight=0.05, enabled=True
+        ),
+    ),
+    "news_article": lambda s, c: (
+        orm.NewsArticle,
+        NewsItem(
+            id="massive:abc123",
+            source="massive",
+            published_at=AT,
+            title="GS beats estimates",
+            url="https://example.com/gs",
+            tickers=["GS", "MS"],
+            publisher="Example Wire",
+            keywords=["earnings"],
+            insights=[{"ticker": "GS", "sentiment": "positive"}],
+            tags=["management"],
         ),
     ),
 }

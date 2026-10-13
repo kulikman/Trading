@@ -82,7 +82,9 @@ earnings-engine/
 │   ├── state_machine/         # машина состояний TradeCard
 │   └── session_guard.py       # проверка «основная сессия открыта»
 ├── adapters/
-│   ├── massive/               # котировки, цепочки опционов, Benzinga
+│   ├── massive/               # котировки, цепочки опционов, новости
+│   ├── finnhub/               # календарь отчётов, консенсус, факт
+│   ├── alphavantage/          # второй источник даты, пересмотры консенсуса, история EPS
 │   ├── ivolatility/           # архив IV и движений на отчётах
 │   ├── edgar/                 # 10-Q, 10-K, 8-K
 │   ├── fred/
@@ -167,7 +169,7 @@ CREATE TABLE earnings_track (          -- одна строка на отчёт
   decision TEXT, skip_reasons TEXT[], shadow_pnl REAL
 );
 
-CREATE TABLE consensus_snapshot (      -- свой архив пересмотров: Benzinga даёт только текущую оценку
+CREATE TABLE consensus_snapshot (      -- свой архив пересмотров: бесплатные источники дают только текущую оценку
   ticker TEXT, fiscal_period TEXT, as_of DATE,
   eps_estimate REAL, rev_estimate REAL,
   PRIMARY KEY (ticker, fiscal_period, as_of)
@@ -246,7 +248,9 @@ CREATE TABLE plugin (
 |---|---|---|
 | `massive.market` | цены, свечи, снапшоты, websocket | aggregates, snapshot, websocket |
 | `massive.options` | цепочки, IV, греки, OI | options contracts, snapshot-chain |
-| `massive.benzinga` | календарь, консенсус, факт, сюрприз, guidance, новости | `/benzinga/v1/earnings` (поля `date`, `time`, `date_status`, `estimated_eps`, `actual_eps`, `eps_surprise_percent`, `estimated_revenue`, `actual_revenue`, `revenue_surprise_percent`, `previous_eps`, `importance`), `/benzinga/v1/guidance`, `/benzinga/v2/news` |
+| `massive.news` | новости компании | `/v2/reference/news` — входит в тариф Stocks |
+| `finnhub` | календарь отчётов (основной), консенсус EPS и выручки, факт, сюрприз | `/calendar/earnings` (`date`, `hour`, `epsEstimate`, `revenueEstimate`, `epsActual`, `revenueActual`, `quarter`, `year`), `/stock/earnings` (`actual`, `estimate`, `surprise`, `surprisePercent`, `period`); бесплатный тариф |
+| `alphavantage` | второй источник даты отчёта, пересмотры и разброс консенсуса, история EPS | `EARNINGS_CALENDAR` (CSV), `EARNINGS_ESTIMATES` (среднее, максимум, минимум, число аналитиков, оценка 7/30/60/90 дней назад), `EARNINGS` (EPS с 1996 г.); бесплатно 25 запросов в день |
 | `ivolatility` | архив IV, IVX, поверхности, история движений на отчётах | только для `backtest/` и первичного наполнения `earnings_track` |
 | `edgar` | 10-Q, 10-K, 8-K (пресс-релиз отчёта) | |
 | `fred` | ставки, доходности, VIX (`VIXCLS`) | |
@@ -254,9 +258,13 @@ CREATE TABLE plugin (
 | `llm` | Claude API | вход — текст, выход — объект по JSON-схеме; невалидный ответ = ретрай 1 раз, потом `DATA_FAIL` |
 | `broker` | `BrokerAdapter` | см. ниже |
 
-**BMO/AMC:** Benzinga не даёт флаг, вычисляем из `time`: `< 09:30` → BMO, `>= 16:00` → AMC, иначе DURING.
+**Замена Benzinga (решение заказчика 13.10.2026):** вместо Benzinga ($99) — бесплатные Finnhub и Alpha Vantage, новости — Massive. Guidance в готовом виде бесплатно нет — извлекается LLM из пресс-релиза 8-K (агент «Досье»). Лицензии бесплатных тарифов — только личное некоммерческое использование.
 
-**Дата отчёта:** событие получает `date_status = confirmed` только при совпадении Benzinga и второго источника (IR-сайт или 8-K). Расхождение → пуш «СИСТЕМА» и `DATA_CALENDAR`.
+**BMO/AMC:** Finnhub `hour`: `bmo` → BMO, `amc` → AMC, `dmh` → DURING. Alpha Vantage `timeOfTheDay`: `pre-market` → BMO, `post-market` → AMC; у ~77% строк календаря AV время пустое, поэтому основной источник — Finnhub. Нет данных — время неизвестно (не угадываем).
+
+**Дата отчёта:** событие получает `date_status = confirmed` только при совпадении дат Finnhub и Alpha Vantage. Флага «подтверждено» нет ни у одного бесплатного источника — его роль играет правило двух источников. Расхождение → пуш «СИСТЕМА» и `DATA_CALENDAR`.
+
+**EPS:** факт Finnhub — non-GAAP, EDGAR — GAAP; в расчёте сюрприза не смешивать.
 
 **Сверка цены:** перед выдачей сигнала цена из Massive сверяется с котировкой брокера (в MVP — с последним снапшотом). Расхождение > 0,3% → `DATA_MISMATCH`, сигнал не выдаётся.
 
@@ -327,7 +335,7 @@ class Strategy(Protocol):
 | T−1 15:00 | финальный прогноз, выход A, решение B |
 | T−1 15:30–15:55 | окно входа B |
 | T−1 16:30 | вечерний дайджест + план |
-| T0 ~07:30 | парсинг отчёта (Benzinga + 8-K), сюрприз, guidance |
+| T0 ~07:30 | парсинг отчёта (Finnhub + 8-K), сюрприз, guidance |
 | T0 09:00 | пуш «Быть у терминала» |
 | T0 09:30–09:35 | стоп-гэп |
 | T0 10:00–10:30 | решение режима C; к 10:15 нет сигнала — нет входа |
@@ -473,8 +481,8 @@ MS · отчёт 14.10 до открытия · НЕ ВХОДИМ
 
 | Фаза | Содержание | Приёмка |
 |---|---|---|
-| 0. Фундамент | репозиторий, БД и миграции, `universe.yaml` (30–50 компаний, сектора, граф), адаптеры Massive (рынок, опционы, Benzinga), FRED, EDGAR; `session_guard`; планировщик с календарём биржи | `make test` зелёный; за неделю календарь собран для всей вселенной с подтверждёнными датами; расхождения дат видны в логе |
-| 1. Архив и бэктест | наполнение `earnings_track` за 3–5 лет (IVolatility + Benzinga); расчёт `implied_move`, `actual_move`, `move_ratio`; бэктест режима C и ставок на `move_ratio` с издержками | отчёт бэктеста: число событий, точность, EV после издержек, Sharpe по режимам и конструкциям |
+| 0. Фундамент | репозиторий, БД и миграции, `universe.yaml` (30–50 компаний, сектора, граф), адаптеры Massive (рынок, опционы, новости), Finnhub, Alpha Vantage, FRED, EDGAR; `session_guard`; планировщик с календарём биржи | `make test` зелёный; за неделю календарь собран для всей вселенной с подтверждёнными датами; расхождения дат видны в логе |
+| 1. Архив и бэктест | наполнение `earnings_track` за 3–5 лет (IVolatility + Alpha Vantage `EARNINGS` + Finnhub); расчёт `implied_move`, `actual_move`, `move_ratio`; бэктест режима C и ставок на `move_ratio` с издержками | отчёт бэктеста: число событий, точность, EV после издержек, Sharpe по режимам и конструкциям |
 | 2. Конвейер события | агенты MVP как плагины, реестр, три модели со стартовыми весами, решение, журнал с кодами пропуска, Telegram-бот, сторож, Paper Trading | один полный цикл T−21…T+20 на реальном отчёте; у каждого отчёта есть `Decision`; все пуши пришли вовремя |
 | 3. Сезоны 1–2 | работа в Paper, исследование 20%, команда `learn season` | ~100 событий в журнале; новая версия весов принята или отклонена по Brier; отчёт вклада агентов |
 | 4. Боевой режим | пороги из оптимизации, ¼ Kelly, первые 30 дней × 0,5 | 50+ сделок, Sharpe > 1,0, просадка < 15% |
@@ -490,10 +498,10 @@ MS · отчёт 14.10 до открытия · НЕ ВХОДИМ
 
 ## 16. Открытые вопросы (закрыть до или во время фазы 0)
 
-- [ ] Текущий тариф Massive у заказчика: Options Developer ($79, задержка 15 мин, 4 года) или Advanced ($199, реальное время, 5+ лет); нужен ли Benzinga Earnings ($99).
+- [x] (решено 13.10.2026: Options Starter + Stocks Starter, Benzinga заменён Finnhub и Alpha Vantage — `OPEN_QUESTIONS.md`) Текущий тариф Massive у заказчика: Options Developer ($79, задержка 15 мин, 4 года) или Advanced ($199, реальное время, 5+ лет); нужен ли Benzinga Earnings ($99).
 - [ ] Есть ли в истории Massive значения IV или их нужно пересчитывать из цен опционов — проверить тестовым запросом.
 - [ ] IVolatility Backtest Plus ($149): подтвердить глубину истории IV и данных по отчётам на пробном периоде (7 дней).
-- [ ] Второй источник даты отчёта: IR-сайты / 8-K — как парсить для 50 компаний.
+- [x] Второй источник даты отчёта — решено 13.10.2026: Alpha Vantage `EARNINGS_CALENDAR` (основной — Finnhub).
 - [ ] Polymarket: доступ из юрисдикции заказчика, ликвидность рынков на отчёты, правила расчёта.
 - [ ] Брокер: IB или Freedom; поддержка опционов США через API; запрет срабатывания стопов вне основной сессии.
 - [ ] Капитал модуля, риск на сделку, лимиты кластера и сезона — значения для `thresholds.yaml`.
@@ -514,8 +522,9 @@ MS · отчёт 14.10 до открытия · НЕ ВХОДИМ
 ## Источники
 
 - Massive — тарифы: https://massive.com/pricing , https://massive.com/pricing?product=options
-- Massive — Benzinga Earnings: https://massive.com/docs/rest/partners/benzinga/earnings
-- Massive — эндпоинты Benzinga: https://www.massive.com/blog/build-a-real-time-financial-news-and-analyst-intelligence-dashboard-with-massive-benzinga
+- Massive — новости: https://massive.com/docs/rest/stocks/news
+- Finnhub — API: https://finnhub.io/docs/api , схема https://finnhub.io/static/swagger.json
+- Alpha Vantage — API: https://www.alphavantage.co/documentation/
 - IVolatility — исторические данные: https://ivolatility.com/historical-options-data
 - IVolatility — API и тарифы: https://www.ivolatility.com/data-cloud-api/
 - Архитектура системы (документ): Earnings Engine — архитектура системы

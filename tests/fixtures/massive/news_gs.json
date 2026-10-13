@@ -1,0 +1,496 @@
+{
+  "results": [
+    {
+      "id": "d0e03667c79afd8bb6a89311255ecfb6a3519ad046b8a809c4554ac651a55d0f",
+      "publisher": {
+        "name": "The Motley Fool",
+        "homepage_url": "https://www.fool.com/",
+        "logo_url": "https://s3.massive.com/public/assets/news/logos/themotleyfool.svg",
+        "favicon_url": "https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico"
+      },
+      "title": "Stock Market Midday, Oct. 13: Bank Earnings and Chip Pressure Drive Mixed Trading",
+      "author": "Emma Newbery",
+      "published_utc": "2026-10-13T16:14:02Z",
+      "article_url": "https://www.fool.com/coverage/stock-market-today/2026/10/13/stock-market-midday-oct-13-bank-earnings-and-chip-pressure-drives-mixed-trading/?source=iedfolrf0000001",
+      "tickers": [
+        "GS",
+        "GSpA",
+        "GSpC",
+        "GSpD",
+        "WFC",
+        "WFCpA",
+        "WFCpC",
+        "WFCpD",
+        "WFCpL",
+        "WFCpY",
+        "WFCpZ",
+        "AMJB",
+        "JPM",
+        "JPMpC",
+        "JPMpD",
+        "JPMpJ",
+        "JPMpK",
+        "JPMpL",
+        "JPMpM",
+        "VYLD",
+        "JNJ",
+        "UNH",
+        "MU",
+        "C",
+        "CpN",
+        "CpR"
+      ],
+      "image_url": "https://g.foolcdn.com/image/?url=https%3A%2F%2Fcdn.content.foolcdn.com%2Fimages%2F1umn9qeh%2Fproduction%2F38841248db9b76567cc1932c27cbdec453e02b50-2000x1333.jpg%3Fw%3D800%26q%3D75%26fit%3Dmax%26auto%3Dformat&w=1200&op=resize",
+      "description": "Major stock indexes traded mixed on October 13, 2026, as bank earnings kicked off the season with varied results and semiconductor stocks faced significant selling pressure. The S&P 500 fell 0.25%, the Nasdaq dropped 0.37%, and the Dow declined 0.18%. Goldman Sachs gained on strong earnings, while Wells Fargo and Johnson & Johnson declined on disappointing results. Semiconductor stocks, particularly Micron Technology, slid over 5% amid intensifying global competition and Chinese chip innovations.",
+      "keywords": [
+        "bank earnings",
+        "semiconductor sell-off",
+        "mixed trading",
+        "earnings season",
+        "chip stocks",
+        "market volatility"
+      ],
+      "insights": [
+        {
+          "ticker": "GS",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Stock gained after beating analyst estimates on strong revenue performance"
+        },
+        {
+          "ticker": "GSpA",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Stock gained after beating analyst estimates on strong revenue performance"
+        },
+        {
+          "ticker": "GSpC",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Stock gained after beating analyst estimates on strong revenue performance"
+        },
+        {
+          "ticker": "GSpD",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Stock gained after beating analyst estimates on strong revenue performance"
+        },
+        {
+          "ticker": "WFC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "WFCpA",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "WFCpC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "WFCpD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "WFCpL",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "WFCpY",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "WFCpZ",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell after missing revenue expectations in earnings report"
+        },
+        {
+          "ticker": "AMJB",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPM",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPMpC",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPMpD",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPMpJ",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPMpK",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPMpL",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JPMpM",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "VYLD",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Reported earnings but CEO warned of potential risks from interest rate hikes and underlying economic concerns"
+        },
+        {
+          "ticker": "JNJ",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock fell approximately 6% following an adjusted earnings miss"
+        },
+        {
+          "ticker": "UNH",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Initially climbed after raising profit forecast but is now trading slightly down"
+        },
+        {
+          "ticker": "MU",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Stock slid more than 5% as global semiconductor sell-off intensified due to Chinese competition and chip innovations"
+        },
+        {
+          "ticker": "C",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Kicked off earnings season but no specific performance details provided in article"
+        },
+        {
+          "ticker": "CpN",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Kicked off earnings season but no specific performance details provided in article"
+        },
+        {
+          "ticker": "CpR",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Kicked off earnings season but no specific performance details provided in article"
+        }
+      ]
+    },
+    {
+      "id": "5f0e05cacd49886118a0d3c019e7f8e9ccf4050c6bc22dbf740a830756ba6639",
+      "publisher": {
+        "name": "Zacks Investment Research",
+        "homepage_url": "https://www.zacks.com/",
+        "logo_url": "https://s3.massive.com/public/assets/news/logos/zacks.png",
+        "favicon_url": "https://s3.massive.com/public/assets/news/favicons/zacks.ico"
+      },
+      "title": "Small-Business Optimism Dips in September",
+      "author": "Na",
+      "published_utc": "2026-10-13T14:05:00Z",
+      "article_url": "https://www.zacks.com/stock/news/3006181/small-business-optimism-dips-in-september?cid=CS-ZC-FT-economic_highlights-3006181",
+      "tickers": [
+        "AMJB",
+        "JPM",
+        "JPMpC",
+        "JPMpD",
+        "JPMpJ",
+        "JPMpK",
+        "JPMpL",
+        "JPMpM",
+        "VYLD",
+        "GS",
+        "GSpA",
+        "GSpC",
+        "GSpD",
+        "WFC",
+        "WFCpA",
+        "WFCpC",
+        "WFCpD",
+        "WFCpL",
+        "WFCpY",
+        "WFCpZ",
+        "JNJ"
+      ],
+      "image_url": "https://staticx-tuner.zacks.com/images/articles/main/aa/79.jpg",
+      "description": "Pre-market futures showed mixed signals as investors paused on AI stocks, with the Dow up 420 points while the Nasdaq fell 217 points. Oil prices dropped 1.5% amid Middle East tensions, and bond yields declined. Small business optimism dipped for the second consecutive month in September. Major financial institutions reported Q3 earnings with mixed results: JPMorgan Chase missed estimates, Goldman Sachs significantly beat expectations, Wells Fargo delivered mixed results, and Johnson & Johnson beat on earnings but missed slightly on revenue.",
+      "keywords": [
+        "Q3 earnings",
+        "pre-market trading",
+        "AI trade slowdown",
+        "small business sentiment",
+        "oil prices",
+        "bond yields"
+      ],
+      "insights": [
+        {
+          "ticker": "AMJB",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPM",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpJ",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpK",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpL",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpM",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "VYLD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue estimates ($50.17B vs expected higher), despite year-over-year growth"
+        },
+        {
+          "ticker": "GS",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; shares up 3.4% in pre-market"
+        },
+        {
+          "ticker": "GSpA",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; shares up 3.4% in pre-market"
+        },
+        {
+          "ticker": "GSpC",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; shares up 3.4% in pre-market"
+        },
+        {
+          "ticker": "GSpD",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; shares up 3.4% in pre-market"
+        },
+        {
+          "ticker": "WFC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "WFCpA",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "WFCpC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "WFCpD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "WFCpL",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "WFCpY",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "WFCpZ",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beat but revenue miss; shares down 2.8% on news, compounding year-to-date losses of 10.6%"
+        },
+        {
+          "ticker": "JNJ",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Beat earnings estimates ($2.59 vs $2.53) but narrowly missed revenue projections; stock down 2.3% despite strong year-to-date gains of 27.4%"
+        }
+      ]
+    },
+    {
+      "id": "8387cdc85fad4980ef012c34df094e9ac350ee039220a9a960ff73ae0f6015e2",
+      "publisher": {
+        "name": "Zacks Investment Research",
+        "homepage_url": "https://www.zacks.com/",
+        "logo_url": "https://s3.massive.com/public/assets/news/logos/zacks.png",
+        "favicon_url": "https://s3.massive.com/public/assets/news/favicons/zacks.ico"
+      },
+      "title": "Mixed Pre-Markets Greet Fresh Q3 Earnings Reports",
+      "author": "Na",
+      "published_utc": "2026-10-13T13:14:00Z",
+      "article_url": "https://www.zacks.com/stock/news/3006097/mixed-pre-markets-greet-fresh-q3-earnings-reports?cid=CS-ZC-FT-ahead_of_wall_street-3006097",
+      "tickers": [
+        "AMJB",
+        "JPM",
+        "JPMpC",
+        "JPMpD",
+        "JPMpJ",
+        "JPMpK",
+        "JPMpL",
+        "JPMpM",
+        "VYLD",
+        "GS",
+        "GSpA",
+        "GSpC",
+        "GSpD",
+        "WFC",
+        "WFCpA",
+        "WFCpC",
+        "WFCpD",
+        "WFCpL",
+        "WFCpY",
+        "WFCpZ",
+        "JNJ"
+      ],
+      "image_url": "https://staticx-tuner.zacks.com/images/articles/main/98/601.jpg",
+      "description": "Pre-market futures showed mixed signals on October 13, 2026, with the Dow up 420 points while the Nasdaq fell 217 points. Small-business optimism declined for the second consecutive month to 97.9 in September. Major financial institutions reported Q3 earnings with mixed results: JPMorgan Chase missed estimates on both earnings and revenue, Goldman Sachs significantly beat expectations, Wells Fargo delivered mixed results with earnings beating but revenues missing, and Johnson & Johnson beat on earnings but narrowly missed on revenue.",
+      "keywords": [
+        "Q3 earnings",
+        "pre-market futures",
+        "small-business optimism",
+        "financial sector",
+        "mixed earnings"
+      ],
+      "insights": [
+        {
+          "ticker": "AMJB",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPM",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpJ",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpK",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpL",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "JPMpM",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "VYLD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Missed both earnings ($5.75 vs $5.94 expected) and revenue ($50.17B vs $51.97B expected) estimates despite year-over-year growth"
+        },
+        {
+          "ticker": "GS",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; stock up +3.4% in pre-market"
+        },
+        {
+          "ticker": "GSpA",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; stock up +3.4% in pre-market"
+        },
+        {
+          "ticker": "GSpC",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; stock up +3.4% in pre-market"
+        },
+        {
+          "ticker": "GSpD",
+          "sentiment": "positive",
+          "sentiment_reasoning": "Significantly beat earnings expectations with +31.86% surprise ($17.01 vs $12.90 expected) and +10.75% revenue surprise; stock up +3.4% in pre-market"
+        },
+        {
+          "ticker": "WFC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "WFCpA",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "WFCpC",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "WFCpD",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "WFCpL",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "WFCpY",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "WFCpZ",
+          "sentiment": "negative",
+          "sentiment_reasoning": "Mixed results with earnings beating estimates but revenues missing by -1.26%; stock down -2.8% in pre-market, compounding year-to-date losses of -10.6%"
+        },
+        {
+          "ticker": "JNJ",
+          "sentiment": "neutral",
+          "sentiment_reasoning": "Beat earnings expectations ($2.59 vs $2.53) but narrowly missed revenue projections; stock down -2.3% despite strong year-to-date gains of +27.4%"
+        }
+      ]
+    }
+  ],
+  "status": "OK",
+  "request_id": "97602201310ab29b1ca1db3308aa72c0",
+  "count": 3,
+  "next_url": "https://api.massive.com/v2/reference/news?cursor=YXA9MjAyNi0xMC0xM1QxMyUzQTE0JTNBMDBaJmFzPTgzODdjZGM4NWZhZDQ5ODBlZjAxMmMzNGRmMDk0ZTlhYzM1MGVlMDM5MjIwYTlhOTYwZmY3M2FlMGY2MDE1ZTImbGltaXQ9MyZvcmRlcj1kZXNjZW5kaW5nJnRpY2tlcj1HUw"
+}
