@@ -52,7 +52,7 @@ class FinnhubEarning(ApiModel):
         return f"{self.year}Q{self.quarter}"
 
 
-class FinnhubEarningResult(ApiModel):
+class FinnhubEpsResult(ApiModel):
     """Элемент /stock/earnings (EarningResult): факт против оценки по фискальным кварталам."""
 
     symbol: str

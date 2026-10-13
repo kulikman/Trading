@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from adapters.api_model import ApiModel, require_env
 from adapters.cache import Cache
 from adapters.errors import DataError
-from adapters.finnhub.models import FinnhubEarning, FinnhubEarningResult
+from adapters.finnhub.models import FinnhubEarning, FinnhubEpsResult
 from adapters.http import JsonHttpClient, Params, RetryPolicy
 from core.config.sources import FinnhubSettings
 
@@ -60,7 +60,7 @@ class FinnhubClient:
             raise DataError(SOURCE, "expected an earningsCalendar list")
         return [_parse(FinnhubEarning, row) for row in rows]
 
-    def earnings_history(self, symbol: str, limit: int | None = None) -> list[FinnhubEarningResult]:
+    def earnings_history(self, symbol: str, limit: int | None = None) -> list[FinnhubEpsResult]:
         """Факт против оценки по кварталам (бесплатно — последние 4 квартала)."""
         params: Params = {"symbol": symbol}
         if limit is not None:
@@ -68,7 +68,7 @@ class FinnhubClient:
         rows = self._http.get_json_list(
             "/stock/earnings", params, self._settings.cache_ttl_seconds.earnings_history
         )
-        return [_parse(FinnhubEarningResult, row) for row in rows]
+        return [_parse(FinnhubEpsResult, row) for row in rows]
 
 
 def _parse[M: ApiModel](model: type[M], data: object) -> M:

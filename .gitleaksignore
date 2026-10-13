@@ -1,0 +1,4 @@
+# False positive (verified 2026-10-13): rule finnhub-access-token matched the class name
+# "FinnhubEarningResult" (20 alphanumerics after "finnhub ... ,") in an import line, not a key.
+# The class is renamed to FinnhubEpsResult; this entry only covers the already-pushed commit.
+1b9cdc92e5e30c5b671e8cdeaec0ab1ae16929c5:adapters/finnhub/client.py:finnhub-access-token:11
