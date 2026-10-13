@@ -6,6 +6,8 @@
 LOCAL_DATABASE_URL = postgresql+psycopg://$(or $(POSTGRES_USER),earnings):$(or $(POSTGRES_PASSWORD),earnings)@localhost:$(or $(POSTGRES_PORT),5432)/$(or $(POSTGRES_DB),earnings)
 DATABASE_URL := $(or $(DATABASE_URL),$(LOCAL_DATABASE_URL))
 export DATABASE_URL
+REDIS_URL := $(or $(REDIS_URL),redis://localhost:$(or $(REDIS_PORT),6379)/0)
+export REDIS_URL
 
 setup:
 	uv sync

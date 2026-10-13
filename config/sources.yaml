@@ -1,0 +1,25 @@
+# Технические параметры адаптеров источников данных (SPEC §6).
+# Секреты (ключи API) здесь не хранятся — только в переменных окружения.
+# Значения — стартовые технические настройки, не торговые пороги.
+
+redis:
+  timeout_seconds: 0.5          # недоступный Redis — быстрый промах кэша, а не ожидание
+
+massive:
+  base_url: https://api.massive.com
+  timeout_seconds: 10
+  max_attempts: 4              # 1 запрос + 3 повтора при 429 / 5xx / сетевой ошибке
+  backoff_base_seconds: 0.5    # паузы 0.5, 1, 2 с
+  max_pages: 20                # предохранитель от бесконечной пагинации next_url
+  page_limit:                  # максимум по документации Massive
+    aggregates: 50000
+    option_contracts: 1000
+    option_chain: 250
+  cache_ttl_seconds:           # 0 — без кэша
+    aggregates: 3600
+    last_quote: 0
+    snapshot: 15
+    option_contracts: 86400    # справочник контрактов обновляется раз в день
+    option_chain: 60
+  implied_move:
+    expiration_lookahead_days: 14   # окно поиска ближайшей экспирации после реакции на отчёт

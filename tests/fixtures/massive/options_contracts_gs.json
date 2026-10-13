@@ -1,0 +1,28 @@
+{
+  "request_id": "fixture-contracts",
+  "status": "OK",
+  "results": [
+    {
+      "cfi": "OCASPS",
+      "contract_type": "call",
+      "exercise_style": "american",
+      "expiration_date": "2026-10-16",
+      "primary_exchange": "BATO",
+      "shares_per_contract": 100,
+      "strike_price": 900,
+      "ticker": "O:GS261016C00900000",
+      "underlying_ticker": "GS"
+    },
+    {
+      "cfi": "OCASPS",
+      "contract_type": "put",
+      "exercise_style": "american",
+      "expiration_date": "2026-10-16",
+      "primary_exchange": "BATO",
+      "shares_per_contract": 100,
+      "strike_price": 900,
+      "ticker": "O:GS261016P00900000",
+      "underlying_ticker": "GS"
+    }
+  ]
+}

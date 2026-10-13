@@ -1,0 +1,20 @@
+{
+  "ticker": "GS",
+  "adjusted": true,
+  "queryCount": 3,
+  "resultsCount": 1,
+  "request_id": "fixture-aggs-2",
+  "status": "OK",
+  "results": [
+    {
+      "o": 893.5,
+      "h": 899.0,
+      "l": 891.0,
+      "c": 897.0,
+      "v": 2250004,
+      "vw": 895.9,
+      "t": 1791777600000,
+      "n": 53117
+    }
+  ]
+}

@@ -13,6 +13,7 @@ from core.config import (
     Thresholds,
     load_config,
     load_registry,
+    load_sources,
     load_thresholds,
     load_universe,
 )
@@ -205,6 +206,26 @@ def test_invalid_registry_fails_with_reason(
     _mutate(path, mutation)
     with pytest.raises(ConfigError, match=r"registry\.yaml") as exc_info:
         load_registry(path)
+    assert expected in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        (_set("massive.base_url", "http://api.massive.com"), "massive.base_url"),
+        (_set("massive.page_limit.option_chain", 500), "massive.page_limit.option_chain"),
+        (_set("massive.max_attempts", 0), "massive.max_attempts"),
+        (_set("massive.cache_ttl_seconds.last_quote", -1), "massive.cache_ttl_seconds.last_quote"),
+        (_delete("redis.timeout_seconds"), "redis.timeout_seconds: Field required"),
+    ],
+)
+def test_invalid_sources_fail_with_field_path(
+    config_dir: Path, mutation: Mutation, expected: str
+) -> None:
+    path = config_dir / "sources.yaml"
+    _mutate(path, mutation)
+    with pytest.raises(ConfigError, match=r"sources\.yaml") as exc_info:
+        load_sources(path)
     assert expected in str(exc_info.value)
 
 
