@@ -35,7 +35,10 @@ format:
 	uv run ruff format .
 
 test:
-	uv run pytest
+	uv run pytest --cov --cov-report=
+	@# SPEC §13: core/ ≥ 85%; TASKS T04: session_guard 100%.
+	uv run coverage report --include='core/*' --fail-under=85 --skip-covered --show-missing
+	uv run coverage report --include=core/session_guard.py --fail-under=100 --show-missing
 
 run-scheduler:
 	@echo "run-scheduler: available after T09 (scheduler)"; exit 1
