@@ -1,20 +1,18 @@
 """Модель config/registry.yaml: включённые агенты и стратегии и их стадии (SPEC §7)."""
 
-from typing import Literal, Self
+from typing import Self
 
 from pydantic import Field, model_validator
 
 from core.config.base import StrictModel
-
-Stage = Literal["shadow", "paper", "live_small", "live"]
-PluginKind = Literal["agent", "strategy"]
+from core.domain.types import PluginKind, PluginStage
 
 
 class PluginEntry(StrictModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     kind: PluginKind
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
-    stage: Stage
+    stage: PluginStage
     enabled: bool
 
 
