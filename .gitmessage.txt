@@ -1,0 +1,10 @@
+# Short commit summary
+#
+# You can use either style:
+# fix(ui): align mobile nav
+# update header spacing
+#
+# Tips:
+# - keep the first line short
+# - lowercase is preferred
+# - describe one logical change

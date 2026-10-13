@@ -1,0 +1,39 @@
+id: skill/code-audit
+version: 1.0.0
+status: draft
+
+purpose: Audit code changes for correctness, hallucinations, dead code, dependency drift and regressions.
+
+requires:
+  core:
+    - git-protocol
+    - anti-hallucination
+
+compatible:
+  stacks:
+    - next16
+    - next15
+    - flutter
+    - backend-docker
+    - hono-mcp
+    - static-site
+
+commands:
+  - check
+  - review-work
+
+checklist:
+  - inspect relevant files
+  - verify request match
+  - check fake APIs/routes/env/DB fields
+  - check broken imports
+  - check missing dependencies
+  - check dead code and TODOs
+  - run available checks
+
+outputs:
+  - files reviewed
+  - issues found
+  - fixes made
+  - checks run
+  - remaining risks

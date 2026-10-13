@@ -1,0 +1,23 @@
+id: pack/hono-mcp
+version: 1.0.0
+status: draft
+
+description: Default policy pack for Hono API and MCP server repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+  stacks:
+    - hono-mcp
+  domains:
+    - ai-agents
+  skills:
+    - code-audit
+    - release
+    - security-review
+
+notes:
+  - Use for repositories exposing Hono routes, MCP tools or agent contracts.
+  - Do not combine with frontend-only Next.js stack assumptions.

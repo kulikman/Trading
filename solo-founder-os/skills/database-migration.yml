@@ -1,0 +1,36 @@
+id: skill/database-migration
+version: 1.0.0
+status: draft
+
+purpose: Safely review and perform database schema, migration and generated type changes.
+
+requires:
+  core:
+    - git-protocol
+    - security
+    - anti-hallucination
+
+compatible:
+  stacks:
+    - next16
+    - next15
+    - backend-docker
+    - hono-mcp
+
+commands:
+  - db-review
+  - review-work
+
+checklist:
+  - inspect existing schema and migrations
+  - do not invent tables, columns, enums or RLS policies
+  - keep generated types aligned with schema
+  - check migration ordering and rollback risk
+  - verify application code matches schema
+  - run project-specific DB checks when available
+
+outputs:
+  - schema changes
+  - migration risk
+  - generated types status
+  - checks run

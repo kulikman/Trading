@@ -1,0 +1,43 @@
+# Local stack for offline development.
+#
+# Why not `supabase start`? It runs the full Supabase suite (Postgres, Studio,
+# Auth, Storage, Realtime, Edge Functions). That is the canonical path for
+# anything DB-related — see `supabase/README.md`.
+#
+# This compose file is for the *non-Supabase* pieces a typical project ends
+# up needing (rate-limiting, queues, blob storage emulation) without forcing
+# every contributor to sign up for Upstash / S3 just to `pnpm dev`.
+#
+# Usage:
+#   docker compose up -d        # start
+#   docker compose down         # stop
+#   docker compose down -v      # stop + wipe volumes
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: template-redis
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: MinIO as an S3-compatible blob store for local dev.
+  # Comment in when you wire file uploads.
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: template-minio
+  #   ports: ["9000:9000", "9001:9001"]
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: minioadmin
+  #   command: server /data --console-address ":9001"
+  #   volumes: [minio_data:/data]
+
+volumes:
+  redis_data:
+  # minio_data:

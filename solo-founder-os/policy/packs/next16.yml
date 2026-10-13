@@ -1,0 +1,23 @@
+id: pack/next16
+version: 1.0.0
+status: draft
+
+description: Default policy pack for Next.js 16 and React 19 repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+  stacks:
+    - next16
+  domains: []
+  skills:
+    - code-audit
+    - release
+    - security-review
+    - database-migration
+
+notes:
+  - Use for repositories whose installed Next.js major is 16.
+  - Do not use for Next.js 15 repositories.

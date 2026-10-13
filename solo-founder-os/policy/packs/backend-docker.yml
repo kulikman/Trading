@@ -1,0 +1,23 @@
+id: pack/backend-docker
+version: 1.0.0
+status: draft
+
+description: Default policy pack for backend, Docker and PostgreSQL repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+  stacks:
+    - backend-docker
+  domains: []
+  skills:
+    - code-audit
+    - release
+    - security-review
+    - database-migration
+
+notes:
+  - Use when Dockerfile or docker-compose.yml is part of the backend workflow.
+  - Treat migrations, seed data and cleanup scripts as sensitive areas.

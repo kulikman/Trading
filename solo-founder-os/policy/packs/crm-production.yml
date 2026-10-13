@@ -1,0 +1,23 @@
+id: pack/crm-production
+version: 1.0.0
+status: draft
+
+description: Domain pack for production CRM and customer data repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+  stacks: []
+  domains:
+    - crm
+  skills:
+    - code-audit
+    - release
+    - security-review
+    - database-migration
+
+notes:
+  - Treat customer data, role access, RLS, migrations and billing-related flows as protected areas.
+  - Avoid schema, route or environment-variable claims that are not verified in the target repo.

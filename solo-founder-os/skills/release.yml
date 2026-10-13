@@ -1,0 +1,39 @@
+id: skill/release
+version: 1.0.0
+status: draft
+
+purpose: Prepare verified changes for commit, push or release only when explicitly requested.
+
+requires:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+
+compatible:
+  stacks:
+    - next16
+    - next15
+    - flutter
+    - backend-docker
+    - hono-mcp
+    - static-site
+
+commands:
+  - save-work
+  - release-work
+
+checklist:
+  - inspect git status and diff
+  - stage only intentional files
+  - run stack-specific checks
+  - scan for secrets and generated junk
+  - commit only verified changes
+  - push only when explicitly requested
+
+outputs:
+  - branch
+  - commit hash
+  - checks run
+  - push result
+  - release risk

@@ -1,0 +1,19 @@
+# CODEOWNERS — automatic review requests on pull requests.
+#
+# Format: <path-pattern>  <@github-username or @org/team>
+# Rules are matched last-wins (bottom overrides top).
+#
+# Replace @kulikman with your GitHub username or team handles before using.
+
+# Default: everything requires review from the repo owner.
+*                           @kulikman
+
+# Security-critical paths require explicit review.
+src/proxy.ts                @kulikman
+src/lib/supabase/           @kulikman
+src/lib/security-headers.ts @kulikman
+supabase/migrations/        @kulikman
+
+# CI / deployment config
+.github/                    @kulikman
+vercel.json                 @kulikman

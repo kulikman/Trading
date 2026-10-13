@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+# Cursor: track shared commands + rules; keep other IDE state untracked
+.cursor/*
+!.cursor/commands/
+!.cursor/commands/**
+!.cursor/rules/
+!.cursor/rules/**
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+build/
+
+# IDE — track shared workspace settings, ignore personal state
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Supabase
+supabase/.temp/
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Sprint installers (local timestamped backups)
+.sprint-backups/
+
+# Claude Code local settings (personal overrides)
+.claude/settings.local.json
+.claude/launch.json
+
+# Misc
+*.log
+!audit/conflicts.log

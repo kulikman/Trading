@@ -1,0 +1,60 @@
+name: Agent Policy Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run without pushing sync branches or opening PRs.
+        required: true
+        type: boolean
+        default: true
+      repo:
+        description: Optional single target repo, for example kulikman/open-design-kit.
+        required: false
+        type: string
+      limit:
+        description: Optional maximum number of target repositories to process.
+        required: false
+        type: string
+      watch_checks:
+        description: Wait for PR checks after creating or updating each PR.
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync policy bundle by pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v6
+
+      - name: Print dry-run sync plan
+        if: ${{ inputs.dry_run == true }}
+        run: node scripts/agent-policy-sync-dry-run.mjs
+
+      - name: Create or update sync pull requests
+        if: ${{ inputs.dry_run == false }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          args=(--apply)
+
+          if [[ -n "${{ inputs.repo }}" ]]; then
+            args+=(--repo "${{ inputs.repo }}")
+          fi
+
+          if [[ -n "${{ inputs.limit }}" ]]; then
+            args+=(--limit "${{ inputs.limit }}")
+          fi
+
+          if [[ "${{ inputs.watch_checks }}" == "true" ]]; then
+            args+=(--watch-checks)
+          fi
+
+          node scripts/agent-policy-sync-engine.mjs "${args[@]}"

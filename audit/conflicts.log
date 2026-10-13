@@ -1,0 +1,27 @@
+# audit/conflicts.log — Template-Projects
+#
+# When two or more rules in audit/rules.json disagree or cannot both be satisfied,
+# log the resolution here so the next audit stays consistent.
+#
+# Format (one block per conflict):
+# ---
+# date: YYYY-MM-DD
+# rules: [RULE_ID, RULE_ID, ...]
+# chosen: RULE_ID | "custom"
+# rationale: one short paragraph
+# ---
+
+---
+date: 2026-05-05
+rules: [SEO-003]
+chosen: custom
+rationale: |
+  SEO-003.verify предполагает существование public/robots.txt; CLAUDE.md также
+  упоминает public/robots.txt. Однако фактически в репозитории используется
+  src/app/robots.ts (Next 16 file-convention, динамический baseUrl из
+  getPublicMetadataEnv). Канонический источник — динамический robots.ts:
+  он автоматически синхронизирован с NEXT_PUBLIC_APP_URL и не требует ручного
+  обновления Sitemap-URL после смены домена. Рекомендация: переписать SEO-003.verify
+  на "src/app/robots.ts существует и читает baseUrl из getPublicMetadataEnv()" и
+  удалить упоминание статичного файла из CLAUDE.md (раздел SEO & Metadata).
+---

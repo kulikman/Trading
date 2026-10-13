@@ -1,0 +1,24 @@
+id: pack/finance-risk
+version: 1.0.0
+status: draft
+
+description: Domain pack for finance, trading, analytics and options repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+  stacks: []
+  domains:
+    - finance
+    - trading-options
+  skills:
+    - code-audit
+    - release
+    - security-review
+    - database-migration
+
+notes:
+  - Never claim profitability, Sharpe, CAGR, win rate, Greeks or backtest results unless computed by real project code.
+  - Treat broker integrations, fills and risk assumptions as high-risk claims.

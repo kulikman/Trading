@@ -1,0 +1,43 @@
+project: neosim-web
+repo: kulikman/neosim-web
+status: draft
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+
+  stacks:
+    - next16
+
+  domains:
+    - telecom
+
+  skills:
+    - code-audit
+    - release
+    - security-review
+    - database-migration
+
+outputs:
+  - AGENTS.md
+  - CLAUDE.md
+  - .cursor/rules/agent-workflow.mdc
+  - .claude/commands/check.md
+  - .claude/commands/save-work.md
+  - .claude/commands/release-work.md
+  - .claude/commands/review-work.md
+
+overrides:
+  protected_files:
+    - src/proxy.ts
+    - src/types/database.ts
+
+  forbidden:
+    - middleware.ts
+
+  checks:
+    - pnpm check
+    - pnpm verify
+    - pnpm build

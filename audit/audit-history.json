@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "audit-2026-05-05",
+      "startedAt": "2026-05-05T04:30:00Z",
+      "finishedAt": "2026-05-05T04:50:00Z",
+      "summary": "Полный прогон по audit/rules.json: 1 CRITICAL fail (SEC-004 — dashboard без auth-гейта), 1 LOW fail-by-design (SEO-001), 1 conflict (SEO-003 vs CLAUDE.md), потенциальный UI-баг в Button default hover. Все нарушения исправлены в этом же прогоне (вариант B рефакторинга).",
+      "findings": { "critical": 1, "high": 0, "medium": 0, "low": 1, "na": 3 },
+      "rulesUpdated": true,
+      "notes": "Применён вариант B рефакторинга: SEC-004 закрыт (requireUser в dashboard layout), Button default hover починен, metadataBase читается из getPublicMetadataEnv, Header закрывает mobile-меню на смену pathname, добавлены validations.test.ts. Конфликт SEO-003 задокументирован в conflicts.log и переписан в rules.json. Добавлены 5 новых правил (SEC-005, METADATA-001, A11Y-002, CSP-001, TEST-002), ruleCount 41 → 46, meta.lastReviewed = 2026-05-05."
+    },
+    {
+      "id": "audit-2026-05-05-post-merge",
+      "startedAt": "2026-05-05T13:36:00Z",
+      "finishedAt": "2026-05-05T13:44:00Z",
+      "summary": "Аудит после объединения веток: совместимость восстановлена (next build без Supabase env), добавлен error boundary для settings; осталось 1 LOW замечание (SEO-001: llms.txt — шаблон).",
+      "findings": { "critical": 0, "high": 0, "medium": 0, "low": 1, "na": 1 },
+      "rulesUpdated": false,
+      "notes": "Фиксы: app/layout.tsx использует getPublicMetadataEnv для metadataBase; settings/layout.tsx помечен dynamic=force-dynamic; добавлен src/app/settings/error.tsx. Отчёт: audit/report-2026-05-05-merge.md."
+    }
+  ]
+}

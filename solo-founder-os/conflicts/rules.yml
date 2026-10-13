@@ -1,0 +1,66 @@
+rules:
+  - id: conflict/next15-next16
+    severity: error
+    when:
+      stacks_all:
+        - next15
+        - next16
+    message: Project cannot inherit both next15 and next16.
+
+  - id: conflict/next15-proxy
+    severity: error
+    when:
+      stacks_any:
+        - next15
+      forbidden_missing:
+        - src/proxy.ts
+    message: Next15 projects must explicitly forbid src/proxy.ts unless upgraded.
+
+  - id: conflict/next16-middleware
+    severity: warning
+    when:
+      stacks_any:
+        - next16
+      forbidden_missing:
+        - middleware.ts
+    message: Next16 projects should forbid old middleware.ts patterns.
+
+  - id: conflict/flutter-next
+    severity: error
+    when:
+      stacks_any:
+        - flutter
+      stacks_any_conflict:
+        - next15
+        - next16
+    message: Flutter project cannot inherit Next.js stack rules.
+
+  - id: conflict/static-app-framework
+    severity: warning
+    when:
+      stacks_any:
+        - static-site
+      stacks_any_conflict:
+        - next15
+        - next16
+        - hono-mcp
+    message: Static sites should not inherit app-framework/backend stack rules.
+
+  - id: conflict/hono-next
+    severity: error
+    when:
+      stacks_any:
+        - hono-mcp
+      stacks_any_conflict:
+        - next15
+        - next16
+    message: Hono/MCP backend should not inherit Next.js frontend rules.
+
+  - id: conflict/database-migration-on-static
+    severity: warning
+    when:
+      stacks_any:
+        - static-site
+      skills_any:
+        - database-migration
+    message: Static sites usually should not use database-migration skill.

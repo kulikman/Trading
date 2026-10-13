@@ -1,0 +1,324 @@
+# Cursor Rules — Template-Projects
+
+## 0. Project Identity
+
+This repository is a starter template for new products.
+
+Actual stack:
+
+- Next.js 16 App Router with Turbopack
+- React 19.2
+- TypeScript in strict mode
+- Tailwind CSS v4
+- shadcn/ui + radix-ui
+- Supabase Auth/Postgres/Storage
+- Zod for runtime validation
+- pnpm 10
+- Vercel deployment target
+
+Do not treat this project as a Python codebase unless a future task explicitly adds a Python service.
+
+Primary local path:
+
+```text
+/Users/DEV/TEMLATES/Template-Projects
+```
+
+Read these files before significant changes:
+
+1. `CLAUDE.md` — stack, style, Next.js 16 rules, testing expectations.
+2. `ARCHITECTURE.md` — feature boundaries and public APIs.
+3. `AGENTS.md` — agent-specific warnings.
+4. `.cursor/rules/architecture.mdc` — Cursor architecture enforcement.
+
+## 1. Project Structure
+
+Use the existing structure. Do not introduce a competing architecture.
+
+```text
+src/
+├── app/                      # Next.js App Router pages, layouts, route handlers
+│   ├── (auth)/               # login/signup/password flows
+│   ├── api/                  # route handlers only; keep them thin
+│   ├── dashboard/            # protected app shell
+│   ├── onboarding/           # auth-gated onboarding
+│   └── settings/             # protected settings pages
+├── components/
+│   ├── ui/                   # shadcn/ui primitives
+│   ├── forms/                # shared form components
+│   ├── layout/               # header, breadcrumbs, layout helpers
+│   └── analytics/            # client analytics providers
+├── features/                 # bounded business domains
+│   ├── api-keys/
+│   ├── billing/
+│   ├── maintenance/
+│   ├── notifications/
+│   ├── onboarding/
+│   └── orgs/
+├── hooks/                    # shared React hooks
+├── lib/                      # platform/foundation code
+│   ├── supabase/             # client/server/admin Supabase factories
+│   ├── email/
+│   ├── auth.ts
+│   ├── env.ts
+│   ├── logger.ts
+│   ├── rate-limit.ts
+│   └── security-headers.ts
+├── config/                   # site/application config
+├── types/                    # generated/shared types
+│   └── database.ts           # generated Supabase types
+└── proxy.ts                  # Next.js 16 proxy, not middleware.ts
+
+supabase/
+└── migrations/               # local template baseline migrations
+
+tests/
+└── e2e/                      # Playwright tests
+```
+
+Feature folders should follow this pattern:
+
+```text
+src/features/<feature>/
+├── index.ts                  # public API for external imports
+├── api/                      # server actions, queries, feature use-cases
+├── components/               # feature UI
+├── lib/                      # private feature logic
+└── *.test.ts                 # focused Vitest tests
+```
+
+## 2. Naming Conventions
+
+Files and folders:
+
+- Use kebab-case for files and directories: `api-keys-manager.tsx`, `request-ip.ts`.
+- Use route names that match URL semantics: `/settings/api-keys`, `/auth/callback`.
+- Use `*.test.ts` / `*.test.tsx` next to the unit under test.
+- Keep generated Supabase types in `src/types/database.ts`.
+- Keep global CSS only in `src/app/globals.css`.
+
+TypeScript:
+
+- Use PascalCase for React components, interfaces, and exported types.
+- Use camelCase for variables, functions, hooks, and local helpers.
+- Prefix React hooks with `use`.
+- Use `ActionState` / `<Feature>ActionState` for Server Action state shapes.
+- Use explicit return types for exported functions.
+- Prefer `interface` for object shapes and `type` for unions/intersections.
+
+Feature APIs:
+
+- Export feature public symbols from `src/features/<feature>/index.ts`.
+- Import cross-feature code only from `@/features/<feature>`.
+- Name feature use-cases by intent: `createOrgForUser`, `runScheduledCleanup`, `getRecentNotifications`.
+
+Database:
+
+- Use snake_case for database columns.
+- Keep table ownership clear: one table belongs to one feature/domain.
+- Regenerate `src/types/database.ts` after schema changes.
+
+## 3. Forbidden Patterns
+
+Do not use outdated Next.js patterns:
+
+- Do not create `middleware.ts`; use `src/proxy.ts`.
+- Do not treat `params`, `searchParams`, `cookies()`, `headers()`, or `draftMode()` as synchronous in Next.js 16.
+- Do not rely on implicit fetch caching. Use `"use cache"` only when caching is intentional.
+- Do not add `tailwind.config.ts`; Tailwind v4 theme tokens live in `src/app/globals.css`.
+- Do not use `next/image` `domains`; use `remotePatterns`.
+
+Do not break feature boundaries:
+
+- Do not import from another feature's internals:
+
+```ts
+// forbidden
+import { helper } from "@/features/orgs/lib/org";
+import { query } from "@/features/notifications/api/queries";
+```
+
+- Do not use relative cross-feature imports such as `../../other-feature/...`.
+- Do not edit another feature's `index.ts` unless the task explicitly requires changing its public API.
+- Do not read/write another feature's database tables directly from outside the owning feature.
+
+Do not weaken type safety:
+
+- No `any`.
+- No `@ts-ignore`.
+- Avoid `@ts-expect-error`; use it only with a short reason and only when unavoidable.
+- Do not parse external data without Zod or equivalent narrowing.
+- Do not duplicate generated Supabase row types by hand.
+
+Do not weaken security:
+
+- Do not edit `.env*`, secrets, CI secrets, billing, auth, or payment logic without explicit approval.
+- Do not expose `SUPABASE_SERVICE_ROLE_KEY` or server-only code to client components.
+- Do not call `createAdminClient()` in client code.
+- Do not store API keys, tokens, or secrets in source code.
+- Do not rely on client-side permission checks for protected operations.
+- Do not bypass RLS casually; service-role usage must stay server-only and narrowly scoped.
+
+Do not create heavy route handlers:
+
+- Do not put business logic directly inside `src/app/api/**/route.ts`.
+- Route handlers should validate input, call feature/foundation use-cases, and return responses.
+
+Do not touch Stripe/payment zone unless explicitly requested:
+
+```text
+src/app/api/stripe/*
+src/app/api/webhooks/stripe/*
+src/lib/stripe.ts
+src/lib/plan-limits.ts
+```
+
+Do not add dependencies casually:
+
+- Prefer existing utilities and libraries.
+- Add a dependency only when it removes real complexity and explain why.
+
+Do not run destructive git commands:
+
+- No `git reset --hard`.
+- No `git checkout -- <file>` to discard user changes unless explicitly requested.
+- Never revert unrelated user changes.
+
+## 4. Preferred Patterns
+
+Architecture:
+
+- Keep modules isolated and small.
+- Treat each `src/features/<feature>` folder as a bounded context.
+- Use feature barrels (`index.ts`) as the only public entry point.
+- Keep route handlers, pages, and layouts thin.
+- Put business logic in `features/*/api`, `features/*/lib`, or `lib/*` depending on ownership.
+
+Next.js:
+
+- Prefer Server Components by default.
+- Add `"use client"` only when the component needs browser APIs, state, effects, or event handlers.
+- Mark auth-gated pages/layouts as dynamic when needed:
+
+```ts
+export const dynamic = "force-dynamic";
+```
+
+- Use `redirect()` for server-side auth routing.
+- Use `src/proxy.ts` for Supabase session refresh and security headers.
+
+Supabase:
+
+- Browser code uses `src/lib/supabase/client.ts`.
+- Server Components and Server Actions use `src/lib/supabase/server.ts`.
+- Admin/service-role access uses `src/lib/supabase/admin.ts` and must remain server-only.
+- Keep migrations local to the template QA flow unless a concrete project asks for remote application.
+- After migration changes, run local verification:
+
+```bash
+supabase start
+supabase db reset
+supabase gen types typescript --local > src/types/database.ts
+```
+
+Validation and errors:
+
+- Validate API bodies, forms, env, and third-party payloads with Zod.
+- Prefer `safeParse` for user-facing validation paths.
+- Log server failures via `logger`.
+- Return stable error messages from API routes; avoid leaking internal details.
+
+UI:
+
+- Reuse `src/components/ui/*` primitives.
+- Use `lucide-react` icons where an icon is needed.
+- Keep cards modest and functional; avoid nested cards.
+- Build accessible forms with labels, disabled/loading states, and clear validation.
+- Do not add visible instructional text unless it belongs to the product UX.
+
+Testing:
+
+- Add Vitest tests for business logic, server actions, env helpers, and security helpers.
+- Add Playwright tests for browser-only behavior: redirects, auth cookies, hydration, navigation.
+- Prefer focused tests near the code they cover.
+- Before risky refactors, add tests first.
+
+Checks before finishing:
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm format:check
+pnpm knip
+pnpm build
+```
+
+For backend e2e with local Supabase:
+
+```bash
+E2E_USE_REAL_SUPABASE=1 pnpm test:e2e
+```
+
+## 5. Refactoring Rules
+
+Before editing:
+
+- Find related files with `rg`.
+- Read the owner feature's `index.ts`.
+- Identify public API boundaries.
+- Prefer the minimal working fix.
+
+During editing:
+
+- Keep changes scoped to the requested module/domain.
+- Preserve existing naming and folder style.
+- Do not rename files/functions unless it meaningfully improves the code and references are updated.
+- Use `server-only` for modules that must never enter the client bundle.
+
+After editing:
+
+- Check imports for boundary violations.
+- Check that public exports did not change unintentionally.
+- Run the smallest relevant tests first, then broader QA when appropriate.
+- Keep commits atomic by concern.
+
+## 6. Template-Specific Rules
+
+This is a reusable starter, not one production app.
+
+- Do not apply Supabase migrations to a shared remote template database for QA.
+- Do not hardcode product-specific copy, URLs, keys, pricing, or brand assumptions.
+- Keep template docs clear for future projects.
+- Make build/test commands work without private `.env.local` when possible.
+- Preserve extensibility over one-off product shortcuts.
+
+## 7. Cursor Command Hints
+
+Existing Cursor command files live in:
+
+```text
+.cursor/commands/
+```
+
+Audit-related files:
+
+```text
+audit/rules.json
+audit/AUDIT_PROMPT.md
+audit/audit-history.json
+audit/conflicts.log
+```
+
+When asked to audit:
+
+- Use `audit/AUDIT_PROMPT.md`.
+- Report findings with file and line references.
+- Separate Critical / High / Medium / Low.
+- Do not change code unless explicitly asked.
+
+When asked to fix:
+
+- Fix Critical/High issues first.
+- Avoid Stripe/payment changes unless explicitly approved.
+- Run relevant checks and report what was not done.

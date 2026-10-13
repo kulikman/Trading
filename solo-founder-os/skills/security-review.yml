@@ -1,0 +1,36 @@
+id: skill/security-review
+version: 1.0.0
+status: draft
+
+purpose: Review code and config changes for secrets, auth, access control, sensitive data and unsafe commands.
+
+requires:
+  core:
+    - security
+    - anti-hallucination
+
+compatible:
+  stacks:
+    - next16
+    - next15
+    - backend-docker
+    - hono-mcp
+    - flutter
+
+commands:
+  - security
+  - review-work
+
+checklist:
+  - check secrets and env handling
+  - check auth and role checks
+  - check server/client boundaries
+  - check migrations and protected data paths
+  - check unsafe shell commands
+  - check logs and error messages
+
+outputs:
+  - security findings
+  - risk level
+  - protected files touched
+  - required follow-up

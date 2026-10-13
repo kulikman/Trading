@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "assignees": ["kulikman"],
+  "dependencyDashboard": true,
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "major"],
+      "matchUpdateTypes": ["major"]
+    },
+    {
+      "groupName": "dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"]
+    },
+    {
+      "dependencyDashboardApproval": true,
+      "groupName": "next and react",
+      "matchPackageNames": ["next", "react", "react-dom", "eslint-config-next"]
+    },
+    {
+      "dependencyDashboardApproval": true,
+      "groupName": "supabase",
+      "matchPackageNames": ["@supabase/ssr", "@supabase/supabase-js"]
+    },
+    {
+      "dependencyDashboardApproval": true,
+      "groupName": "payments",
+      "matchPackageNames": ["stripe"]
+    }
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "bump",
+  "schedule": ["after 9am and before 6pm on monday"],
+  "semanticCommits": "enabled",
+  "timezone": "Europe/Moscow"
+}

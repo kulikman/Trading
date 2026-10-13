@@ -1,0 +1,21 @@
+# Template-Projects
+
+> Replace this with your product's one-line description.
+
+## About
+
+Short description of what this product does and who it's for.
+
+## Docs
+
+- [Getting Started](/docs/getting-started): How to set up the product
+- [API Reference](/docs/api): API endpoints and usage
+
+## Links
+
+- [Homepage](https://example.com)
+- [GitHub](https://github.com/your-org/your-repo)
+
+## Contact
+
+- support@example.com

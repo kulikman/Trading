@@ -1,0 +1,20 @@
+id: pack/static-site
+version: 1.0.0
+status: draft
+
+description: Default policy pack for static HTML, CSS and JavaScript repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+  stacks:
+    - static-site
+  domains: []
+  skills:
+    - code-audit
+    - release
+
+notes:
+  - Use for static sites that should not gain a framework without explicit approval.
+  - Keep verification commands limited to commands that actually exist in the target repo.

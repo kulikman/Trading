@@ -1,0 +1,424 @@
+{
+  "meta": {
+    "version": "1.1.0",
+    "source": "template-projects",
+    "ruleCount": 46,
+    "lastReviewed": "2026-05-05"
+  },
+  "rules": [
+    {
+      "id": "SEC-001",
+      "title": "Секреты только через env",
+      "severity": "CRITICAL",
+      "category": "security",
+      "description": "Нет хардкода API-ключей, service_role, приватных URL в репозитории.",
+      "verify": "Поиск по репо: ключевые слова secret, api_key, service_role, Bearer вне .env.example.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEC-002",
+      "title": "Service role только на сервере",
+      "severity": "CRITICAL",
+      "category": "security",
+      "description": "Клиентский бандл не импортирует admin/service-role Supabase.",
+      "verify": "Импорты admin client только из Server Components, Route Handlers, server-only модули.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEC-003",
+      "title": "RLS на всех таблицах с пользовательскими данными",
+      "severity": "CRITICAL",
+      "category": "security",
+      "description": "Таблицы с PII/tenant данными защищены Row Level Security.",
+      "verify": "Миграции Supabase: ENABLE ROW LEVEL SECURITY + политики.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEC-004",
+      "title": "Аутентификация на защищённых API",
+      "severity": "CRITICAL",
+      "category": "security",
+      "description": "Маршруты API с персональными данными проверяют сессию/пользователя.",
+      "verify": "supabase.auth.getUser() или эквивалент на сервере для приватных handler'ов.",
+      "autoFixable": false
+    },
+    {
+      "id": "TS-001",
+      "title": "TypeScript strict без any",
+      "severity": "HIGH",
+      "category": "typescript",
+      "description": "strict: true; не использовать any; не подавлять проверки без причины.",
+      "verify": "pnpm tsc --noEmit; grep any в src/.",
+      "autoFixable": false
+    },
+    {
+      "id": "TS-002",
+      "title": "Явные возвращаемые типы для публичных функций",
+      "severity": "MEDIUM",
+      "category": "typescript",
+      "description": "Экспортируемые функции и методы API имеют явный return type.",
+      "verify": "Выборочный обзор src/lib/, src/app/api/.",
+      "autoFixable": false
+    },
+    {
+      "id": "TS-003",
+      "title": "Zod на границах ввода",
+      "severity": "HIGH",
+      "category": "typescript",
+      "description": "Тело запросов, query, env для критичных путей валидируется Zod (или аналог).",
+      "verify": "API routes и Server Actions парсят вход через schema.",
+      "autoFixable": false
+    },
+    {
+      "id": "NEXT-001",
+      "title": "Секреты не в Client Components",
+      "severity": "CRITICAL",
+      "category": "nextjs",
+      "description": "process.env с секретами не используется в клиентских компонентах без NEXT_PUBLIC (и только публичные ключи).",
+      "verify": "Файлы с \"use client\" не читают приватные env.",
+      "autoFixable": false
+    },
+    {
+      "id": "NEXT-002",
+      "title": "По умолчанию Server Components",
+      "severity": "MEDIUM",
+      "category": "nextjs",
+      "description": "\"use client\" только при необходимости (события, хуки, браузерные API).",
+      "verify": "Доля client components оправдана.",
+      "autoFixable": false
+    },
+    {
+      "id": "NEXT-003",
+      "title": "Обработка ошибок в data fetching",
+      "severity": "HIGH",
+      "category": "nextjs",
+      "description": "Асинхронные загрузки и мутации обрабатывают ошибки; пользователь видит понятное сообщение.",
+      "verify": "Нет пустых catch; error boundaries или UI состояния ошибки.",
+      "autoFixable": false
+    },
+    {
+      "id": "SB-001",
+      "title": "Типы БД синхронизированы",
+      "severity": "MEDIUM",
+      "category": "supabase",
+      "description": "src/types/database.ts (или аналог) обновляется после миграций.",
+      "verify": "Документированная команда gen types; дифф при изменении схемы.",
+      "autoFixable": false
+    },
+    {
+      "id": "SB-002",
+      "title": "Корректный клиент по контексту",
+      "severity": "HIGH",
+      "category": "supabase",
+      "description": "browser client в клиенте; server client в RSC/Route Handlers.",
+      "verify": "Импорты из @/lib/supabase/* соответствуют слою.",
+      "autoFixable": false
+    },
+    {
+      "id": "SB-003",
+      "title": "Нет утечки service_role в логи",
+      "severity": "CRITICAL",
+      "category": "supabase",
+      "description": "Логирование не содержит полных JWT, ключей, connection string.",
+      "verify": "Поиск console/log рядом с токенами.",
+      "autoFixable": false
+    },
+    {
+      "id": "REACT-001",
+      "title": "Стабильные ключи списков",
+      "severity": "MEDIUM",
+      "category": "react",
+      "description": "Списки используют стабильные key (id), не index при перестановках.",
+      "verify": "Ревью map() в UI.",
+      "autoFixable": false
+    },
+    {
+      "id": "REACT-002",
+      "title": "Хуки по правилам React",
+      "severity": "HIGH",
+      "category": "react",
+      "description": "Нет условных вызовов хуков; зависимости useEffect корректны.",
+      "verify": "eslint-plugin-react-hooks.",
+      "autoFixable": false
+    },
+    {
+      "id": "REACT-003",
+      "title": "Именованные экспорты компонентов",
+      "severity": "LOW",
+      "category": "react",
+      "description": "Компоненты — named exports согласно конвенции проекта.",
+      "verify": "Согласованность с CLAUDE.md.",
+      "autoFixable": true
+    },
+    {
+      "id": "UI-001",
+      "title": "Дизайн-токены из CSS variables",
+      "severity": "MEDIUM",
+      "category": "design",
+      "description": "Цвета из globals.css / токенов; не хардкодить произвольные hex в компонентах.",
+      "verify": "grep #[0-9a-fA-F]{3,8} в src/components.",
+      "autoFixable": false
+    },
+    {
+      "id": "UI-002",
+      "title": "Доступность интерактивов",
+      "severity": "HIGH",
+      "category": "a11y",
+      "description": "Кнопки/ссылки с доступным именем; формы с label; фокус видимый.",
+      "verify": "Сэмпл страниц + eslint jsx-a11y если подключён.",
+      "autoFixable": false
+    },
+    {
+      "id": "UI-003",
+      "title": "Анимации только transform/opacity",
+      "severity": "LOW",
+      "category": "design",
+      "description": "Соответствие правилам анимации из CLAUDE.md (без анимации layout-свойств).",
+      "verify": "Ревью transition/animation в новых компонентах.",
+      "autoFixable": false
+    },
+    {
+      "id": "PERF-001",
+      "title": "Тяжёлые зависимости не в критическом пути без нужды",
+      "severity": "MEDIUM",
+      "category": "performance",
+      "description": "Динамический import для редких тяжёлых модулей на клиенте где уместно.",
+      "verify": "Точки входа клиента без лишних больших библиотек.",
+      "autoFixable": false
+    },
+    {
+      "id": "PERF-002",
+      "title": "Изображения через next/image где возможно",
+      "severity": "MEDIUM",
+      "category": "performance",
+      "description": "Растровые изображения с оптимизацией; корректные sizes.",
+      "verify": "Крупные img теги.",
+      "autoFixable": false
+    },
+    {
+      "id": "TEST-001",
+      "title": "Критичная логика покрыта тестами или проверками",
+      "severity": "MEDIUM",
+      "category": "testing",
+      "description": "Изменения в валидации/оплате/авторизации сопровождаются тестами или чеклистом QA.",
+      "verify": "Наличие тестов рядом с src/lib/validations и критичными утилитами.",
+      "autoFixable": false
+    },
+    {
+      "id": "CI-001",
+      "title": "Lint и typecheck в CI",
+      "severity": "HIGH",
+      "category": "ci",
+      "description": "Пайплайн запускает pnpm lint и tsc (или эквивалент).",
+      "verify": ".github/workflows/*.",
+      "autoFixable": false
+    },
+    {
+      "id": "CI-002",
+      "title": "Ветки защищены проверками перед merge",
+      "severity": "MEDIUM",
+      "category": "ci",
+      "description": "main/release требуют зелёных проверок.",
+      "verify": "Настройки GitHub (документировано в README при необходимости).",
+      "autoFixable": false
+    },
+    {
+      "id": "OBS-001",
+      "title": "Ошибки не глотаются",
+      "severity": "HIGH",
+      "category": "observability",
+      "description": "Пустые catch запрещены; логирование или rethrow с контекстом.",
+      "verify": "grep catch в src/.",
+      "autoFixable": false
+    },
+    {
+      "id": "OBS-002",
+      "title": "Нет console.log в продакшен-коде",
+      "severity": "MEDIUM",
+      "category": "observability",
+      "description": "Отладочные логи убраны или заменены логгером с уровнями.",
+      "verify": "grep console. в src/ исключая допустимые места.",
+      "autoFixable": true
+    },
+    {
+      "id": "API-001",
+      "title": "Предсказуемые коды ответов HTTP",
+      "severity": "MEDIUM",
+      "category": "nextjs",
+      "description": "4xx/5xx соответствуют ситуации; тело ошибки не раскрывает внутренности.",
+      "verify": "src/app/api/** route handlers.",
+      "autoFixable": false
+    },
+    {
+      "id": "API-002",
+      "title": "Идемпотентность для опасных операций",
+      "severity": "HIGH",
+      "category": "architecture",
+      "description": "Платежи/удаления/миграции данных защищены от дублей где нужно.",
+      "verify": "Ревью критичных POST/DELETE.",
+      "autoFixable": false
+    },
+    {
+      "id": "ARCH-001",
+      "title": "Границы слоёв",
+      "severity": "MEDIUM",
+      "category": "architecture",
+      "description": "UI не импортирует сервер-only модули в клиентские файлы.",
+      "verify": "Импорты через границу \"use client\".",
+      "autoFixable": false
+    },
+    {
+      "id": "ARCH-002",
+      "title": "Повторяемая логика в hooks/lib",
+      "severity": "LOW",
+      "category": "architecture",
+      "description": "Дублирование извлечено в src/hooks/ или src/lib/ по правилам проекта.",
+      "verify": "Дубли >2 раз — кандидат на вынос.",
+      "autoFixable": false
+    },
+    {
+      "id": "DOC-001",
+      "title": "Публичный README актуален",
+      "severity": "LOW",
+      "category": "documentation",
+      "description": "Команды установки, env, деплой описаны.",
+      "verify": "README.md.",
+      "autoFixable": false
+    },
+    {
+      "id": "PKG-001",
+      "title": "Зависимости с пином версий в lockfile",
+      "severity": "LOW",
+      "category": "ci",
+      "description": "pnpm-lock.yaml коммитится; зависимости не дрейфуют неожиданно.",
+      "verify": "Наличие lock в репо.",
+      "autoFixable": false
+    },
+    {
+      "id": "LEGAL-001",
+      "title": "Персональные данные минимизированы",
+      "severity": "HIGH",
+      "category": "security",
+      "description": "Сбор и хранение PIPL/GDPR-чувствительных полей оправданы и документированы.",
+      "verify": "Схема БД и формы.",
+      "autoFixable": false
+    },
+    {
+      "id": "UX-001",
+      "title": "Breadcrumbs на вложенных маршрутах",
+      "severity": "HIGH",
+      "category": "ux",
+      "description": "Страницы глубже / должны содержать <Breadcrumbs /> из @/components/layout/breadcrumbs. URL должны отражать иерархию контента.",
+      "verify": "Все layout.tsx внутри вложенных маршрутов импортируют и рендерят Breadcrumbs. Каждый сегмент URL имеет свою index-страницу.",
+      "autoFixable": false
+    },
+    {
+      "id": "UX-002",
+      "title": "URL иерархия: каждый сегмент навигируем",
+      "severity": "MEDIUM",
+      "category": "ux",
+      "description": "Если существует /a/b/c, то /a/b и /a тоже должны быть валидными страницами. Нет \"мёртвых\" промежуточных URL.",
+      "verify": "Проверить что для каждого вложенного маршрута существует page.tsx на каждом уровне вложенности.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEO-001",
+      "title": "llms.txt на месте",
+      "severity": "LOW",
+      "category": "seo",
+      "description": "Файл public/llms.txt существует и заполнен актуальной информацией о продукте для AI-индексации.",
+      "verify": "Файл public/llms.txt не является шаблоном-заглушкой.",
+      "autoFixable": false
+    },
+    {
+      "id": "ERR-001",
+      "title": "Error boundary на каждом route group",
+      "severity": "HIGH",
+      "category": "ux",
+      "description": "Глобальный error.tsx существует. Route groups с пользовательскими данными имеют свой error.tsx.",
+      "verify": "src/app/error.tsx существует и содержит кнопку reset(). Вложенные route groups проверены.",
+      "autoFixable": false
+    },
+    {
+      "id": "ERR-002",
+      "title": "404 страница информативна",
+      "severity": "MEDIUM",
+      "category": "ux",
+      "description": "not-found.tsx существует, содержит навигацию обратно на главную и не выдаёт стандартный Next.js 404.",
+      "verify": "src/app/not-found.tsx существует и содержит Link на /.",
+      "autoFixable": false
+    },
+    {
+      "id": "ENV-001",
+      "title": "Env vars валидируются Zod",
+      "severity": "HIGH",
+      "category": "security",
+      "description": "Все переменные окружения проходят через Zod-схему из src/lib/env.ts. Приложение падает при запуске, а не в рантайме.",
+      "verify": "src/lib/env.ts содержит serverSchema и clientSchema. Новые env vars добавлены в обе схемы и .env.example.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEO-002",
+      "title": "Metadata через siteConfig",
+      "severity": "MEDIUM",
+      "category": "seo",
+      "description": "Root layout использует title.template из siteConfig. Динамические страницы используют generateMetadata().",
+      "verify": "layout.tsx импортирует siteConfig. Страницы с [slug] реализуют generateMetadata.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEO-003",
+      "title": "robots.txt и sitemap.ts",
+      "severity": "LOW",
+      "category": "seo",
+      "description": "Динамический src/app/robots.ts существует и эмитит корректный Sitemap URL. src/app/sitemap.ts генерирует актуальную карту сайта.",
+      "verify": "src/app/robots.ts читает baseUrl из getPublicMetadataEnv() (NEXT_PUBLIC_APP_URL). Статический public/robots.txt отсутствует — единый источник правды.",
+      "autoFixable": false
+    },
+    {
+      "id": "SEC-005",
+      "title": "Защищённые route-groups имеют auth-gate",
+      "severity": "HIGH",
+      "category": "security",
+      "description": "Layout каждого защищённого route-group вызывает requireUser() (или эквивалентную проверку Supabase auth.getUser()) до рендеринга детей.",
+      "verify": "src/app/{dashboard,(app),(protected)}/layout.tsx содержит await requireUser() или явный redirect при отсутствии сессии.",
+      "autoFixable": false
+    },
+    {
+      "id": "METADATA-001",
+      "title": "metadataBase читается из валидированного env",
+      "severity": "MEDIUM",
+      "category": "seo",
+      "description": "Корневой app/layout.tsx использует getPublicMetadataEnv().NEXT_PUBLIC_APP_URL для metadataBase и openGraph.url, не хардкод из siteConfig.url.",
+      "verify": "src/app/layout.tsx импортирует getPublicMetadataEnv из @/lib/env и передаёт NEXT_PUBLIC_APP_URL в metadataBase.",
+      "autoFixable": false
+    },
+    {
+      "id": "A11Y-002",
+      "title": "Mobile-меню закрывается на навигацию",
+      "severity": "LOW",
+      "category": "a11y",
+      "description": "Заголовок/Header автоматически закрывает раскрытое мобильное меню при смене маршрута, чтобы следующая страница была видна без ручного закрытия.",
+      "verify": "Header содержит useEffect, сбрасывающий isMobileMenuOpen в false на изменение pathname.",
+      "autoFixable": false
+    },
+    {
+      "id": "CSP-001",
+      "title": "Заголовки безопасности — единый источник",
+      "severity": "MEDIUM",
+      "category": "security",
+      "description": "CSP/HSTS/X-Frame-Options и т.п. задаются в одном месте (src/proxy.ts). next.config.ts.headers() допустим только как дублирующая страховка для статических ассетов и не должен конфликтовать с proxy.",
+      "verify": "buildSecurityHeaders в src/lib/security-headers.ts — единственный источник CSP. next.config.ts.headers() ограничивается X-Content-Type-Options/X-Frame-Options/Referrer-Policy.",
+      "autoFixable": false
+    },
+    {
+      "id": "TEST-002",
+      "title": "Zod-схемы границ покрыты тестами",
+      "severity": "LOW",
+      "category": "testing",
+      "description": "Каждая публично экспортируемая Zod-схема в src/lib/validations.ts имеет тесты на happy-path, дефолты, coercion и отказ на невалидном входе.",
+      "verify": "src/lib/validations.test.ts покрывает emailSchema, paginationSchema, uuidParamSchema (и каждую новую).",
+      "autoFixable": false
+    }
+  ]
+}

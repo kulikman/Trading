@@ -1,0 +1,181 @@
+id: solo-founder-agent-policy
+version: 1.0.0
+status: draft
+
+description: Canonical source map for shared Solo Founder Agent OS rules, skills, templates and repo-specific profiles.
+
+canonical_paths:
+  core_rules:
+    - solo-founder-os/core/anti-hallucination.md
+    - solo-founder-os/core/git-protocol.md
+    - solo-founder-os/core/security.md
+
+  stack_rules:
+    - solo-founder-os/stacks/backend-docker.md
+    - solo-founder-os/stacks/flutter.md
+    - solo-founder-os/stacks/hono-mcp.md
+    - solo-founder-os/stacks/next15.md
+    - solo-founder-os/stacks/next16.md
+    - solo-founder-os/stacks/static-site.md
+
+  domain_rules:
+    - solo-founder-os/domains/ai-agents.md
+    - solo-founder-os/domains/crm.md
+    - solo-founder-os/domains/finance.md
+    - solo-founder-os/domains/personal-brand.md
+    - solo-founder-os/domains/telecom.md
+    - solo-founder-os/domains/trading-options.md
+
+  skills:
+    - solo-founder-os/skills/code-audit.yml
+    - solo-founder-os/skills/database-migration.yml
+    - solo-founder-os/skills/release.yml
+    - solo-founder-os/skills/security-review.yml
+
+  project_profiles:
+    - solo-founder-os/project-profiles/elaurion-brain.yml
+    - solo-founder-os/project-profiles/founder-os.yml
+    - solo-founder-os/project-profiles/neosim-web.yml
+
+  templates:
+    - solo-founder-os/templates/AGENTS.md.tpl
+    - solo-founder-os/templates/CLAUDE.md.tpl
+    - solo-founder-os/templates/claude-check.md.tpl
+    - solo-founder-os/templates/claude-release-work.md.tpl
+    - solo-founder-os/templates/claude-review-work.md.tpl
+    - solo-founder-os/templates/claude-save-work.md.tpl
+    - solo-founder-os/templates/cursor-agent-workflow.mdc.tpl
+
+  specs:
+    - solo-founder-os/specs/generator.md
+    - solo-founder-os/specs/history-manifest.md
+    - solo-founder-os/specs/sync-engine.md
+
+  policy_packs:
+    - solo-founder-os/policy/packs/backend-docker.yml
+    - solo-founder-os/policy/packs/crm-production.yml
+    - solo-founder-os/policy/packs/finance-risk.yml
+    - solo-founder-os/policy/packs/flutter.yml
+    - solo-founder-os/policy/packs/hono-mcp.yml
+    - solo-founder-os/policy/packs/next15.yml
+    - solo-founder-os/policy/packs/next16.yml
+    - solo-founder-os/policy/packs/static-site.yml
+
+sync_policy:
+  default_mode: pull_request
+  direct_push_allowed: false
+  overwrite_manual_sections: false
+  controlled_block_prefix: SFO
+  required_preflight:
+    - validate profile
+    - generate files
+    - inspect diff
+    - run available checks in target repo
+
+repo_policy_packs:
+  next16:
+    stack_rules:
+      - next16
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+      - database-migration
+
+  next15:
+    stack_rules:
+      - next15
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+      - database-migration
+
+  flutter:
+    stack_rules:
+      - flutter
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+
+  backend-docker:
+    stack_rules:
+      - backend-docker
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+      - database-migration
+
+  hono-mcp:
+    stack_rules:
+      - hono-mcp
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+
+  static-site:
+    stack_rules:
+      - static-site
+    default_core:
+      - git-protocol
+      - anti-hallucination
+    recommended_skills:
+      - code-audit
+      - release
+
+  finance-risk:
+    stack_rules: []
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_domains:
+      - finance
+      - trading-options
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+      - database-migration
+
+  crm-production:
+    stack_rules: []
+    default_core:
+      - git-protocol
+      - anti-hallucination
+      - security
+    recommended_domains:
+      - crm
+    recommended_skills:
+      - code-audit
+      - release
+      - security-review
+      - database-migration
+
+validation_notes:
+  - Commands listed in generated files must exist in the target repository before they are presented as preferred checks.
+  - Project-specific protected files must come from the target profile or target repository audit.
+  - Missing paths should be reported as gaps, not silently invented.

@@ -1,0 +1,27 @@
+---
+description: Service isolation — bounded contexts and public API
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# Service isolation
+
+Each **feature** under `src/features/<name>/` is a black box. Consumers import **only** from `@/features/<name>` (barrel `index.ts`), never from `/lib/`, `/api/`, `/_internal/`, or other deep paths.
+
+**Forbidden**
+
+- Importing another feature’s internals (`@/features/other/.../lib`, `@/features/other/api/...`)
+- Relative hops between features (`../../features/other`)
+- Editing another module’s `index.ts` or migrations without explicit instruction
+
+**Required**
+
+- One module per PR/commit when possible
+- Read the target module’s `index.ts` before changing its contract
+- If a symbol is missing from the public API, stop and ask to extend the owner’s exports
+
+**Template specifics**
+
+- Generated DB types: `src/types/database.ts` (read-only in normal flow)
+- Full rules: `/ARCHITECTURE.md`
+- ESLint: `eslint.config.mjs` (`boundaries/dependencies`, `no-restricted-imports`)

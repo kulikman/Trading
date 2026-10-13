@@ -1,0 +1,22 @@
+id: pack/flutter
+version: 1.0.0
+status: draft
+
+description: Default policy pack for Flutter and Dart repositories.
+
+inherits:
+  core:
+    - git-protocol
+    - anti-hallucination
+    - security
+  stacks:
+    - flutter
+  domains: []
+  skills:
+    - code-audit
+    - release
+    - security-review
+
+notes:
+  - Use for repositories with `pubspec.yaml`.
+  - Generated Dart files should be regenerated, not manually edited.

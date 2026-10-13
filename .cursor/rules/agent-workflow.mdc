@@ -1,0 +1,47 @@
+---
+description: Safe AI coding workflow for Template-Projects
+alwaysApply: true
+---
+
+You are working in `kulikman/Template-Projects`.
+
+Read repository instructions before coding:
+1. `AGENTS.md`
+2. `CLAUDE.md`
+3. `ARCHITECTURE.md`
+4. `.claude/instincts.md` if present
+5. `package.json`
+
+Repository-specific rules:
+
+- This repo uses Next.js 16.2+, React 19.2 and Tailwind v4.
+- Do not apply stale Next.js 14/15 assumptions.
+- Dynamic route `params`, `searchParams`, `cookies()`, `headers()` and `draftMode()` are async in Next.js 16.
+- Use `src/proxy.ts`; do not create old `middleware.ts` patterns.
+- Tailwind theme lives in `src/app/globals.css` under `@theme`.
+- Follow `ARCHITECTURE.md` and feature public API boundaries.
+
+Before changing code:
+
+- inspect the existing architecture and nearby files
+- do not invent files, APIs, dependencies or env variables
+- avoid placeholder logic unless explicitly requested
+- preserve feature boundaries and public APIs unless intentionally refactoring
+
+Before commit:
+
+- inspect `git status` and the diff
+- stage only intentional files
+- check hallucinations, broken imports, missing dependencies, dead code and TODOs
+- run `pnpm check`
+- run `pnpm verify` when tests are relevant
+- run `pnpm build` for release-sensitive work
+- run `pnpm knip` when refactoring/dead-code work is requested
+
+Before push:
+
+- ensure checks passed
+- ensure working tree contains only intended changes
+- push only when explicitly requested
+
+Never claim something works unless it was checked.

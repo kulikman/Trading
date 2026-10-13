@@ -1,0 +1,10 @@
+packages:
+  - "."
+
+# Build scripts: pnpm 10 requires explicit approval. Listing here avoids
+# "Ignored build scripts" prompts on fresh clone / CI.
+# https://pnpm.io/package_json#pnpmonlybuiltdependencies
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+  - "@sentry/cli"
