@@ -48,3 +48,43 @@ alphavantage:                    # бесплатно 25 запросов в д�
     earnings_calendar: 43200
     earnings_estimates: 43200
     earnings: 86400
+
+edgar:                           # SEC EDGAR, бесплатно; заголовок User-Agent — SEC_USER_AGENT (название + email, требование SEC)
+  data_base_url: https://data.sec.gov
+  tickers_url: https://www.sec.gov/files/company_tickers.json
+  archives_base_url: https://www.sec.gov/Archives/edgar/data
+  timeout_seconds: 20
+  max_attempts: 3
+  backoff_base_seconds: 1.0
+  earnings_release_item: "2.02"  # пункт 8-K «Results of Operations and Financial Condition»
+  cache_ttl_seconds:
+    tickers: 86400
+    submissions: 3600
+    company_facts: 86400
+  financials:                    # вкладка «Финансы» (DASHBOARD.md §4.5)
+    quarters: 8
+    quarter_days_min: 80         # длительность факта, которая считается кварталом
+    quarter_days_max: 100
+    non_additive_metrics: [eps_diluted]   # разницей нарастающих итогов не считаются (Q4 EPS остаётся пустым)
+    concepts:                    # варианты тегов us-gaap по порядку предпочтения
+      revenue: [Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, RevenuesNetOfInterestExpense, SalesRevenueNet]
+      net_income: [NetIncomeLoss]
+      eps_diluted: [EarningsPerShareDiluted]
+      operating_income: [OperatingIncomeLoss]
+      gross_profit: [GrossProfit]
+      operating_cash_flow: [NetCashProvidedByUsedInOperatingActivities]
+      capex: [PaymentsToAcquirePropertyPlantAndEquipment]
+
+fred:                            # FRED, бесплатно; ключ — FRED_API_KEY (параметр api_key)
+  base_url: https://api.stlouisfed.org
+  timeout_seconds: 15
+  max_attempts: 3
+  backoff_base_seconds: 1.0
+  cache_ttl_seconds:
+    observations: 3600
+
+llm:                             # Claude API; ключ — ANTHROPIC_API_KEY. Только извлечение признаков и резюме (CLAUDE.md правило 2)
+  model: claude-opus-5-5
+  effort: medium
+  max_tokens: 16000
+  max_attempts: 2                # 1 запрос + 1 повтор при ответе не по схеме (SPEC §6)

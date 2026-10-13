@@ -220,6 +220,9 @@ def test_invalid_registry_fails_with_reason(
         (_set("alphavantage.calendar_horizon", "1week"), "alphavantage.calendar_horizon"),
         (_set("finnhub.base_url", "http://finnhub.io"), "finnhub.base_url"),
         (_set("massive.page_limit.news", 5000), "massive.page_limit.news"),
+        (_set("llm.effort", "extreme"), "llm.effort"),
+        (_set("llm.max_attempts", 0), "llm.max_attempts"),
+        (_delete("edgar.financials.concepts"), "edgar.financials.concepts: Field required"),
     ],
 )
 def test_invalid_sources_fail_with_field_path(
