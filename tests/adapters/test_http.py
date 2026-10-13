@@ -132,3 +132,33 @@ def test_raw_response_is_logged_without_api_key(caplog: pytest.LogCaptureFixture
     assert caplog.records, "raw response must be logged"
     assert all(SECRET not in str(record.__dict__) for record in caplog.records)
     client.close()
+
+
+def test_get_text_without_validator_and_non_utf8_body() -> None:
+    client, _ = make_client(Recorder([httpx.Response(200, content=b"a,b\n1,2\n")]))
+    assert client.get_text("/v1/csv") == "a,b\n1,2\n"
+    bad, _ = make_client(Recorder([httpx.Response(200, content=b"\xff\xfe\xfa")]))
+    with pytest.raises(DataError, match="non-UTF-8"):
+        bad.get_text("/v1/csv")
+
+
+def test_secret_params_are_sent_but_redacted_everywhere(caplog: pytest.LogCaptureFixture) -> None:
+    secret = "query-secret-123"  # noqa: S105 — fake key
+    recorder = Recorder([httpx.Response(404, text=f"unknown key {secret}")])
+    client = JsonHttpClient(
+        source="test",
+        base_url="https://api.example.com",
+        secret_params={"token": secret},
+        timeout_seconds=1,
+        retry=RetryPolicy(max_attempts=1, backoff_base_seconds=0),
+        transport=httpx.MockTransport(recorder),
+    )
+    with (
+        caplog.at_level(logging.DEBUG, logger="adapters.http"),
+        pytest.raises(DataError) as exc_info,
+    ):
+        client.get_json("/v1/x", {"a": 1})
+    assert recorder.requests[0].url.params["token"] == secret
+    assert secret not in str(exc_info.value)
+    assert "token=***" in str(exc_info.value)
+    assert all(secret not in str(record.__dict__) for record in caplog.records)

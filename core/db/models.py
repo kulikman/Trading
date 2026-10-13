@@ -13,6 +13,7 @@ from sqlalchemy import (
     Double,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     MetaData,
     Numeric,
@@ -339,3 +340,26 @@ class Plugin(Timestamps, Base):
     stage: Mapped[str]
     weight: Mapped[float | None]
     enabled: Mapped[bool]
+
+
+# --- новости ---
+
+
+class NewsArticle(Timestamps, Base):
+    """Новости по тикерам; одна запись на статью источника, без перезаписи."""
+
+    __tablename__ = "news_article"
+    __table_args__ = (Index("ix_news_article_tickers", "tickers", postgresql_using="gin"),)
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    source: Mapped[str]
+    published_at: Mapped[datetime] = mapped_column(index=True)
+    title: Mapped[str]
+    url: Mapped[str]
+    tickers: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    publisher: Mapped[str | None]
+    author: Mapped[str | None]
+    description: Mapped[str | None]
+    keywords: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    insights: Mapped[Any | None] = mapped_column(JSONB)
+    tags: Mapped[list[str] | None] = mapped_column(ARRAY(Text))

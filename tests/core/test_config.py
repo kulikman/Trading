@@ -217,6 +217,9 @@ def test_invalid_registry_fails_with_reason(
         (_set("massive.max_attempts", 0), "massive.max_attempts"),
         (_set("massive.cache_ttl_seconds.last_quote", -1), "massive.cache_ttl_seconds.last_quote"),
         (_delete("redis.timeout_seconds"), "redis.timeout_seconds: Field required"),
+        (_set("alphavantage.calendar_horizon", "1week"), "alphavantage.calendar_horizon"),
+        (_set("finnhub.base_url", "http://finnhub.io"), "finnhub.base_url"),
+        (_set("massive.page_limit.news", 5000), "massive.page_limit.news"),
     ],
 )
 def test_invalid_sources_fail_with_field_path(

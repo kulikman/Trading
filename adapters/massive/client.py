@@ -1,25 +1,24 @@
 """Клиент Massive REST: свечи, котировки, снимки, опционные контракты и цепочки (SPEC §6)."""
 
-import os
 from datetime import date
 from typing import Any, Literal
 
 import httpx
 from pydantic import ValidationError
 
+from adapters.api_model import ApiModel, require_env
 from adapters.cache import Cache
 from adapters.errors import DataError
 from adapters.http import JsonHttpClient, Params, RetryPolicy
 from adapters.massive.models import (
-    ApiModel,
     Bar,
     ContractType,
+    NewsArticle,
     OptionContract,
     OptionSnapshot,
     StockQuote,
     StockSnapshot,
 )
-from core.config import ConfigError
 from core.config.sources import MassiveSettings
 
 SOURCE = "massive"
@@ -28,10 +27,7 @@ Timespan = Literal["second", "minute", "hour", "day", "week", "month", "quarter"
 
 def massive_api_key() -> str:
     """MASSIVE_API_KEY из окружения. В логи и LLM ключ не передаётся."""
-    key = os.environ.get("MASSIVE_API_KEY", "").strip()
-    if not key:
-        raise ConfigError("MASSIVE_API_KEY is not set")
-    return key
+    return require_env("MASSIVE_API_KEY")
 
 
 class MassiveClient:
@@ -150,6 +146,20 @@ class MassiveClient:
             self._settings.cache_ttl_seconds.option_chain,
         )
         return [_parse(OptionSnapshot, row) for row in rows]
+
+    def news(self, ticker: str, published_gte: date | None = None) -> list[NewsArticle]:
+        """Новости по тикеру, от новых к старым. Входит во все тарифы Stocks."""
+        params = _drop_none(
+            {
+                "ticker": ticker,
+                "published_utc.gte": published_gte,
+                "order": "desc",
+                "sort": "published_utc",
+                "limit": self._settings.page_limit.news,
+            }
+        )
+        rows = self._paginate("/v2/reference/news", params, self._settings.cache_ttl_seconds.news)
+        return [_parse(NewsArticle, row) for row in rows]
 
     def _paginate(self, path: str, params: Params, ttl_seconds: int) -> list[Any]:
         rows: list[Any] = []

@@ -1,0 +1,59 @@
+{
+  "earningsCalendar": [
+    {
+      "date": "2026-10-14",
+      "epsActual": null,
+      "epsEstimate": 11.82,
+      "hour": "bmo",
+      "quarter": 3,
+      "revenueActual": null,
+      "revenueEstimate": 14100000000,
+      "symbol": "GS",
+      "year": 2026
+    },
+    {
+      "date": "2026-10-15",
+      "epsActual": null,
+      "epsEstimate": 2.05,
+      "hour": "bmo",
+      "quarter": 3,
+      "revenueActual": null,
+      "revenueEstimate": 17300000000,
+      "symbol": "MS",
+      "year": 2026
+    },
+    {
+      "date": "2026-10-15",
+      "epsActual": null,
+      "epsEstimate": 5.1,
+      "hour": "amc",
+      "quarter": 3,
+      "revenueActual": null,
+      "revenueEstimate": 11800000000,
+      "symbol": "NFLX",
+      "year": 2026
+    },
+    {
+      "date": "2026-10-20",
+      "epsActual": null,
+      "epsEstimate": 0.62,
+      "hour": "dmh",
+      "quarter": 3,
+      "revenueActual": null,
+      "revenueEstimate": 950000000,
+      "symbol": "ZZZZ",
+      "year": 2026
+    },
+    {
+      "date": "2026-10-21",
+      "epsActual": null,
+      "epsEstimate": null,
+      "hour": "",
+      "quarter": 3,
+      "revenueActual": null,
+      "revenueEstimate": null,
+      "symbol": "TSLA",
+      "year": 2026
+    }
+  ]
+}
