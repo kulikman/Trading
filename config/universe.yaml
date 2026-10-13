@@ -1,0 +1,146 @@
+# Вселенная первого сезона: 50 компаний, 11 секторов (SPEC §2, §5).
+#
+# Критерии отбора (не инвестиционная рекомендация):
+#   1. эмитент США, отчитывается через 10-Q / 8-K — дату можно подтвердить по EDGAR;
+#   2. крупная капитализация и широко торгуемые недельные опционы
+#      (ликвидность проверяется данными Massive в T05, порог — liquidity в thresholds.yaml);
+#   3. в секторе ≥ 3 компании, чтобы считать peer_surprise_mean;
+#   4. есть известные «информаторы» — компании, отчитывающиеся раньше пиров.
+#
+# peer_edges — гипотезы «кто кому сигналит». strength и lag_days не задаются вручную:
+# оцениваются по архиву (T11) и календарю (T09). Пока null.
+
+sectors:
+  - id: banks
+    name: Банки
+    key_metrics: [NII, FICC, IB fees, credit provisions, CET1]
+    macro_sensitivity: [us10y, vix]
+    companies:
+      - {ticker: JPM, name: JPMorgan Chase}
+      - {ticker: BAC, name: Bank of America}
+      - {ticker: WFC, name: Wells Fargo}
+      - {ticker: C, name: Citigroup}
+      - {ticker: GS, name: Goldman Sachs}
+      - {ticker: MS, name: Morgan Stanley}
+
+  - id: payments
+    name: Платёжные сети
+    key_metrics: [payments volume, cross-border volume, processed transactions, card member spend]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: V, name: Visa}
+      - {ticker: MA, name: Mastercard}
+      - {ticker: AXP, name: American Express}
+
+  - id: semis
+    name: Полупроводники
+    key_metrics: [data center revenue, gross margin, inventory, guidance]
+    macro_sensitivity: [vix]
+    companies:
+      - {ticker: NVDA, name: NVIDIA}
+      - {ticker: AMD, name: Advanced Micro Devices}
+      - {ticker: AVGO, name: Broadcom}
+      - {ticker: MU, name: Micron Technology}
+      - {ticker: INTC, name: Intel}
+      - {ticker: QCOM, name: Qualcomm}
+
+  - id: mega_cap_tech
+    name: Технологические мегакапы
+    key_metrics: [cloud revenue growth, capex, advertising revenue, operating margin]
+    macro_sensitivity: [us10y, vix]
+    companies:
+      - {ticker: AAPL, name: Apple}
+      - {ticker: MSFT, name: Microsoft}
+      - {ticker: GOOGL, name: Alphabet}
+      - {ticker: AMZN, name: Amazon.com}
+      - {ticker: META, name: Meta Platforms}
+      - {ticker: TSLA, name: Tesla}
+
+  - id: software
+    name: ПО и облака
+    key_metrics: [remaining performance obligations, cloud revenue growth, net revenue retention, operating margin]
+    macro_sensitivity: [us10y]
+    companies:
+      - {ticker: ORCL, name: Oracle}
+      - {ticker: CRM, name: Salesforce}
+      - {ticker: ADBE, name: Adobe}
+      - {ticker: NOW, name: ServiceNow}
+      - {ticker: PLTR, name: Palantir Technologies}
+
+  - id: consumer_internet
+    name: Потребительский интернет
+    key_metrics: [paid members, gross bookings, take rate, EBITDA margin]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: NFLX, name: Netflix}
+      - {ticker: UBER, name: Uber Technologies}
+      - {ticker: ABNB, name: Airbnb}
+
+  - id: retail
+    name: Ритейл
+    key_metrics: [comparable sales, traffic, gross margin, inventory]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: WMT, name: Walmart}
+      - {ticker: COST, name: Costco Wholesale}
+      - {ticker: TGT, name: Target}
+      - {ticker: HD, name: Home Depot}
+      - {ticker: LOW, name: "Lowe's"}
+
+  - id: consumer_brands
+    name: Потребительские бренды и рестораны
+    key_metrics: [comparable sales, traffic, China sales, operating margin]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: NKE, name: Nike}
+      - {ticker: SBUX, name: Starbucks}
+      - {ticker: MCD, name: "McDonald's"}
+      - {ticker: CMG, name: Chipotle Mexican Grill}
+
+  - id: energy
+    name: Энергетика
+    key_metrics: [production volume, realized prices, capex, international revenue]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: XOM, name: Exxon Mobil}
+      - {ticker: CVX, name: Chevron}
+      - {ticker: SLB, name: SLB}
+      - {ticker: HAL, name: Halliburton}
+
+  - id: healthcare
+    name: Здравоохранение
+    key_metrics: [medical cost ratio, key product sales, pipeline readouts, guidance]
+    macro_sensitivity: [vix]
+    companies:
+      - {ticker: UNH, name: UnitedHealth Group}
+      - {ticker: LLY, name: Eli Lilly}
+      - {ticker: JNJ, name: Johnson & Johnson}
+      - {ticker: MRK, name: Merck & Co.}
+
+  - id: industrials
+    name: Промышленность и аэрокосмос
+    key_metrics: [orders, backlog, deliveries, free cash flow]
+    macro_sensitivity: [us10y, regime]
+    companies:
+      - {ticker: CAT, name: Caterpillar}
+      - {ticker: DE, name: Deere & Company}
+      - {ticker: GE, name: GE Aerospace}
+      - {ticker: BA, name: Boeing}
+
+peer_edges:
+  - {from_ticker: JPM, to_ticker: BAC, note: JPM обычно открывает сезон банков}
+  - {from_ticker: JPM, to_ticker: GS, note: JPM обычно открывает сезон банков}
+  - {from_ticker: JPM, to_ticker: MS, note: JPM обычно открывает сезон банков}
+  - {from_ticker: V, to_ticker: MA, note: общий платёжный объём}
+  - {from_ticker: INTC, to_ticker: AMD, note: CPU-рынок ПК и серверов}
+  - {from_ticker: MSFT, to_ticker: NVDA, note: capex гиперскейлеров → спрос на AI-чипы}
+  - {from_ticker: META, to_ticker: NVDA, note: capex гиперскейлеров → спрос на AI-чипы}
+  - {from_ticker: GOOGL, to_ticker: META, note: рекламный рынок}
+  - {from_ticker: MSFT, to_ticker: AMZN, note: облачный спрос}
+  - {from_ticker: NOW, to_ticker: CRM, note: корпоративные IT-бюджеты}
+  - {from_ticker: HD, to_ticker: LOW, note: товары для дома}
+  - {from_ticker: CMG, to_ticker: MCD, note: трафик ресторанов}
+  - {from_ticker: SLB, to_ticker: HAL, note: нефтесервис}
+  - {from_ticker: JNJ, to_ticker: MRK, note: открывает сезон фармы}
+  - {from_ticker: GE, to_ticker: BA, note: аэрокосмическая цепочка}
+  - {from_ticker: CAT, to_ticker: DE, note: тяжёлая техника}
