@@ -1,20 +1,21 @@
-## Summary
+## Задача
 
-What changes and why. One sentence.
+TASKS.md: Txx — название
 
-## Type
+## Что сделано
 
-- [ ] feat — new user-facing capability
-- [ ] fix — bug fix
-- [ ] refactor — internal cleanup, no behavior change
-- [ ] chore — tooling, deps, CI
-- [ ] docs
+-
 
-## Checklist
+## Приёмка (из TASKS.md)
 
-- [ ] `pnpm verify` passes locally
-- [ ] New env vars added to `src/lib/env.ts` AND `.env.example`
-- [ ] New tables ship with RLS policies in the same migration
-- [ ] New routes registered in `ROUTES` and `SEGMENT_LABELS` if nested
-- [ ] No `any`, no raw `process.env`, no new `middleware.ts`
-- [ ] Breadcrumbs render on every nested route deeper than `/dashboard`
+- [ ] пункт 1
+- [ ] пункт 2
+
+## Проверки
+
+- [ ] `make lint` зелёный
+- [ ] `make test` зелёный
+- [ ] Новые пороги/лимиты — только в `config/*.yaml`
+- [ ] Новые переменные окружения — в `.env.example` (без значений)
+- [ ] Неподтверждённые поля API — `TODO` + `OPEN_QUESTIONS.md`
+- [ ] Нет наивных `datetime`, нет секретов в логах и промптах LLM

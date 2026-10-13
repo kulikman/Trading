@@ -2,46 +2,15 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
-      "Bash(git:*)",
-      "Bash(pnpm:*)",
-      "Bash(node:*)",
-      "Bash(cat:*)",
-      "Bash(ls:*)",
-      "Bash(find:*)",
-      "Bash(grep:*)",
-      "Read(*)",
-      "Write(src/**)",
-      "Write(.claude/memory/**)",
-      "Write(tests/**)",
-      "Write(public/**)",
-      "Write(scripts/**)"
+      "Bash(make:*)",
+      "Bash(uv:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
     ],
     "deny": [
-      "Bash(rm -rf /)",
-      "Bash(curl:*)",
-      "Bash(wget:*)",
-      "Write(.env*)",
-      "Write(.github/**)"
+      "Write(.env)",
+      "Edit(.env)"
     ]
-  },
-  "agents": {
-    "coder": {
-      "allow": ["Read(*)", "Write(src/**)", "Write(tests/**)", "Bash(pnpm:*)"]
-    },
-    "reviewer": {
-      "allow": ["Read(*)"],
-      "deny": ["Write(*)", "Bash(*)"]
-    },
-    "architect": {
-      "allow": ["Read(*)", "Write(.claude/memory/decisions.md)"],
-      "deny": ["Write(src/**)", "Bash(*)"]
-    },
-    "tester": {
-      "allow": ["Read(*)", "Write(tests/**)", "Write(src/**/*.test.ts)", "Bash(pnpm test:*)"]
-    },
-    "security": {
-      "allow": ["Read(*)"],
-      "deny": ["Write(*)", "Bash(*)"]
-    }
   }
 }

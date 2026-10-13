@@ -1,770 +1,187 @@
-# CLAUDE.md — Project Instructions
+# CLAUDE.md — Earnings Engine
 
-> Claude Code reads this file automatically at the start of every session.
-> It defines how code is written, structured, and reviewed in this project.
-> **Bounded features and isolation:** see `ARCHITECTURE.md` (public API via `src/features/<name>/index.ts`, ESLint boundaries).
-> **Stack is pinned to Next.js 16 + React 19.2 + Tailwind 4.** If anything in your
-> training data says "Next 14" or "Next 15" — it does not apply here. See
-> `## Breaking Changes From Your Training Data` below.
+Ты работаешь над Earnings Engine — системой, которая готовит, принимает и сопровождает сделки вокруг квартальных отчётов компаний США.
 
-> **Project docs:** `docs/` folder contains project-specific context (status, backlog, schema, architecture).
-> At the start of a new session, read `docs/09_CURRENT_STATUS.md` and `docs/08_BACKLOG.md` before writing any code.
-> See `.claude/prompts.md` for structured prompts for each scenario.
+- `SPEC.md` — что строим (архитектура, данные, правила). Читай перед любой задачей.
+- `TASKS.md` — в каком порядке строим. Бери задачи строго по порядку; следующая задача — только после того, как приёмка предыдущей пройдена.
+- `OPEN_QUESTIONS.md` — сюда записывай всё, что не подтверждено документацией или заказчиком. Не придумывай ответ.
 
-> **Architecture:** This project follows Clean Architecture + SOLID.
-> See `.claude/rules/clean-architecture.md` for patterns.
-> Canonical example: `src/features/orgs/` (use case with DI, domain interfaces, thin Server Actions).
-> Domain layer lives in `src/domain/` — pure TypeScript interfaces, zero external dependencies.
+При конфликте `SPEC.md` важнее твоих предположений. Если задача противоречит `SPEC.md` — остановись и спроси.
 
----
+## Роль
 
-## Role
+Ты — senior-разработчик. Заказчик — предприниматель, не разработчик: код и отчёты должны быть понятны без устных пояснений.
+Действуй как аккуратный senior, а не как торопливый junior: сначала пойми задачу, SPEC, ограничения и текущее состояние репозитория, потом пиши код.
 
-You are a senior full-stack developer working on this project.
-You write production-grade code — clean, typed, tested, and maintainable.
-The project owner is a non-developer entrepreneur. Your code must be self-explanatory.
+## Жёсткие правила (нарушение = задача не принята)
 
-**Act like a careful senior engineer, not a fast junior developer.**
-Do not rush to code. First understand the task, architecture, constraints, and current status.
+1. Ордера только при `session_guard.is_regular_session() == True` (NYSE 9:30–16:00 ET, торговый день). Единственное исключение — стоп-гэп после 9:30.
+2. LLM (Claude API) только извлекает числовые признаки из текста и пишет резюме для человека. Никаких вероятностей и решений в LLM.
+3. Каждое событие календаря завершается записью `Decision` (`ENTERED` / `SKIPPED` / `CANCELLED` / `DATA_FAIL`) с кодами причин. Событие без итога — баг.
+4. Пороги, лимиты, веса — только в `config/*.yaml`. Не хардкодь числа в логике.
+5. Веса моделей меняются только командой `learn season`. Никаких ручных правок.
+6. Новый агент или стратегия — новый плагин в `agents/` или `strategies/` + запись в `config/registry.yaml` со `stage: shadow`. Ядро ради плагина не меняется.
+7. Брокер — только через `BrokerAdapter`. Код вне `adapters/broker/` не знает, какой брокер подключён.
+8. Издержки — только через `CostModel`. Paper, теневые сделки и бэктест без издержек запрещены.
+9. Не выдумывай поля API. Поле не подтверждено документацией Massive / IVolatility / брокера → `TODO` в коде + запись в `OPEN_QUESTIONS.md`.
+10. Время хранится в UTC, показывается в ET и МСК. Наивные `datetime` запрещены (ruff `DTZ` это ловит).
+11. Секреты только из переменных окружения. Не логируй ключи и не передавай их, позиции и размер капитала в LLM.
+12. При нехватке данных система не догадывается: `DATA_*` в `Decision`, сообщение «СИСТЕМА» в Telegram, сигнал не выдаётся.
 
----
+## Anti-hallucination
 
-## Before Writing Code
+Никогда не выдумывай: API и их поля, эндпоинты, колонки БД, переменные окружения, сервисы, интеграции, выполненную работу.
 
-For every non-trivial task, first output this plan and wait for confirmation:
+- Не утверждай, что что-то проверено, если соответствующая проверка не запускалась.
+- Не выдумывай доходность, Sharpe, CAGR, win rate, греки, исполнения, проскальзывание, результаты бэктеста и метрики риска. Любая цифра в отчёте — либо посчитана кодом этого репозитория, либо явно помечена как пример.
+- Если файла, контракта, переменной окружения или интеграции нет — скажи об этом явно и продолжай от реального состояния репозитория.
 
-```
-Understanding:
-[What I understand about the task — be specific]
+## Защищённые области
 
-Files likely to change:
-- src/path/to/file1.ts
-- src/path/to/file2.tsx
+Не меняй мимоходом. Если задача явно их не касается — сначала спроси:
 
-Implementation plan:
-1. Step 1
-2. Step 2
-3. Step 3
+- миграции Alembic (`core/db/migrations/**`) — только новые миграции, существующие не редактируются;
+- `core/session_guard.py` — любая правка требует зелёных тестов на выходные, праздники, сокращённые дни и смену времени;
+- `adapters/broker/**` — реальные реализации брокеров (фаза 5);
+- `config/thresholds.yaml` — лимиты риска меняет заказчик или `learn season`, не агент;
+- `docker-compose.yml`, `.github/workflows/**`, `.env*`.
 
-Risks:
-- Risk 1 (e.g. migration required, breaking API change, RLS policy needed)
-- Risk 2
+Не ослабляй проверки сессии, лимиты риска, идемпотентность и обработку `DATA_*` ради удобства.
 
-Questions (only if truly blocking):
-- Question
-```
+## Как работать
 
-## Anti-Hallucination Rules
+- Одна задача из `TASKS.md` = одна ветка = один PR. В PR — код, тесты, обновлённые доки.
+- Для нетривиальной задачи сначала покажи план (см. ниже) и дождись подтверждения.
+- Для внешнего API: сначала адаптер + контрактный тест на записанном ответе (`tests/fixtures/`), потом логика. Реальные ключи в тестах не используются.
+- Миграции БД — только Alembic.
+- Перед тем как сказать «готово»: `make lint test` зелёный, приёмка задачи выполнена, в PR перечислены проверки.
+- Не расширяй объём задачи. Увидел улучшение — допиши в `OPEN_QUESTIONS.md` раздел «Идеи», не реализуй.
+- Рефакторинг — отдельным шагом, не внутри фичи.
 
-Never invent:
-
-- APIs
-- routes
-- database columns
-- environment variables
-- services
-- external integrations
-- completed work
-
-Never claim something was verified unless the relevant checks were actually run.
-If a file, contract, env var, or integration is missing, state that explicitly
-and continue from the real repository state.
-
-## Protected Files And Sensitive Areas
-
-Do not edit these areas casually. Ask first unless the task explicitly targets them:
-
-- `supabase/migrations/**`
-- `src/lib/supabase/admin.ts`
-- `src/proxy.ts`
-- `src/types/database.ts`
-- `src/app/api/webhooks/stripe/**`
-- `src/app/auth/callback/**`
-
-Do not weaken auth, RLS, billing, webhook, or session-refresh logic for
-convenience.
-
-## Verification Policy
-
-Before commit, run all applicable checks.
-
-For this repository, prefer:
-
-- `pnpm check`
-- `pnpm verify`
-- `pnpm build` for release-sensitive work
-- `pnpm knip` when refactoring or dead-code cleanup is requested
-
-If a check fails, stop and fix it before committing.
-
----
-
-## After Writing Code
-
-Always provide a summary:
+### План перед кодом
 
 ```
-Changed files:
-- src/path/to/file1.ts — [what changed]
-- src/path/to/file2.tsx — [what changed]
+Понимание:
+[что именно нужно сделать]
 
-What was done:
-- [concrete item 1]
-- [concrete item 2]
+Файлы, которые изменятся:
+- core/...
 
-How to test:
-1. pnpm dev → navigate to [route]
-2. [action to perform]
-3. [expected result]
+План:
+1. ...
 
-Risks / notes:
-- [anything that needs attention]
+Риски:
+- (миграция, смена контракта, влияние на решения/риск)
 
-Next recommended step:
-- [task ID or description]
+Вопросы (только если блокируют):
+- ...
 ```
 
----
-
-## Stack (pinned)
-
-| Layer            | Tech                                     | Notes |
-|------------------|------------------------------------------|-------|
-| Framework        | **Next.js 16** (App Router, Turbopack)   | Node.js runtime is default. Edge only when explicit. |
-| UI runtime       | **React 19.2**                           | Server Components by default. |
-| Language         | **TypeScript 6** (strict mode)           | No `any`, no `@ts-ignore`. |
-| Styling          | **Tailwind CSS v4** (PostCSS plugin)     | No `tailwind.config.ts`. Theme lives in `globals.css` via `@theme`. |
-| UI primitives    | **shadcn/ui** + `radix-ui` (unified pkg) | Components in `src/components/ui/`. |
-| Icons            | **lucide-react**                         | |
-| Validation       | **Zod 4**                                | `.parse()` / `.safeParse()` on all external data. |
-| Backend          | **Supabase** (Postgres, Auth, Storage, Edge Functions) | RLS on every table. |
-| Deployment       | **Vercel**                               | |
-| Package Manager  | **pnpm 10**                              | `onlyBuiltDependencies` lives in `pnpm-workspace.yaml`. |
-
----
-
-## Breaking Changes From Your Training Data
-
-**This is NOT Next.js 14 or 15.** If you write code that assumes old behavior,
-the build will fail or behave unexpectedly. Read this section every session.
-
-### 1. Dynamic route params are async
-
-```tsx
-// ❌ WRONG (Next 14 style)
-export default function Page({ params }: { params: { id: string } }) {
-  return <div>{params.id}</div>
-}
-
-// ✅ CORRECT (Next 16)
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  return <div>{id}</div>
-}
-```
-
-Same applies to `searchParams`, `cookies()`, `headers()`, `draftMode()` — all async now.
-
-### 2. `middleware.ts` → `proxy.ts`
-
-`middleware.ts` is **deprecated** in Next 16. Use `proxy.ts` at the project root
-(same level as `app/`). Node.js runtime by default, not Edge. See `src/proxy.ts`
-in this repo for the Supabase session-refresh + security-headers pattern.
-
-Rename if migrating from an older project:
-```bash
-mv middleware.ts src/proxy.ts
-# then rename the exported function from `middleware` to `proxy`
-```
-
-### 3. Caching is opt-in (Cache Components)
-
-Next 16 removed implicit caching. Every dynamic operation runs at request time
-by default. To cache, use the `"use cache"` directive:
-
-```ts
-// src/lib/data/products.ts
-export async function getProducts() {
-  "use cache"
-  return supabase.from("products").select("*")
-}
-```
-
-Do **not** rely on `fetch()` memoization or `export const revalidate` on random
-routes — behavior has changed. Be explicit.
-
-### 4. React 19.2 primitives available
-
-- `useEffectEvent` — stable callback that always reads latest state without
-  adding to effect deps. Prefer over manual refs.
-- `<Activity>` — hide UI while preserving state (tabs, wizards, offscreen).
-- View Transitions — `<ViewTransition>` for animated navigations.
-
-### 5. `next/image` defaults changed
-
-Remote images require explicit `remotePatterns` in `next.config.ts`. `domains`
-is removed. Always pass `width` and `height` — unsized images log warnings.
-
-### 6. Typed Routes are stable
-
-Enable via `typedRoutes: true` in `next.config.ts`. Ссылки через `<Link href={...}>`
-становятся type-checked — опечатка в пути ломает `tsc`, а не продакшн.
-
-### 7. React 19 security note
-
-CVE-2025-66478 ("React2Shell") affected Next 15.x and 16.x App Router via RSC
-deserialization. Keep `next` pinned to a patched version (16.2.4+ at time of
-writing). CI runs `pnpm audit` — don't suppress its output.
-
----
-
-## Project Structure
+### Отчёт после задачи
 
 ```
-src/
-├── app/                  # Next.js App Router pages
-│   ├── (auth)/           # Auth routes (login, signup)
-│   ├── (dashboard)/      # Protected routes
-│   ├── api/              # Route Handlers
-│   ├── layout.tsx        # Root layout (siteConfig-driven metadata)
-│   ├── page.tsx          # Landing page
-│   ├── error.tsx         # Global error boundary
-│   ├── not-found.tsx     # Global 404 page
-│   ├── loading.tsx       # Global loading skeleton
-│   ├── sitemap.ts        # Dynamic sitemap generator
-│   └── globals.css       # Tailwind v4 + theme tokens (ONLY globals.css file)
-├── components/
-│   ├── ui/               # shadcn primitives (button, input, card...)
-│   ├── forms/            # Form components
-│   ├── layout/           # Header, Footer, Sidebar, Breadcrumbs
-│   └── [feature]/        # Feature-specific components
-├── lib/
-│   ├── supabase/
-│   │   ├── client.ts     # Browser Supabase client
-│   │   ├── server.ts     # Server Supabase client (cookies-aware)
-│   │   ├── admin.ts      # Service role client (server only, never in client bundle)
-│   │   └── middleware.ts  # Session-refresh helper called from src/proxy.ts
-│   ├── env.ts            # Zod-validated environment variables
-│   ├── utils.ts          # cn() and general utilities
-│   ├── constants.ts      # App-wide constants + ROUTES map
-│   └── validations.ts    # Zod schemas for forms / API bodies
-├── features/             # Bounded contexts (import from outside only via `@/features/<name>`)
-├── shared/               # Optional shared kernel (`@/shared/*`); create when needed
-├── hooks/                # Custom React hooks
-├── types/                # TypeScript types
-│   ├── database.ts       # Supabase generated types (regenerate on schema change)
-│   └── index.ts          # Shared app types
-├── config/
-│   ├── routes.ts         # Canonical route contract (URLs, labels, aliases)
-│   └── site.ts           # Site metadata + nav config
-└── proxy.ts              # Request interception (session refresh + security headers)
+Изменённые файлы:
+- path — что изменилось
+
+Что сделано:
+- ...
+
+Как проверить:
+1. make ...
+2. ожидаемый результат
+
+Риски / заметки:
+- ...
+
+Следующий шаг:
+- Txx
 ```
 
-> Note: `src/styles/` does **not** exist. All global CSS lives in `src/app/globals.css`.
+## Правила кода (Python)
 
----
+- Python 3.12, типизация везде, `mypy --strict` зелёный. Без `Any` там, где можно выразить тип; без `# type: ignore` без комментария-причины.
+- Внешние данные (API, конфиги, ответы LLM) — через pydantic-модели. Сырые `dict` дальше адаптера не уходят.
+- Ошибки не глотаются молча: либо логируй с контекстом и пробрасывай, либо превращай в явный `DataError(source, detail)` → `DATA_*`.
+- Логи — структурированные (JSON) с `event_id` / `card_id`. `print` запрещён (ruff `T20`).
+- Именование: модули и функции `snake_case`, классы `PascalCase`, константы `UPPER_SNAKE_CASE`, булевы — `is_` / `has_` / `should_` / `can_`, таблицы БД `snake_case`.
+- Тесты — pytest в `tests/`, зеркалят структуру пакетов. На каждую функцию в `core/` и `decision/`: happy path + граничный случай + ошибка. Время в тестах — только через `freezegun`.
+- Новая зависимость — с обоснованием в сообщении коммита.
 
-## URL Hierarchy & Breadcrumbs
+## Веб-интерфейс (`web/`, задача T19)
 
-Every page with a path deeper than the first level (e.g. `/companies/[id]`) **must** have breadcrumb navigation.
-URLs must reflect a logical hierarchy that users can navigate by truncating
-segments. This is both a UX and an SEO requirement.
+Next.js 16 + React 19.2 + Tailwind 4, только чтение данных из FastAPI. Если твои знания про Next 14/15 — они устарели:
 
-### Rules
+- `params`, `searchParams`, `cookies()`, `headers()` — асинхронные (`await`).
+- `middleware.ts` устарел → `proxy.ts`.
+- Кэширование только явное (`"use cache"`), неявной мемоизации `fetch` нет.
+- Нет `tailwind.config.ts`, тема — в `globals.css` через `@theme`.
+- `next` держать на патченой версии (16.2.4+, CVE-2025-66478).
 
-1. **URLs are hierarchical.** `/docs/getting-started` means `/docs` is a valid,
-   navigable page. Never create a deep route without a parent index page.
-2. **Detail / edit / create pages** must render `<Breadcrumbs />` from
-   `@/components/layout/breadcrumbs` as the **first content element** (above the page title).
-   - First breadcrumb is always **Dashboard** → `/dashboard`
-   - Last breadcrumb is the current page (no link, bold)
-   - Do **not** render breadcrumbs on `/dashboard` or first-level public/list pages (e.g. `/companies`)
-3. **Dynamic segments** (e.g. `/docs/[slug]`) must pass a `resolveLabel` prop
-   to map the slug to a human-readable title:
-   ```tsx
-   <Breadcrumbs resolveLabel={(seg) => doc?.title ?? seg} />
+## Команды
+
+```
+make setup        # зависимости (uv), pre-commit
+make db-up        # Postgres + Redis в docker
+make db-down      # остановить
+make migrate      # alembic upgrade head (с T03)
+make lint         # ruff + mypy
+make test         # pytest
+make run-scheduler  # с T09
+make run-bot        # с T18
+make run-api        # с T19
+```
+
+## Коммит и пуш
+
+Когда заказчик говорит «закоммить», «запушь», «залей» — выполняй последовательность без уточнений; останавливайся только на реальной ошибке.
+
+1. **Проверки:** `make lint test`. Упало — чини, не коммить сломанное.
+2. **Стейджинг:** только явные пути: `git add path/a path/b`. Никогда `git add .` / `git add -A`.
+3. **Сообщение:** Conventional Commits, тема в нижнем регистре, до 70 символов. Типы: `feat`, `fix`, `refactor`, `chore`, `ci`, `docs`, `test`, `perf`. Скоуп — по `git log --oneline -20`. Тело:
+
    ```
-4. **Route groups** like `(dashboard)` or `(auth)` are invisible in the URL
-   and are automatically stripped from breadcrumbs.
-5. **`src/config/routes.ts` is the source of truth** for route hrefs, labels,
-   titles, aliases, sitemap visibility, and breadcrumb labels. Do not hardcode
-   new navigation hrefs or breadcrumb labels in components.
-6. **Redirect old semantic aliases.** If a route changes, add an alias in
-   `src/config/routes.ts` and a matching redirect in `next.config.ts`.
+   <type>(<scope>): <subject>
 
-### Pattern: Nested layout with breadcrumbs
+   context — зачем:
+   - ...
 
-```tsx
-// src/app/docs/layout.tsx
-import { Breadcrumbs } from "@/components/layout/breadcrumbs"
+   <area> — что изменилось:
+   - файлы, константы, новые функции
 
-export default function DocsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <Breadcrumbs className="mb-6" />
-      {children}
-    </div>
-  )
-}
-```
+   tests:
+   - N новых тестов на ...
+   - M всего зелёных
 
-### Anti-patterns
+   results (если применимо):
+   - цифры до/после
+   ```
 
-- ❌ Creating `/settings/billing/invoices/[id]` without `/settings/billing/invoices` index
-- ❌ Pages deeper than `/` without `<Breadcrumbs />`
-- ❌ Using non-descriptive slugs as route segments (`/p/123` instead of `/projects/123`)
-- ❌ Flat URL structures that don't reflect content hierarchy (`/invoice-detail` instead of `/invoices/[id]`)
-- ❌ Writing `<Link href="/settings/billing">` in new code instead of using `ROUTES` / `routes`
+4. **Коммит через heredoc** (`git commit -F - <<'COMMIT' … COMMIT`), не через `-m`.
+5. **Пуш** в текущую ветку: `git push -u origin <branch>`. Верни SHA и ссылку на GitHub.
 
----
+Запрещено: `--no-verify`, `git push --force` в `main`, коммит `.env*`, тема в верхнем регистре, пропуск проверок «для скорости».
+**Никаких трейлеров `Co-Authored-By` / «Generated with» для AI-инструментов** — ни в коммитах, ни в PR, ни в коде.
 
-## Code Rules
-
-### TypeScript
-
-- Strict mode always. No `any`. No `@ts-ignore`. Use `unknown` + narrowing.
-- `interface` for object shapes, `type` for unions/intersections.
-- Every exported function has an explicit return type.
-- Zod for all runtime boundaries: API bodies, form inputs, env vars, 3rd-party responses.
-
-### React Components
-
-- Functional components only.
-- Named exports: `export function ComponentName()`.
-- Props interface above the component:
-  ```tsx
-  interface UserCardProps {
-    user: User
-    onSelect: (id: string) => void
-  }
-
-  export function UserCard({ user, onSelect }: UserCardProps): React.ReactElement {
-    // ...
-  }
-  ```
-- Components under 150 lines. Extract logic to hooks or utilities.
-- `"use client"` only for browser APIs, interactivity, or client-only libs.
-- Server Components fetch data directly with `async/await` — no `useEffect` for fetching.
-
-### Naming Conventions
-
-- Files: `kebab-case.ts`, `kebab-case.tsx`
-- Components: `PascalCase` (file in kebab-case)
-- Functions/variables: `camelCase`
-- Constants: `UPPER_SNAKE_CASE`
-- Types/Interfaces: `PascalCase`
-- Database tables: `snake_case`
-- API routes: `kebab-case`
-- Booleans: prefix `is`, `has`, `should`, `can`
-
-### Error Handling
-
-Never silently catch. Always log or re-throw with context.
-```ts
-try {
-  const { data, error } = await supabase.from("users").select("id, email")
-  if (error) throw error
-  return data
-} catch (error) {
-  console.error("Failed to fetch users:", error)
-  throw new Error("Unable to load users. Please try again.")
-}
-```
-
-### Imports
-
-Absolute imports via `@/` prefix. Group in this order:
-1. React / Next.js
-2. External libraries
-3. Internal modules (`@/lib`, `@/hooks`, `@/types`)
-4. Components (`@/components`)
-5. Relative imports (same feature folder only)
-
----
-
-## Supabase Rules
-
-- RLS **enabled** on every table. Write policies in the migration that creates the table.
-- `service_role` key is server-only. Never import `@/lib/supabase/admin.ts` from a
-  file with `"use client"`.
-- On the server, use `supabase.auth.getUser()` (not `getSession()`) — it revalidates
-  against Supabase Auth.
-- Regenerate types on schema change:
-  ```bash
-  pnpm supabase gen types typescript --project-id <project-id> > src/types/database.ts
-  ```
-- Sensitive logic (webhooks, 3rd-party API calls with secrets, file processing) →
-  Edge Functions.
-- Session refresh lives in `src/proxy.ts` (see that file). Do not duplicate it.
-
----
-
-## Environment Variables
-
-- All env vars are validated with Zod at startup via `src/lib/env.ts`.
-- **Add new env vars** in three places: `.env.example`, `src/lib/env.ts` (schema),
-  and the relevant CI workflow env block.
-- Use `getServerEnv()` in server code and `getClientEnv()` in client code instead
-  of raw `process.env` — this gives type safety and fails fast on misconfiguration.
-- Never commit `.env.local`. The `.gitignore` already blocks it.
-
----
-
-## Error Handling & Boundaries
-
-Three files provide the global error safety net:
-
-- `src/app/error.tsx` — catches unhandled runtime errors. Wired to `console.error`
-  by default; replace with `Sentry.captureException(error)` when you add error
-  tracking.
-- `src/app/not-found.tsx` — renders for any unmatched route (404).
-- `src/app/loading.tsx` — global loading skeleton during navigation.
-
-### Rules
-
-- Every route group layout **may** have its own `error.tsx` and `loading.tsx`
-  for more granular feedback.
-- Never swallow errors silently. If you catch, either re-throw or report.
-- Error boundaries must provide a way to retry (`reset()` callback).
-- The `error.digest` field is a server-side hash — safe to show to users for
-  support requests, but never expose the full stack trace.
-
----
-
-## SEO & Metadata
-
-- Root `layout.tsx` uses `title.template` from `siteConfig` — child pages only
-  need to set `title` (e.g. `"Dashboard"` renders as `"Dashboard — ProductName"`).
-- Use `generateMetadata()` for dynamic pages (blog posts, docs):
-  ```tsx
-  export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const { slug } = await params
-    const doc = await getDoc(slug)
-    return { title: doc.title, description: doc.excerpt }
-  }
-  ```
-- `src/app/robots.ts` — dynamic `robots.txt`; reads canonical URL from `NEXT_PUBLIC_APP_URL`.
-- `public/llms.txt` — fill with product info for AI indexing.
-- `src/app/sitemap.ts` — add dynamic routes as your product grows.
-- Always set `width` and `height` on OG images (default: 1200×630).
-
----
-
-## Styling Rules (Tailwind v4)
-
-- Tailwind only. No inline styles. No CSS Modules (exceptional cases only).
-- There is **no `tailwind.config.ts`**. Theme tokens live in `src/app/globals.css`
-  under `@theme inline { ... }`. Add new tokens there.
-- Use `cn()` from `@/lib/utils` for conditional classes:
-  ```tsx
-  <div className={cn("base", isActive && "active")} />
-  ```
-- Mobile-first. Use `sm:`, `md:`, `lg:`, `xl:` breakpoints.
-- Dark mode via `dark:` variant (toggled by `.dark` on `<html>`).
-- No magic pixels. Use the spacing scale (`p-2`, `gap-4`) and radius tokens
-  (`rounded-md`, `rounded-xl`).
-
----
-
-## Prohibitions
-
-1. No `any`. Use `unknown` and narrow.
-2. No `console.log` in production paths. Use `console.warn` / `console.error` or a logger.
-3. No hardcoded secrets. All keys live in `.env.local` and are accessed via
-   `getServerEnv()` / `getClientEnv()` from `@/lib/env.ts` — not raw `process.env`.
-4. No direct DOM manipulation. Use React state/refs.
-5. No default exports (except Next.js pages/layouts/error boundaries that require them,
-   and `proxy.ts` default export).
-6. No barrel files (`index.ts` re-exports) in shared code — they break tree-shaking. **Exception:** each `src/features/<name>/index.ts` **must** re-export that feature’s public API; consumers import only `@/features/<name>` (see `ARCHITECTURE.md`).
-7. No data fetching in `useEffect`. Use Server Components, Server Actions, or SWR/React Query
-   for client-side real-time needs.
-8. No committing `.env*` files with real values.
-9. No ignoring TypeScript errors. Fix them.
-10. No installing packages without justification in the commit message.
-11. No `middleware.ts` — use `src/proxy.ts` (Next 16 convention).
-12. No `Co-Authored-By` trailers for AI tools in commit messages. Commits are made by human contributors only.
-
----
-
-## Git Rules
-
-Commit messages in imperative mood, concise, Conventional Commits prefixes:
-
-- `feat: add user authentication flow`
-- `fix: resolve timezone offset in booking display`
-- `refactor: extract payment logic into hook`
-- `chore: bump next to 16.2.4`
-
-One logical change per commit. Never commit broken code.
-
----
-
-# Commit & Push Protocol
-
-When the user says "commit", "запушь", "залей", or similar, perform the
-following sequence WITHOUT asking for clarification. Stop only if a step
-fails with a real error.
-
-## Step 1 — Pre-commit verification
-
-Detect which checks apply to this repo, then run all that exist:
-
-| Tool | Command | Skip if |
-|---|---|---|
-| Python tests | `cd engine && uv run pytest tests/ -q 2>&1 \| tail -5` | No `engine/` or `pyproject.toml` |
-| Python lint | `cd engine && uv run ruff check src/ tests/ 2>&1 \| tail -3` | Same |
-| Python types | `cd engine && uv run pyright src/ 2>&1 \| tail -3` | Same |
-| TS types | `pnpm tsc --noEmit 2>&1 \| tail -5` | No `package.json` |
-| ESLint | `pnpm lint 2>&1 \| tail -3` | Same |
-| Vitest | `pnpm test 2>&1 \| tail -5` | Same |
-
-Run them in this order. If any fail, STOP and fix the failure before
-continuing. Do not commit broken code.
-
-## Step 2 — Stage files
-
-Explicitly add only the files you changed:
-
-```bash
-git add path/to/file1 path/to/file2 ...
-```
-
-Never use `git add .` or `git add -A` — they pull in secrets and junk.
-If many files changed in one logical unit, list them all by name.
-
-Also never use `--no-verify` or `git push --force`.
-
-## Step 3 — Compose the commit message
-
-Use Conventional Commits with **lowercase subject** (many commitlint
-configs require this). Body MUST have 4 sections:
+## Карта репозитория
 
 ```
-<type>(<scope>): <lowercase subject under 70 chars>
-
-context — why this change exists / what bug / what data triggered it:
-- 1-3 bullet points explaining motivation
-
-<area> — what changed:
-- file-level summary of each meaningful edit
-- include constants / thresholds / new functions / new endpoints
-
-tests:
-- N new tests covering ...
-- M tests total passing
-
-results (if applicable):
-- numbers before vs after
-- benchmark output, regression test pass, real-data backtest, etc.
+config/       universe.yaml, thresholds.yaml, registry.yaml
+core/         domain, db, scheduler, registry, state_machine, session_guard
+adapters/     massive, ivolatility, edgar, fred, polymarket, llm, broker
+agents/       плагины-агенты
+strategies/   плагины-стратегии
+models/       обучение, калибровка, инференс
+decision/     Chief Trader, Capital Manager, правила, коды пропуска
+execution/    исполнитель, сопровождение, costs.py (CostModel), P&L
+notify/       telegram: бот, шаблоны, сторож
+learning/     журнал, теневые сделки, отчёт сезона
+backtest/     прогон на архиве
+api/, web/    FastAPI + Next.js (только чтение в MVP)
+tests/
 ```
 
-Types: `feat`, `fix`, `refactor`, `chore`, `ci`, `docs`, `test`, `perf`.
-Scopes are repo-specific — read recent `git log --oneline -20` to see
-what scopes have been used before, mimic those.
+## Начало сессии
 
-## Step 4 — Commit via heredoc
-
-ALWAYS use heredoc, not `-m`. The `&` and apostrophes in commit bodies
-break with `-m "..."` quoting.
-
-```bash
-git commit -F - <<'COMMIT'
-<type>(<scope>): subject
-
-context — ...
-- bullet
-
-<area> — what changed:
-- bullet
-
-tests:
-- bullet
-
-results:
-- bullet
-COMMIT
-```
-
-The `'COMMIT'` quotes are critical — they prevent shell variable
-expansion of `$`, backticks, etc. inside the body.
-
-## Step 5 — Handle commitlint warnings
-
-If commit succeeds but warns about `scope-enum`, ignore — the commit
-still landed. If it FAILS with `subject-case` (uppercase subject),
-re-compose with all-lowercase subject and re-commit.
-
-If a pre-commit / lint-staged hook auto-formats files and the message
-shows "modified by linter", the commit still landed correctly — the
-warning is informational.
-
-## Step 6 — Push
-
-```bash
-git push origin main 2>&1 | tail -3
-```
-
-(Or whatever the current branch is — check `git branch --show-current`
-first if unsure.)
-
-Report the commit SHA back to the user as a GitHub link if possible.
-
-## What NOT to do
-
-- Don't ask for permission between steps — run them all
-- Don't use `--no-verify` to skip hooks
-- Don't use `git push --force` to main
-- Don't commit `.env*` files
-- Don't use `git add .` / `git add -A`
-- Don't write the subject line in uppercase
-- Don't skip the verification step "to save time"
-
----
-
-## Testing
-
-- Write tests for: utility functions, API routes, complex business logic, Zod schemas.
-- Framework: Vitest (unit) + Playwright (E2E when needed).
-- Test files colocated: `utils.ts` → `utils.test.ts`.
-- Every new utility function gets a test.
-
----
-
-## Pre-Commit Checklist
-
-Before completing any task, verify:
-
-- [ ] TypeScript compiles (`pnpm tsc --noEmit`)
-- [ ] ESLint passes (`pnpm lint`)
-- [ ] Prettier clean (`pnpm format:check`)
-- [ ] Tests pass (`pnpm test`)
-- [ ] Breadcrumbs present on nested routes
-- [ ] No hardcoded values (URLs, keys, magic numbers)
-- [ ] Error states handled in UI (loading, error, empty)
-- [ ] Mobile responsiveness checked
-- [ ] No `console.log` left in source
-- [ ] New dependencies justified in commit message
-- [ ] Commit message follows convention
-
----
-
-## El Aurion Agents
-
-Проект использует систему специализированных агентов. Подробности: `.claude/agents/README.md`.
-
-Быстрый старт:
-```
-/project:agent orchestrator "сложная задача с несколькими шагами"
-/project:agent coder "написать или изменить код"
-/project:agent reviewer "проверить код перед merge"
-/project:agent architect "спроектировать схему или API"
-/project:agent tester "написать тесты"
-/project:agent security "аудит безопасности"
-```
-
-Правила разбиты по файлам в `.claude/rules/` — агенты читают только нужные им файлы.
-
----
-
-## Context & Memory
-
-When working on a task:
-1. Read relevant files first before making changes.
-2. Follow existing patterns — consistency over preference.
-3. Suggest refactors as separate steps, not mixed into feature commits.
-
-When starting a new session:
-1. Read `docs/09_CURRENT_STATUS.md` — current project status, what's done, what's next.
-2. Read `docs/08_BACKLOG.md` — pick the next task.
-3. Read `.claude/memory/context.md` for session context.
-4. Read `.claude/memory/mistakes.md` — not to repeat past errors.
-5. Read `.claude/rules/` relevant to your task.
-6. Ask clarifying questions if requirements are ambiguous.
-7. Show implementation plan before writing code (see `## Before Writing Code` above).
-
-After completing a task:
-- Update `docs/09_CURRENT_STATUS.md` with what was done and the next step.
-- If a meaningful architectural/product decision was made, log it in `docs/15_DECISIONS_LOG.md`.
-
----
-
-## Documentation
-
-- Every exported function has a JSDoc comment.
-- Complex logic gets inline comments explaining **why**, not **what**.
-- README.md is kept up to date.
-- API routes documented with request/response examples.
-
----
-
-## Performance
-
-- `next/image` for all images. Always pass `width` and `height`.
-- `next/link` for internal navigation.
-- Server Components by default. `"use client"` only when necessary.
-- Lazy-load heavy client components: `dynamic(() => import("./chart"), { ssr: false })`.
-- Cache Components (`"use cache"`) for expensive server reads that don't change
-  per-user — opt-in, be explicit about what you cache.
-
----
-
-## Security
-
-- Sanitize all user inputs via Zod at the API boundary.
-- Validate on both client (UX) and server (security).
-- Check auth on every protected route, Server Action, and Route Handler
-  with `supabase.auth.getUser()`.
-- Never log sensitive data (passwords, tokens, PII).
-- CSP and security headers are set in `src/proxy.ts` — don't fight it.
-- Keep `next` on a patched version (16.2.4+) due to CVE-2025-66478.
-- For new features involving money, auth, or multi-tenancy: write the RLS policy
-  **in the same migration** that creates the table.
-
----
-
-## Built-in Features (added to this template)
-
-These features are scaffolded and ready to wire up. Read their `index.ts` for the public API.
-
-### PostHog Analytics (`src/components/analytics/`, `src/lib/analytics.ts`)
-- Client: wrap `usePostHog()` → `ph.capture("event_name", props)`
-- Server: `trackServerEvent("event", userId, props)` from `@/lib/analytics`
-- Identify after login: `ph.identify(user.id, { email, plan })`
-- Reset on sign-out: `ph.reset()`
-- Enable: set `NEXT_PUBLIC_POSTHOG_KEY` env var
-
-### Onboarding Wizard (`src/features/onboarding/`)
-- Route: `/onboarding` — auto-redirects new users after signup
-- Steps defined in `src/features/onboarding/lib/steps.ts` — add/remove/reorder freely
-- Profile column: `profiles.onboarding_completed` (migration 0005)
-- Enable redirect in auth callback: check `onboarding_completed` and redirect to `/onboarding`
-
-### Plan Limits + PlanGate (`src/lib/plan-limits.ts`, `src/components/plan-gate.tsx`)
-- Map Stripe product IDs → limits in `src/lib/plan-limits.ts` `PRODUCT_PLAN_MAP`
-- Gate any feature: `<PlanGate allowed={limits.aiEnabled} feature="AI Assistant">...</PlanGate>`
-- Usage page at `/settings/usage` — shows per-resource bars
-- Replace placeholder usage queries with real ones when tables exist
-
-### In-app Notifications (`src/features/notifications/`)
-- Bell component with Supabase Realtime badge: `<NotificationsBell initialNotifications={...} userId={...} />`
-- Send from server: `sendNotification(userId, { title, body, kind, href })`
-- Table: `public.notifications` (migration 0006)
-- Enable flag: `NEXT_PUBLIC_FF_NOTIFICATIONS=true`
-
-### API Keys (`src/features/api-keys/`)
-- Management UI at `/settings/api-keys`
-- Verify in Route Handlers: `const userId = await verifyApiKey(request.headers.get("x-api-key"))`
-- Only SHA-256 hash stored — plain key shown once on creation
-- Table: `public.api_keys` (migration 0007)
-- Enable flag: `NEXT_PUBLIC_FF_API_KEYS=true`
-
-### Releases & Changelog
-- `release.config.ts` — semantic-release config
-- `.github/workflows/release.yml` — auto-release on push to `main`
-- `CHANGELOG.md` — auto-generated from Conventional Commits
-- Install devDeps to activate: `pnpm add -D semantic-release @semantic-release/changelog @semantic-release/git`
-
-### Development Seed
-- `pnpm seed` — creates 3 test users + sample data
-- Credentials: `alice@example.com / password123`, etc.
-- Safe to run multiple times (upserts)
+1. Прочитай `SPEC.md`, `TASKS.md`, `OPEN_QUESTIONS.md`.
+2. Найди в `TASKS.md` первую задачу, приёмка которой не выполнена (`git log`, открытые PR).
+3. Покажи план и дождись подтверждения.

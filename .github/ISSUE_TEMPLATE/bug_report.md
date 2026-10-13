@@ -14,15 +14,15 @@ A clear, one-paragraph description.
 2. Step …
 3. Expected vs. actual
 
-## Environment
+## Context
 
-- `next` version: (run `pnpm list next`)
-- Node: (run `node -v`)
-- OS / browser:
+- Task / module: (e.g. T09, `core/scheduler`)
+- `event_id` / `card_id` if relevant:
+- Python: (run `uv run python --version`)
 
 ## Logs
 
-Paste the relevant `logger` JSON or stack trace. Strip secrets.
+Paste the relevant JSON log lines. Strip secrets.
 
 ```
 {...}

@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [javascript-typescript]
+        language: [python]
 
     steps:
       - name: Checkout repository
@@ -34,9 +34,6 @@ jobs:
           languages: ${{ matrix.language }}
           # Extend with security-and-quality queries for deeper coverage.
           queries: security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

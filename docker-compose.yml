@@ -1,43 +1,36 @@
-# Local stack for offline development.
-#
-# Why not `supabase start`? It runs the full Supabase suite (Postgres, Studio,
-# Auth, Storage, Realtime, Edge Functions). That is the canonical path for
-# anything DB-related — see `supabase/README.md`.
-#
-# This compose file is for the *non-Supabase* pieces a typical project ends
-# up needing (rate-limiting, queues, blob storage emulation) without forcing
-# every contributor to sign up for Upstash / S3 just to `pnpm dev`.
-#
-# Usage:
-#   docker compose up -d        # start
-#   docker compose down         # stop
-#   docker compose down -v      # stop + wipe volumes
+# Local Postgres 16 (+pgvector) and Redis for development.
+# Defaults are local-only dev values; override via .env (see .env.example).
+#   make db-up / make db-down
 
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: earnings-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-earnings}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-earnings}
+      POSTGRES_DB: ${POSTGRES_DB:-earnings}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
-    container_name: template-redis
-    ports: ["6379:6379"]
+    container_name: earnings-redis
+    ports: ["${REDIS_PORT:-6379}:6379"]
     volumes: [redis_data:/data]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 10
     restart: unless-stopped
 
-  # Optional: MinIO as an S3-compatible blob store for local dev.
-  # Comment in when you wire file uploads.
-  # minio:
-  #   image: minio/minio:latest
-  #   container_name: template-minio
-  #   ports: ["9000:9000", "9001:9001"]
-  #   environment:
-  #     MINIO_ROOT_USER: minioadmin
-  #     MINIO_ROOT_PASSWORD: minioadmin
-  #   command: server /data --console-address ":9001"
-  #   volumes: [minio_data:/data]
-
 volumes:
+  postgres_data:
   redis_data:
-  # minio_data:
