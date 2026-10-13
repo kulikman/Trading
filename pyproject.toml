@@ -5,8 +5,11 @@ description = "Prepares, enters and manages trades around US quarterly earnings 
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.20.0",
+    "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.1",
     "pyyaml>=6.0.3",
+    "sqlalchemy>=2",
 ]
 
 [dependency-groups]
@@ -43,6 +46,8 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+# Generated CHECK constraint SQL strings are long and must stay verbatim.
+"core/db/migrations/versions/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

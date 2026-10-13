@@ -14,11 +14,27 @@ jobs:
     name: Lint · Typecheck · Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      # Same image and local-only credentials as docker-compose.yml, so the
+      # Makefile's default DATABASE_URL works unchanged.
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: earnings
+          POSTGRES_PASSWORD: earnings
+          POSTGRES_DB: earnings
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U earnings -d earnings"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: make lint
+      - run: make migrate
       - run: make test
 
   secrets-scan:

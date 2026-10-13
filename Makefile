@@ -1,5 +1,12 @@
 .PHONY: setup db-up db-down migrate lint format test run-scheduler run-bot run-api
 
+-include .env
+
+# Local docker default (same defaults as docker-compose.yml); .env or the shell can override.
+LOCAL_DATABASE_URL = postgresql+psycopg://$(or $(POSTGRES_USER),earnings):$(or $(POSTGRES_PASSWORD),earnings)@localhost:$(or $(POSTGRES_PORT),5432)/$(or $(POSTGRES_DB),earnings)
+DATABASE_URL := $(or $(DATABASE_URL),$(LOCAL_DATABASE_URL))
+export DATABASE_URL
+
 setup:
 	uv sync
 	@if git config --get core.hooksPath >/dev/null; then \
@@ -16,7 +23,7 @@ db-down:
 	docker compose down
 
 migrate:
-	@echo "migrate: available after T03 (Alembic schema)"; exit 1
+	uv run alembic upgrade head
 
 lint:
 	uv run ruff check .
