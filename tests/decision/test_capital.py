@@ -2,7 +2,7 @@ import pytest
 
 from core.config import load_config
 from core.registry.protocols import Proposal
-from decision.capital import Rejection, Sizing, level_from_regime, size
+from decision.capital import Rejection, Sizing, level_from_regime, size, size_data_collection
 
 THRESHOLDS = load_config().thresholds
 
@@ -80,3 +80,17 @@ def test_level_from_regime() -> None:
         "red",
         "red",
     ]
+
+
+def test_data_collection_fixed_risk_with_black_swan() -> None:
+    green = size_data_collection(proposal(0.3), level="green", thresholds=THRESHOLDS)
+    orange = size_data_collection(
+        proposal(0.3, multiplier=0.5), level="orange", thresholds=THRESHOLDS
+    )
+    assert isinstance(green, Sizing)
+    assert isinstance(orange, Sizing)
+    assert green.risk_fraction == pytest.approx(0.01)  # без Келли и порога edge
+    assert orange.risk_fraction == pytest.approx(0.01 * 0.4 * 0.5)  # уверенность не требуется
+    assert size_data_collection(proposal(0.9), level="red", thresholds=THRESHOLDS) == Rejection(
+        ["MACRO_BLOCK"]
+    )

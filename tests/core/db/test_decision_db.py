@@ -131,42 +131,73 @@ def test_paper_proposal_enters_shadow_only_records(session: Session, event: orm.
     sized = session.scalars(
         select(orm.DecisionStep).where(orm.DecisionStep.strategy_id == "iron_condor")
     ).one()
-    assert sized.risk_fraction == pytest.approx(0.125 * (0.64 - 0.36))
+    assert sized.risk_fraction == pytest.approx(0.01)  # сезоны 1–2: фиксированный риск 1%
     ctx = condor.contexts[0]
     assert ctx.forecasts["market_move"] == pytest.approx(0.36)  # 0,30 − (−0,06)
     assert ctx.features["macro"] == {"regime": 0.0}
 
 
-def test_gates_and_finalize_collects_reasons(session: Session, event: orm.Event) -> None:
-    event.date_status = "projected"
-    company = session.get(orm.Company, "NFLX")
+def learned_models(session: Session) -> None:
+    """Две версии сверх стартовой — сезоны 1–2 закончились, ворота edge и θ действуют."""
+    for version in ("0.2.0", "0.3.0"):
+        session.add(
+            orm.ModelVersion(
+                model="p_up",
+                version=version,
+                params={"intercept": 0.0},
+                trained_at=NOW,
+                accepted=True,
+                reason="test",
+            )
+        )
+    session.flush()
+
+
+def test_collecting_skips_edge_gate_but_keeps_quarantine(
+    session: Session, event: orm.Event
+) -> None:
+    weak: dict[str, Strategy] = {
+        "iron_condor": FakeStrategy("iron_condor", proposal("iron_condor", edge=0.0, p=0.4))
+    }
+    run_decision(session, job(event.id), ["iron_condor"], weak, config=CONFIG, now=NOW)
+    assert steps(session) == [("iron_condor", "proposal", False, [])]  # широкая воронка
+    step = session.scalars(select(orm.DecisionStep)).one()
+    assert (step.edge, step.confidence) == (0.0, 0.4)  # записано для сужения воронки потом
+    other = orm.Event(ticker="TSLA", report_date=date(2026, 10, 20), date_status="projected")
+    session.add(other)
+    company = session.get(orm.Company, "TSLA")
     assert company is not None
     company.calibration_status = "quarantine"
     session.flush()
+    run_decision(session, job(other.id), ["iron_condor"], weak, config=CONFIG, now=NOW)
+    assert steps(session)[-1] == ("iron_condor", "skip", False, ["CALIBRATION"])
+
+
+def test_gates_after_learning_and_finalize_collects_reasons(
+    session: Session, event: orm.Event
+) -> None:
+    learned_models(session)
     strategies: dict[str, Strategy] = {
         "iron_condor": FakeStrategy("iron_condor", proposal("iron_condor", edge=0.04, p=0.45)),
     }
     run_decision(session, job(event.id), ["iron_condor"], strategies, config=CONFIG, now=NOW)
     assert steps(session) == [
-        (
-            "iron_condor",
-            "skip",
-            False,
-            [
-                "EDGE_LOW",
-                "CONF_LOW",
-                "CALIBRATION",
-                "DATA_MISMATCH",
-            ],  # 0,04 ≤ 0,02 + 0,03; 0,45 < θ
-        )
+        ("iron_condor", "skip", False, ["EDGE_LOW", "CONF_LOW"])  # 0,04 ≤ 0,02 + 0,03; 0,45 < θ
     ]
     assert session.scalars(select(orm.Decision)).first() is None
     decision = finalize(session, event.id, NOW)
-    assert (decision.status, sorted(decision.reasons)) == (
-        "SKIPPED",
-        ["CALIBRATION", "CONF_LOW", "DATA_MISMATCH", "EDGE_LOW"],
-    )
+    assert (decision.status, sorted(decision.reasons)) == ("SKIPPED", ["CONF_LOW", "EDGE_LOW"])
     assert finalize(session, event.id, NOW).id == decision.id  # повтор не создаёт второго
+
+
+def test_kelly_after_learning(session: Session, event: orm.Event) -> None:
+    learned_models(session)
+    strategies: dict[str, Strategy] = {
+        "iron_condor": FakeStrategy("iron_condor", proposal("iron_condor")),
+    }
+    run_decision(session, job(event.id), ["iron_condor"], strategies, config=CONFIG, now=NOW)
+    step = session.scalars(select(orm.DecisionStep)).one()
+    assert step.risk_fraction == pytest.approx(0.25 * (0.64 - 0.36))  # ¼ Келли после сезонов 1–2
 
 
 def test_finalize_without_steps_is_data_calendar(session: Session, event: orm.Event) -> None:

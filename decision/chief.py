@@ -2,7 +2,9 @@
 
 Каждая стратегия задачи даёт предложение или отказ с кодами; предложение проходит ворота:
 edge > costs + 0,03 (EDGE_LOW), уверенность ≥ θ режима (CONF_LOW), компания не в карантине для
-режимов, кроме C (CALIBRATION), дата отчёта подтверждена (DATA_MISMATCH), затем Capital Manager.
+режимов, кроме C (CALIBRATION), затем Capital Manager (Келли).
+Сезоны 1–2 — сбор данных (решение заказчика 15.10.2026): ворота edge и θ не применяются, риск —
+фиксированный (sizing.data_collection_risk); edge и уверенность всё равно пишутся в шаг.
 Все шаги пишутся в decision_step; shadow-стратегии считают, но в решение не идут (SPEC §7).
 Decision у события один: ENTERED — при первом прошедшем предложении (лучшее по edge × риск);
 иначе после T0 — SKIPPED с кодами всех отказов (`finalize`).
@@ -30,6 +32,7 @@ from decision.capital import (
     in_seasons_1_2,
     level_from_regime,
     size,
+    size_data_collection,
     win_loss_ratio,
 )
 from models.features import stage_features
@@ -97,18 +100,20 @@ def run_decision(
         if isinstance(result, Skip):
             steps.append(_step(job, strategy.id, is_shadow, now, reasons=list(result.reasons)))
             continue
-        reasons = _gates(result, event, is_quarantined, config)
-        outcome: Sizing | Rejection = (
-            Rejection(reasons)
-            if reasons
-            else size(
+        reasons = _gates(result, is_quarantined, config, collecting=seasons_1_2)
+        outcome: Sizing | Rejection
+        if reasons:
+            outcome = Rejection(reasons)
+        elif seasons_1_2:
+            outcome = size_data_collection(result, level=level, thresholds=config.thresholds)
+        else:
+            outcome = size(
                 result,
                 level=level,
                 b=win_loss_ratio(session, result.construction, config.thresholds),
                 seasons_1_2=seasons_1_2,
                 thresholds=config.thresholds,
             )
-        )
         steps.append(_step(job, strategy.id, is_shadow, now, result, outcome))
         if isinstance(outcome, Sizing) and not is_shadow:
             accepted.append(Accepted(result, outcome))
@@ -159,23 +164,23 @@ def finalize(session: Session, event_id: int, now: datetime) -> orm.Decision:
 
 
 def _gates(
-    proposal: Proposal, event: orm.Event, is_quarantined: bool, config: AppConfig
+    proposal: Proposal, is_quarantined: bool, config: AppConfig, *, collecting: bool
 ) -> list[SkipReason]:
     thresholds = config.thresholds
+    reasons: list[SkipReason] = []
+    if is_quarantined and proposal.mode != "C":
+        reasons.append("CALIBRATION")  # в карантине разрешён только режим C (SPEC §9)
+    if collecting:
+        return reasons  # сезоны 1–2: широкая воронка, edge и θ только записываются
     theta = (
         thresholds.modes.B.theta
         if proposal.mode == "B"
         else thresholds.edge.paper_theta_seasons_1_2
     )
-    reasons: list[SkipReason] = []
     if proposal.edge <= proposal.cost_fraction + thresholds.edge.margin_over_costs:
         reasons.append("EDGE_LOW")
     if proposal.confidence < theta:
         reasons.append("CONF_LOW")
-    if is_quarantined and proposal.mode != "C":
-        reasons.append("CALIBRATION")  # в карантине разрешён только режим C (SPEC §9)
-    if event.date_status != "confirmed":
-        reasons.append("DATA_MISMATCH")  # дата отчёта не подтверждена двумя источниками
     return reasons
 
 

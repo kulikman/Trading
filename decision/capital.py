@@ -63,6 +63,23 @@ def size(
     return Sizing(risk_fraction=risk, level=level)
 
 
+def size_data_collection(
+    proposal: Proposal, *, level: Level, thresholds: Thresholds
+) -> Sizing | Rejection:
+    """Сезоны 1–2, сбор данных (решение заказчика 15.10.2026): фиксированный риск по сигналу.
+
+    Без порога edge и Келли; Black Swan — красный (или ручной красный) вето, жёлтый и оранжевый —
+    только множитель размера (условие уверенности оранжевого — для режима с обученными моделями).
+    """
+    swan = thresholds.risk_limits.black_swan
+    if level == "red" or swan.manual_red:
+        return Rejection(["MACRO_BLOCK"])
+    settings = {"yellow": swan.yellow, "orange": swan.orange}.get(level)
+    level_multiplier = settings.size_multiplier if settings is not None else 1.0
+    risk = thresholds.sizing.data_collection_risk * level_multiplier * proposal.size_multiplier
+    return Sizing(risk_fraction=risk, level=level)
+
+
 def level_from_regime(regime: float | None) -> Level:
     """Уровень Black Swan из признака macro.regime (0–3); признака нет — зелёный.
 
