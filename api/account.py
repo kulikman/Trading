@@ -19,6 +19,7 @@ from core.config.thresholds import Thresholds
 from core.session_guard import is_regular_session, is_trading_day, previous_trading_day, to_et
 
 TRADING_DAYS_PER_YEAR = 252
+CURVE_WIDTH, CURVE_HEIGHT, CURVE_MARGIN = 600, 160, 4  # размер SVG кривой баланса, px
 NO_TRADES = "нет сделок"
 AFTER_EXECUTOR = "нет данных до исполнителя (T17)"
 
@@ -40,7 +41,7 @@ class AccountBar(BaseModel):
     risk: Num | None = None
     worst_drawdown: Num | None = None
     drawdown_threshold: Num | None = None
-    refresh_seconds: int
+    refresh_ms: int  # интервал опроса для фронта, мс (§5): фронт не пересчитывает единицы
 
 
 class PeriodRow(BaseModel):
@@ -76,6 +77,7 @@ class AccountSummary(BaseModel):
     periods: list[PeriodRow] = []
     metrics: list[MetricRow] = []
     curve: list[CurvePoint] = []
+    curve_path: str | None = None  # ступенчатая линия для SVG CURVE_WIDTH × CURVE_HEIGHT
     curve_message: str | None = None
     path_to_real: list[Criterion] = []
 
@@ -89,10 +91,10 @@ def account_bar(
     thresholds: Thresholds,
     now: datetime,
 ) -> AccountBar:
-    refresh = _refresh_seconds(thresholds, now)
+    refresh = _refresh_ms(thresholds, now)
     if capital is None:
         return AccountBar(
-            mode=mode, is_available=False, message="Счёт Real не подключён", refresh_seconds=refresh
+            mode=mode, is_available=False, message="Счёт Real не подключён", refresh_ms=refresh
         )
     today = to_et(now).date()
     balance = capital + sum(t.pnl for t in trades)
@@ -122,7 +124,7 @@ def account_bar(
         risk=risk,
         worst_drawdown=worst,
         drawdown_threshold=percent(limit, digits=0),
-        refresh_seconds=refresh,
+        refresh_ms=refresh,
     )
 
 
@@ -154,6 +156,7 @@ def account_summary(
         periods=[_period(name, trades, start, capital) for name, start in periods],
         metrics=_metrics(season, trades, capital, thresholds, today),
         curve=[CurvePoint(day=day(d), balance=money(b)) for d, b in curve],
+        curve_path=curve_path(curve, capital),
         curve_message=None if curve else NO_TRADES,
         path_to_real=_path_to_real(trades, capital, thresholds, today, first_card_at),
     )
@@ -166,6 +169,32 @@ def equity_curve(trades: Sequence[ClosedTrade], capital: float) -> list[tuple[da
         balance += trade.pnl
         points[_close_day(trade)] = balance
     return sorted(points.items())
+
+
+def curve_path(points: Sequence[tuple[date, float]], capital: float) -> str | None:
+    """SVG-путь ступенчатой кривой баланса: от стартового капитала, x — по датам, y — по балансу.
+
+    Геометрия считается здесь, чтобы фронт только рисовал (DASHBOARD.md §6: в web/ нет арифметики).
+    """
+    if not points:
+        return None
+    first, last = points[0][0], points[-1][0]
+    span = max((last - first).days, 1)
+    values = [capital, *(b for _, b in points)]
+    low, high = min(values), max(values)
+    height = max(high - low, 1.0)
+
+    def x(d: date) -> float:
+        return CURVE_MARGIN + (d - first).days / span * (CURVE_WIDTH - 2 * CURVE_MARGIN)
+
+    def y(balance: float) -> float:
+        return CURVE_MARGIN + (high - balance) / height * (CURVE_HEIGHT - 2 * CURVE_MARGIN)
+
+    path = [f"M{CURVE_MARGIN:.0f},{y(capital):.1f}"]
+    for d, balance in points:
+        path += [f"H{x(d):.1f}", f"V{y(balance):.1f}"]
+    path.append(f"H{CURVE_WIDTH - CURVE_MARGIN:.0f}")
+    return " ".join(path)
 
 
 def max_drawdown(trades: Sequence[ClosedTrade], capital: float) -> float:
@@ -347,8 +376,8 @@ def _mean(values: Sequence[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
 
-def _refresh_seconds(thresholds: Thresholds, now: datetime) -> int:
+def _refresh_ms(thresholds: Thresholds, now: datetime) -> int:
     settings = thresholds.dashboard
     if is_regular_session(now):
-        return settings.refresh_session_seconds
-    return settings.refresh_off_session_seconds
+        return settings.refresh_session_seconds * 1000
+    return settings.refresh_off_session_seconds * 1000

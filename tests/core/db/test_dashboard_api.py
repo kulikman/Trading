@@ -19,7 +19,7 @@ TOKEN = "test-token-for-contract-tests"  # noqa: S105 — тестовое зн�
 NOW = datetime(2026, 10, 14, 18, 0, tzinfo=UTC)  # среда 14:00 ET, основная сессия
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 # Целые поля, которые не являются числами для показа: идентификаторы, счётчики строк, интервалы.
-PLAIN_INTS = {"card_id", "companies", "refresh_seconds"}
+PLAIN_INTS = {"card_id", "companies", "refresh_ms"}
 
 ENDPOINTS = [
     "/api/status",
@@ -196,7 +196,7 @@ def test_account_bar_paper_by_hand_and_real_not_mixed(seeded: Session, client: T
     assert paper["pnl_today"]["display"] == "+$300"  # закрыта 14.10
     assert paper["pnl_month"]["value"] == 600
     assert paper["drawdown_threshold"]["display"] == "10%"
-    assert paper["refresh_seconds"] == 60  # основная сессия
+    assert paper["refresh_ms"] == 60_000  # основная сессия
     real = client.get("/api/account?mode=real", headers=AUTH).json()
     assert (real["is_available"], real["balance"]) == (False, None)
     closed = client.get("/api/trades?state=closed", headers=AUTH).json()
@@ -215,6 +215,8 @@ def test_account_summary_metrics_by_hand(seeded: Session, client: TestClient) ->
     assert metrics["P&L режим C"]["display"] == "+$300"
     assert metrics["Sharpe"]["display"] == "нет данных"  # 9 торговых дней < 20
     assert [p["balance"]["value"] for p in summary["curve"]] == [100500, 100300, 100600]
+    # min 100 000 → y=156, max 100 600 → y=4 (высота 152); x: 02.10 → 4, 06.10 → 201,3, 14.10 → 596
+    assert summary["curve_path"] == "M4,156.0 H4.0 V29.3 H201.3 V80.0 H596.0 V4.0 H596"
     path = {c["criterion"]: c for c in summary["path_to_real"]}
     assert path["СДЕЛОК"]["display"] == "СДЕЛОК 3/50"
     assert path["СДЕЛОК"]["tone"] == "negative"
