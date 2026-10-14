@@ -6,14 +6,16 @@
 """
 
 import logging
-from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from adapters.broker.factory import create_cost_model
+from adapters.cache import RedisCache
 from adapters.errors import DataError
+from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.history import (
     HistoricalStraddle,
     spot_on,
@@ -22,25 +24,20 @@ from adapters.massive.history import (
 )
 from backtest.exit_data import exit_window
 from backtest.option_history import STOCK_PADDING_DAYS, StockBarsSource
+from backtest.report import render
+from backtest.result import BacktestResult
 from backtest.signals import Construction, Signal, condor_strikes, signals
 from backtest.simulate import Leg, Trade, simulate
+from core.config import load_config
 from core.config.sources import MassiveHistory
 from core.config.thresholds import Thresholds
+from core.db.session import create_db_engine, database_url
 from core.db.store import earnings_history, option_bars_on, option_minute_bars
 from core.domain.options import OptionDailyBar
+from core.session_guard import to_et
 from execution.costs import CostModel
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class BacktestResult:
-    since: date
-    until: date
-    trades: list[Trade] = field(default_factory=list)
-    signals: Counter[str] = field(default_factory=Counter)
-    skipped: Counter[str] = field(default_factory=Counter)
-    tickers: int = 0
 
 
 def run_backtest(
@@ -172,17 +169,6 @@ def _condor_legs(
 
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
     """`make backtest`: вся вселенная, отчёт в reports/backtest_<дата>.md."""
-    from datetime import UTC, datetime
-    from pathlib import Path
-
-    from adapters.broker.factory import create_cost_model
-    from adapters.cache import RedisCache
-    from adapters.massive.client import MassiveClient, massive_api_key
-    from backtest.report import render
-    from core.config import load_config
-    from core.db.session import create_db_engine, database_url
-    from core.session_guard import to_et
-
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     config = load_config()

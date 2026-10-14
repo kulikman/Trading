@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from adapters.broker.factory import create_cost_model
 from backtest.report import render
-from backtest.run import BacktestResult, run_backtest
+from backtest.result import BacktestResult
+from backtest.run import run_backtest
 from core.config import load_config
 from core.session_guard import ET
 from execution.costs import CostModel
