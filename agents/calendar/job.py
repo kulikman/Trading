@@ -10,6 +10,7 @@ from adapters.cache import RedisCache
 from adapters.finnhub.client import FinnhubClient, finnhub_api_key
 from agents.calendar.agent import CalendarAgent, CalendarRunResult
 from core.config import AppConfig, load_config
+from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, to_et
 from notify.system import LoggingNotifier
@@ -29,6 +30,7 @@ def build_calendar_agent(config: AppConfig) -> CalendarAgent:
     )
 
 
+@logged_job("calendar-daily", lambda: engine())
 def run_calendar(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     agent_factory: Callable[[AppConfig], CalendarAgent] = build_calendar_agent,

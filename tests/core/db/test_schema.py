@@ -27,7 +27,7 @@ from core.domain.market import Company, PeerEdge, Sector, SectorSummary
 from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar, OptionMinuteBar
 from core.domain.plugin import Plugin, PluginStageChange
-from core.domain.schedule import EventChange, EventJob
+from core.domain.schedule import ErrorLogEntry, EventChange, EventJob
 from core.domain.trading import Decision, TradeCard, TradeCardTransition
 
 EXPECTED_TABLES = {
@@ -53,6 +53,7 @@ EXPECTED_TABLES = {
     "option_daily_bar",
     "option_minute_bar",
     "plugin_stage_change",
+    "error_log",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -360,6 +361,18 @@ CASES: dict[str, Builder] = {
             metric="sharpe",
             observations=0,
             at=AT,
+        ),
+    ),
+    "error_log": lambda s, c: (
+        orm.ErrorLog,
+        ErrorLogEntry(
+            at=AT,
+            source="options",
+            event_id=c["event"],
+            ticker="GS",
+            stage="T-7",
+            error_type="DataError",
+            message="massive: HTTP 429",
         ),
     ),
     "event_job": lambda s, c: (

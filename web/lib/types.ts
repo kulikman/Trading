@@ -201,3 +201,15 @@ export interface PluginRow {
   contribution: Num;
   flagged: string;
 }
+
+export interface Errors {
+  rows: {
+    time: string;
+    source: string;
+    ticker: string;
+    stage: string;
+    error_type: string;
+    message: string;
+  }[];
+  message: string | null;
+}

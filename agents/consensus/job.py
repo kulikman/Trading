@@ -13,6 +13,7 @@ from adapters.cache import RedisCache
 from adapters.finnhub.client import FinnhubClient, finnhub_api_key
 from agents.consensus.snapshot import EarningsCalendarSource, take_consensus_snapshot
 from core.config import AppConfig, load_config
+from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, to_et
 
@@ -25,6 +26,7 @@ def build_source(config: AppConfig) -> EarningsCalendarSource:
     return FinnhubClient.create(config.sources.finnhub, finnhub_api_key(), cache)
 
 
+@logged_job("consensus-daily", lambda: engine())
 def run_consensus_snapshot(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     source_factory: Callable[[AppConfig], EarningsCalendarSource] = build_source,

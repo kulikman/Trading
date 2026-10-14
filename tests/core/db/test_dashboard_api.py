@@ -45,6 +45,7 @@ ENDPOINTS = [
     "/api/companies/GS/track",
     "/api/system/models",
     "/api/system/plugins",
+    "/api/system/errors",
 ]
 
 
@@ -239,6 +240,34 @@ def test_today_week_and_journal(seeded: Session, client: TestClient) -> None:
         "EDGE_LOW": 1,
         "PRE_RUN": 1,
     }
+
+
+def test_errors_newest_first(seeded: Session, client: TestClient) -> None:
+    seeded.add_all(
+        [
+            orm.ErrorLog(
+                at=datetime(2026, 10, 14, 19, 0, tzinfo=UTC),
+                source="options",
+                ticker="NFLX",
+                stage="T-7",
+                error_type="DataError",
+                message="HTTP 429",
+            ),
+            orm.ErrorLog(
+                at=datetime(2026, 10, 14, 10, 0, tzinfo=UTC),
+                source="calendar-daily",
+                error_type="RuntimeError",
+                message="finnhub down",
+            ),
+        ]
+    )
+    seeded.flush()
+    rows = client.get("/api/system/errors?limit=5", headers=AUTH).json()["rows"]
+    assert [(r["time"], r["source"], r["ticker"], r["message"]) for r in rows] == [
+        ("14.10.2026 15:00 ET / 22:00 МСК", "options", "NFLX", "HTTP 429"),
+        ("14.10.2026 06:00 ET / 13:00 МСК", "calendar-daily", "—", "finnhub down"),
+    ]
+    assert client.get("/api/system/errors?limit=0", headers=AUTH).status_code == 422
 
 
 def test_company_track_and_not_found(seeded: Session, client: TestClient) -> None:

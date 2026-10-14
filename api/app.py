@@ -160,6 +160,10 @@ def create_app(
     def models() -> system.Models:
         return system.models_view()
 
+    @app.get("/api/system/errors")
+    def errors(db: Db, limit: Annotated[int, Query(ge=1, le=500)] = 100) -> system.Errors:
+        return system.errors_view(db, limit)
+
     @app.get("/api/system/plugins")
     def plugins(db: Db) -> list[system.PluginRow]:
         return system.plugins_view(db)

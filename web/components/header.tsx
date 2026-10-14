@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { toneClass } from "@/components/num";
 import { apiGet } from "@/lib/api";
 import type { Status } from "@/lib/types";
@@ -14,10 +16,17 @@ export async function Header(): Promise<React.ReactElement> {
           Рынок: <b className={toneClass(market.tone)}>{market.level}</b>
           {market.vix.value !== null ? <span className="muted">VIX {market.vix.display}</span> : null}
         </span>
-        <span className={`badge ${toneClass(status.tone)}`}>
-          <span className={status.is_ok ? "dot" : "dot dot-action"} />
-          {status.headline}
-        </span>
+        {status.is_ok ? (
+          <span className="badge">
+            <span className="dot" />
+            {status.headline}
+          </span>
+        ) : (
+          <Link href="/settings" className={`badge ${toneClass(status.tone)}`}>
+            <span className="dot dot-action" />
+            {status.headline} → логи
+          </Link>
+        )}
         <span className="muted text-xs">
           {status.date} · {status.time}
         </span>

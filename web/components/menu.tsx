@@ -11,6 +11,7 @@ const SECTIONS = [
   { href: "/companies", label: "Компании" },
   { href: "/account", label: "Счёт" },
   { href: "/system", label: "Система" },
+  { href: "/settings", label: "Настройки" },
 ] as const;
 
 /** Основное меню — полоса серых вкладок под шапкой (§3). */
