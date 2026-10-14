@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-bot run-api
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-bot run-api
 
 -include .env
 
@@ -8,6 +8,8 @@ DATABASE_URL := $(or $(DATABASE_URL),$(LOCAL_DATABASE_URL))
 export DATABASE_URL
 REDIS_URL := $(or $(REDIS_URL),redis://localhost:$(or $(REDIS_PORT),6379)/0)
 export REDIS_URL
+# Ключи и контакты из .env — в окружение процессов (без export make их не передаёт).
+export MASSIVE_API_KEY FINNHUB_API_KEY ALPHAVANTAGE_API_KEY SEC_USER_AGENT FRED_API_KEY ANTHROPIC_API_KEY
 
 setup:
 	uv sync
@@ -44,6 +46,9 @@ test:
 
 run-scheduler:
 	uv run python -m core.scheduler
+
+run-calendar:  ## разовый прогон «Календаря» (то же, что в 06:00 ET)
+	uv run python -m agents.calendar
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1

@@ -31,6 +31,8 @@ massive:
 finnhub:                         # бесплатный тариф; ключ — FINNHUB_API_KEY (параметр token)
   base_url: https://finnhub.io/api/v1
   consensus_lookahead_days: 30   # окно предстоящих отчётов для ежедневного снимка консенсуса
+  calendar_chunk_days: 7         # окно календаря запрашивается кусками (см. calendar_row_cap)
+  calendar_row_cap: 1500         # больше строк Finnhub не отдаёт и теряет ранние даты (проверено 14.10.2026); кусок на пределе делится
   timeout_seconds: 10
   max_attempts: 3
   backoff_base_seconds: 1.0

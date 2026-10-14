@@ -75,9 +75,9 @@ def test_daily_consensus_snapshot_job_is_idempotent(session: Session) -> None:
         saved = take_consensus_snapshot(
             source, session, as_of=DAY, lookahead_days=30, tickers=TICKERS
         )
-        assert saved == 3  # GS, MS, NFLX; ZZZZ вне вселенной, TSLA без оценок
+        assert saved == 3  # MS, NFLX, TSLA; BAC, ADC, ADX — вне вселенной теста
     assert source.calls[0] == (DAY, DAY + timedelta(days=30))
-    assert [r[0] for r in snapshot_rows(session)] == ["GS", "MS", "NFLX"]
+    assert [r[0] for r in snapshot_rows(session)] == ["MS", "NFLX", "TSLA"]
 
 
 def test_news_saved_once_and_existing_tags_kept(session: Session) -> None:

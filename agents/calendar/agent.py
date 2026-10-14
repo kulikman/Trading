@@ -98,10 +98,10 @@ class CalendarAgent:
         logger.info(
             "calendar run",
             extra={
-                "created": len(result.created),
-                "updated": len(result.updated),
-                "mismatches": len(result.mismatches),
-                "jobs": result.jobs_planned,
+                "events_created": len(result.created),
+                "events_updated": len(result.updated),
+                "date_mismatches": len(result.mismatches),
+                "jobs_planned": result.jobs_planned,
             },
         )
         return result
