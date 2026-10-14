@@ -1,4 +1,6 @@
-"""Журнал ошибок задач (экран «Настройки → Логи ошибок»): что упало, когда и почему.
+"""Журнал задач (экран «Настройки → Логи»): что упало, когда и почему, и когда снова заработало.
+
+После ошибки первый успешный запуск той же задачи пишет запись «ok» (одну, а не на каждый успех).
 
 Текст ошибки сохраняется без секретов: значения переменных окружения с KEY / TOKEN / SECRET /
 PASSWORD в имени и параметры ключей в адресах (`apikey=…`, `token=…`) заменяются на «***».
@@ -11,7 +13,7 @@ import re
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 
-from sqlalchemy import Engine
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from core.db import models as orm
@@ -56,6 +58,37 @@ def error_entry(
     )
 
 
+def recovery_entry(
+    session: Session,
+    source: str,
+    *,
+    at: datetime,
+    event_id: int | None = None,
+    ticker: str | None = None,
+    stage: str | None = None,
+) -> orm.ErrorLog | None:
+    """Запись «снова работает», если последняя запись этой задачи — ошибка; иначе None."""
+    last = session.scalars(
+        select(orm.ErrorLog.level)
+        .where(orm.ErrorLog.source == source)
+        .order_by(orm.ErrorLog.at.desc(), orm.ErrorLog.id.desc())
+        .limit(1)
+    ).first()
+    if last != "error":
+        return None
+    where = " ".join(part for part in (ticker, stage) if part)
+    return orm.ErrorLog(
+        at=at,
+        level="ok",
+        source=source,
+        event_id=event_id,
+        ticker=ticker,
+        stage=stage,
+        error_type="OK",
+        message=f"Задача снова работает{f' ({where})' if where else ''}.",
+    )
+
+
 def logged_job[**P, R](
     source: str, engine: Callable[[], Engine]
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
@@ -65,7 +98,7 @@ def logged_job[**P, R](
         @functools.wraps(job)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             try:
-                return job(*args, **kwargs)
+                result = job(*args, **kwargs)
             except Exception as error:
                 try:
                     with Session(engine()) as session, session.begin():
@@ -73,6 +106,14 @@ def logged_job[**P, R](
                 except Exception:  # журнал не должен прятать исходную ошибку
                     logger.exception("error log write failed", extra={"source": source})
                 raise
+            try:
+                with Session(engine()) as session, session.begin():
+                    entry = recovery_entry(session, source, at=datetime.now(UTC))
+                    if entry is not None:
+                        session.add(entry)
+            except Exception:  # журнал не должен ломать успешную задачу
+                logger.exception("error log write failed", extra={"source": source})
+            return result
 
         return wrapper
 

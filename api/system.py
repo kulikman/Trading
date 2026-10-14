@@ -1,7 +1,8 @@
 """Шапка (статус, РЫНОК) и раздел «Система» (DASHBOARD.md §2, §3, §4.7).
 
 РЫНОК — последний снимок агента «Макро» (VIX, regime = уровень Black Swan, T14a).
-Сбой — задача события с ошибкой за последние system_failure_window_hours.
+Сбой — задача, у которой последняя запись журнала error_log за system_failure_window_hours — ошибка;
+после записи «снова работает» шапка возвращается в «СИСТЕМА ОК».
 Журнала состояния источников и сообщений «СИСТЕМА» пока нет (сторож и Telegram — T18):
 источники показываются как «нет данных», а не «ОК».
 """
@@ -25,6 +26,9 @@ LEVEL_TONES: dict[str, Tone] = {
     "orange": "action",
     "red": "action",
 }
+REPOSITORY = "/Users/DEV/Trading"
+LIVE_CHECKOUT = "/Users/DEV/Trading-live"
+SCHEDULER_LOG = f"{LIVE_CHECKOUT}/logs/scheduler.log"
 SOURCES = ("Massive", "Finnhub", "Alpha Vantage", "брокер", "Telegram", "сторож")
 
 
@@ -68,11 +72,14 @@ class Models(BaseModel):
 
 class ErrorRow(BaseModel):
     time: str
+    level: str  # «ошибка» / «работает»
+    tone: Tone
     source: str
     ticker: str
     stage: str
     error_type: str
     message: str
+    report: str | None  # текст для кнопки «копировать» (только у ошибок) — отправить на исправление
 
 
 class Errors(BaseModel):
@@ -91,14 +98,11 @@ class PluginRow(BaseModel):
 
 
 def status_view(session: Session, now: datetime, thresholds: Thresholds) -> Status:
-    window = timedelta(hours=thresholds.dashboard.system_failure_window_hours)
-    failed = session.scalars(
-        select(orm.EventJob.job)
-        .where(orm.EventJob.status == "failed", orm.EventJob.updated_at >= now - window)
-        .order_by(orm.EventJob.updated_at.desc())
-    ).all()
+    failed = _failing_sources(
+        session, now - timedelta(hours=thresholds.dashboard.system_failure_window_hours)
+    )
     is_ok = not failed
-    headline = "СИСТЕМА ОК" if is_ok else f"СИСТЕМА: СБОЙ {', '.join(dict.fromkeys(failed))}"
+    headline = "СИСТЕМА ОК" if is_ok else f"СИСТЕМА: СБОЙ {', '.join(failed)}"
     return Status(
         is_ok=is_ok,
         headline=headline,
@@ -110,6 +114,19 @@ def status_view(session: Session, now: datetime, thresholds: Thresholds) -> Stat
         messages=[],
         messages_note="журнал сообщений «СИСТЕМА» появится с Telegram и сторожем (T18)",
     )
+
+
+def _failing_sources(session: Session, since: datetime) -> list[str]:
+    """Задачи, у которых последняя запись журнала за окно — ошибка (после «работает» сбоя нет)."""
+    entries = session.scalars(
+        select(orm.ErrorLog)
+        .where(orm.ErrorLog.at >= since)
+        .order_by(orm.ErrorLog.at.desc(), orm.ErrorLog.id.desc())
+    ).all()
+    latest: dict[str, str] = {}
+    for entry in entries:
+        latest.setdefault(entry.source, entry.level)
+    return [source for source, level in latest.items() if level == "error"]
 
 
 def models_view() -> Models:
@@ -157,15 +174,38 @@ def errors_view(session: Session, limit: int) -> Errors:
     entries = session.scalars(
         select(orm.ErrorLog).order_by(orm.ErrorLog.at.desc(), orm.ErrorLog.id.desc()).limit(limit)
     ).all()
-    rows = [
-        ErrorRow(
-            time=f"{day(to_et(e.at).date())} {et_msk(e.at)}",
-            source=e.source,
-            ticker=e.ticker or "—",
-            stage=e.stage or "—",
-            error_type=e.error_type,
-            message=e.message,
+    rows = []
+    for e in entries:
+        time = f"{day(to_et(e.at).date())} {et_msk(e.at)}"
+        is_error = e.level == "error"
+        rows.append(
+            ErrorRow(
+                time=time,
+                level="ошибка" if is_error else "работает",
+                tone="negative" if is_error else "positive",
+                source=e.source,
+                ticker=e.ticker or "—",
+                stage=e.stage or "—",
+                error_type=e.error_type,
+                message=e.message,
+                report=_error_report(e, time) if is_error else None,
+            )
         )
-        for e in entries
-    ]
     return Errors(rows=rows, message=None if rows else "ошибок нет")
+
+
+def _error_report(entry: orm.ErrorLog, time: str) -> str:
+    """Текст для вставки в чат: что упало, где искать подробности."""
+    return "\n".join(
+        [
+            f"Ошибка в Earnings Engine (код: {REPOSITORY}, работает из: {LIVE_CHECKOUT})",
+            f"Время: {time}",
+            f"Задача: {entry.source}",
+            f"Тикер: {entry.ticker or '—'} · стадия: {entry.stage or '—'}"
+            + (f" · event_id: {entry.event_id}" if entry.event_id is not None else ""),
+            f"Тип: {entry.error_type}",
+            f"Текст: {entry.message}",
+            f"Полный traceback: {SCHEDULER_LOG}",
+            "Найди причину и предложи исправление.",
+        ]
+    )

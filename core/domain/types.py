@@ -43,6 +43,8 @@ PromotionMetric = Literal["brier", "sharpe"]
 JobKind = Literal["analysis", "execution", "notify"]
 # no_handler — исполнитель задачи ещё не реализован (агенты T14, решения T16 и т. д.).
 EventJobStatus = Literal["planned", "done", "failed", "missed", "no_handler"]
+# Журнал «Настройки → Логи»: ошибка задачи или её восстановление после ошибки.
+ErrorLevel = Literal["error", "ok"]
 
 OptionType = Literal["call", "put"]
 

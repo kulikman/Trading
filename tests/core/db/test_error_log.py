@@ -73,3 +73,62 @@ def test_daily_job_error_is_logged_and_reraised(session: Session) -> None:
         for r in rows:  # тестовая база общая: убираем за собой
             other.delete(r)
         other.commit()
+
+
+def test_first_success_after_error_logs_recovery_once(session: Session) -> None:
+    session.add(orm.Sector(id="tech", name="Tech", key_metrics=[]))
+    session.flush()
+    session.add_all(
+        [
+            orm.Company(ticker="NFLX", sector_id="tech", name="Netflix"),
+            orm.Company(ticker="TSLA", sector_id="tech", name="Tesla"),
+        ]
+    )
+    ids = {}
+    for ticker in ("NFLX", "TSLA"):
+        event = orm.Event(ticker=ticker, report_date=date(2026, 10, 20), date_status="confirmed")
+        session.add(event)
+        session.flush()
+        ids[ticker] = event.id
+    session.add(error_entry("options", RuntimeError("HTTP 429"), at=NOW, event_id=ids["NFLX"]))
+    later = NOW + timedelta(days=1)
+    for ticker in ("TSLA", "NFLX"):  # два успеха подряд — запись «работает» одна
+        session.add(
+            orm.EventJob(
+                event_id=ids[ticker], stage="T-3", job="options", kind="analysis", run_at=later
+            )
+        )
+    session.flush()
+    result = dispatch_due(
+        session, now=later, grace=timedelta(minutes=5), handlers={"options": lambda s, j: None}
+    )
+    assert len(result.done) == 2
+    rows = session.scalars(select(orm.ErrorLog).order_by(orm.ErrorLog.id)).all()
+    assert [(r.level, r.ticker) for r in rows] == [("error", None), ("ok", "TSLA")]
+    assert rows[1].message == "Задача снова работает (TSLA T-3)."
+
+
+def test_daily_job_success_after_error_logs_recovery(session: Session) -> None:
+    engine = session.connection().engine
+    calls = iter([RuntimeError("finnhub down"), None, None])
+
+    @logged_job("consensus-daily-test", lambda: engine)
+    def flaky() -> None:
+        error = next(calls)
+        if error is not None:
+            raise error
+
+    with pytest.raises(RuntimeError):
+        flaky()
+    flaky()
+    flaky()
+    with Session(engine) as other:
+        rows = other.scalars(
+            select(orm.ErrorLog)
+            .where(orm.ErrorLog.source == "consensus-daily-test")
+            .order_by(orm.ErrorLog.id)
+        ).all()
+        assert [r.level for r in rows] == ["error", "ok"]
+        for r in rows:  # тестовая база общая: убираем за собой
+            other.delete(r)
+        other.commit()

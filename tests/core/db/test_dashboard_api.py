@@ -267,6 +267,32 @@ def test_errors_newest_first(seeded: Session, client: TestClient) -> None:
         ("14.10.2026 15:00 ET / 22:00 МСК", "options", "NFLX", "HTTP 429"),
         ("14.10.2026 06:00 ET / 13:00 МСК", "calendar-daily", "—", "finnhub down"),
     ]
+    assert [(r["level"], r["tone"]) for r in rows] == [
+        ("ошибка", "negative"),
+        ("ошибка", "negative"),
+    ]
+    status = client.get("/api/status", headers=AUTH).json()
+    assert status["headline"] == "СИСТЕМА: СБОЙ options, calendar-daily"
+    seeded.add(
+        orm.ErrorLog(
+            at=datetime(2026, 10, 14, 19, 30, tzinfo=UTC),
+            level="ok",
+            source="options",
+            ticker="TSLA",
+            stage="T-7",
+            error_type="OK",
+            message="Задача снова работает.",
+        )
+    )
+    seeded.flush()
+    after = client.get("/api/system/errors", headers=AUTH).json()["rows"][0]
+    assert (after["level"], after["tone"], after["report"]) == ("работает", "positive", None)
+    status = client.get("/api/status", headers=AUTH).json()
+    assert status["headline"] == "СИСТЕМА: СБОЙ calendar-daily"  # options снова работает
+    report = rows[0]["report"]
+    assert "Задача: options" in report
+    assert "Тикер: NFLX · стадия: T-7" in report
+    assert "Текст: HTTP 429" in report
     assert client.get("/api/system/errors?limit=0", headers=AUTH).status_code == 422
 
 

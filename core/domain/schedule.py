@@ -3,7 +3,7 @@
 from pydantic import AwareDatetime
 
 from core.domain.base import DomainModel
-from core.domain.types import EventJobStatus, JobKind
+from core.domain.types import ErrorLevel, EventJobStatus, JobKind
 
 
 class EventJob(DomainModel):
@@ -31,6 +31,7 @@ class ErrorLogEntry(DomainModel):
 
     id: int | None = None
     at: AwareDatetime
+    level: ErrorLevel = "error"
     source: str
     event_id: int | None = None
     ticker: str | None = None

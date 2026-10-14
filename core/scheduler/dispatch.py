@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from core.db import models as orm
 from core.domain.schedule import EventJob
-from core.error_log import error_entry
+from core.error_log import error_entry, recovery_entry
 from core.scheduler.plan import job_key
 
 logger = logging.getLogger(__name__)
@@ -82,4 +82,15 @@ def dispatch_due(
             continue
         row.status = "done"
         result.done.append(key)
+        event = session.get(orm.Event, row.event_id)
+        recovered = recovery_entry(
+            session,
+            row.job,
+            at=now,
+            event_id=row.event_id,
+            ticker=event.ticker if event else None,
+            stage=row.stage,
+        )
+        if recovered is not None:
+            session.add(recovered)
     return result
