@@ -1,8 +1,9 @@
 """Модель config/thresholds.yaml. У полей нет значений по умолчанию: числа живут только в YAML."""
 
+from datetime import time
 from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from core.config.base import Fraction, PositiveFloat, PositiveInt, StrictModel
 
@@ -150,6 +151,14 @@ class IronCondor(StrictModel):
     max_move_ratio: PositiveFloat
     stop_premium_multiple: PositiveFloat
     target_premium_share: Fraction
+    short_implied_moves: PositiveFloat
+    wing_implied_moves: PositiveFloat
+
+    @model_validator(mode="after")
+    def _wings_outside(self) -> Self:
+        if self.wing_implied_moves <= self.short_implied_moves:
+            raise ValueError("iron_condor.wing_implied_moves must exceed short_implied_moves")
+        return self
 
 
 class PolymarketConstruction(StrictModel):
@@ -186,6 +195,27 @@ class Notify(StrictModel):
     watchdog_grace_minutes: PositiveInt
 
 
+class Backtest(StrictModel):
+    """Бэктест T12: сигнал по истории движений, выход, риск для кривой капитала."""
+
+    signal_lookback_reports: PositiveInt
+    signal_min_reports: PositiveInt
+    exit_time_et: time
+    open_slippage_minutes: PositiveInt
+    risk_per_trade: Fraction
+
+    @field_validator("exit_time_et", mode="before")
+    @classmethod
+    def _time(cls, value: object) -> object:
+        return time.fromisoformat(value) if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _min_within_lookback(self) -> Self:
+        if self.signal_min_reports > self.signal_lookback_reports:
+            raise ValueError("backtest.signal_min_reports must not exceed signal_lookback_reports")
+        return self
+
+
 class Thresholds(StrictModel):
     capital: Capital
     sizing: Sizing
@@ -201,3 +231,4 @@ class Thresholds(StrictModel):
     execution: Execution
     costs: Costs
     notify: Notify
+    backtest: Backtest

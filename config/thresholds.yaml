@@ -104,6 +104,10 @@ constructions:                       # SPEC §10
     max_move_ratio: 0.75
     stop_premium_multiple: 2.0       # стоп 2× премии
     target_premium_share: 0.5        # цель 50%
+    # Страйки (решение заказчика 14.10.2026): продаём колл и пут на 1 implied move от цены,
+    # покупаем защиту на 2 implied move — ближайшие существующие страйки.
+    short_implied_moves: 1.0
+    wing_implied_moves: 2.0
   polymarket:
     min_edge: 0.05                   # недооценка beat ≥ 5 п.п.
 
@@ -119,3 +123,11 @@ costs:                               # SPEC §17 п.3
 
 notify:                              # SPEC §12
   watchdog_grace_minutes: 5
+
+backtest:                            # T12, решения заказчика 14.10.2026
+  # Исторический ratio = средний |движение| последних отчётов компании / implied move текущего.
+  signal_lookback_reports: 8
+  signal_min_reports: 4              # меньше прошлых отчётов с движением — сигнала нет
+  exit_time_et: "11:00"              # SPEC §10: опционы на отчёт — до 11:00 T0
+  open_slippage_minutes: 5           # выход в первые 5 минут сессии — с проскальзыванием на открытии
+  risk_per_trade: 0.01               # кривая капитала: фиксированный риск 1% на сделку (Келли — в Paper)

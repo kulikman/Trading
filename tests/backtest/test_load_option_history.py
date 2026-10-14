@@ -36,6 +36,8 @@ def test_summary_line() -> None:
         put_volume=683,
         call_iv=1.7,
         put_iv=1.7,
+        call_ticker="O:NFLX241018C00687500",
+        put_ticker="O:NFLX241018P00687500",
     )
     report = TickerReport("NFLX", straddles=[straddle], failures=[(date(2026, 7, 16), "x")])
     assert summary(report) == (

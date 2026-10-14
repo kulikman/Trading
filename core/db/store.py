@@ -1,7 +1,7 @@
 """Запись данных источников в БД. Повторный запуск задачи не создаёт дублей (SPEC §13)."""
 
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -12,7 +12,7 @@ from core.db import models as orm
 from core.domain.earnings import ConsensusSnapshot, EarningsTrack, ReportedEarnings
 from core.domain.financials import FinancialQuarter
 from core.domain.news import NewsItem
-from core.domain.options import OptionDailyBar
+from core.domain.options import OptionDailyBar, OptionMinuteBar
 from core.domain.schedule import EventJob
 from core.domain.types import DateCheckStatus, ReportTime
 
@@ -181,6 +181,41 @@ def set_implied_move(session: Session, ticker: str, report_date: date, move: flo
         .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
         .values(implied_move=move, updated_at=func.now())
     )
+
+
+def save_option_minute_bars(session: Session, bars: Iterable[OptionMinuteBar]) -> int:
+    """Минутные цены контрактов. Повтор обновляет значения."""
+    rows = [b.model_dump() for b in bars]
+    if not rows:
+        return 0
+    statement = insert(orm.OptionMinuteBar).values(rows)
+    updated = ("open", "high", "low", "close", "volume", "vwap", "transactions")
+    statement = statement.on_conflict_do_update(
+        index_elements=["option_ticker", "minute"],
+        set_={**{c: statement.excluded[c] for c in updated}, "updated_at": func.now()},
+    )
+    session.execute(statement)
+    return len(rows)
+
+
+def option_minute_bars(
+    session: Session, tickers: Iterable[str], start: datetime, end: datetime
+) -> dict[str, list[OptionMinuteBar]]:
+    """Минутные цены контрактов в [start, end), по возрастанию времени."""
+    rows = session.scalars(
+        select(orm.OptionMinuteBar)
+        .where(
+            orm.OptionMinuteBar.option_ticker.in_(list(tickers)),
+            orm.OptionMinuteBar.minute >= start,
+            orm.OptionMinuteBar.minute < end,
+        )
+        .order_by(orm.OptionMinuteBar.minute)
+    ).all()
+    result: dict[str, list[OptionMinuteBar]] = {}
+    for row in rows:
+        bar = OptionMinuteBar.model_validate(row, from_attributes=True)
+        result.setdefault(bar.option_ticker, []).append(bar)
+    return result
 
 
 def option_bars_on(session: Session, underlying: str, day: date) -> list[OptionDailyBar]:

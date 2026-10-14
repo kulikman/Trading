@@ -104,12 +104,16 @@ class ArchiveBuilder:
         except EarningsSourceExhausted as exc:
             logger.warning("dates unavailable, other steps use stored data: %s", exc)
             result.dates_pending = True
+        # Движения и сверка дат — за всю глубину цен акций (5 лет): прошлые движения нужны
+        # сигналу бэктеста (T12); implied move и опционы — только в окне 2 лет.
+        stock_since = self._today - timedelta(days=self._loader.settings.stock_history_days)
         rows = [
             r
-            for r in earnings_history(session, ticker, self._loader.since)
+            for r in earnings_history(session, ticker, stock_since)
             if r.report_date < self._today
+            and EventDays.of(r.report_date, r.report_time).pre >= stock_since
         ]
-        result.reports = len(rows)
+        result.reports = sum(r.report_date >= self._loader.since for r in rows)
         if not rows:
             return result
         first = EventDays.of(rows[0].report_date, rows[0].report_time)
@@ -118,7 +122,7 @@ class ArchiveBuilder:
             ticker,
             1,
             "day",
-            first.pre - timedelta(days=STOCK_PADDING_DAYS),
+            max(first.pre - timedelta(days=STOCK_PADDING_DAYS), stock_since),
             last.reaction,
             adjusted=False,
         )

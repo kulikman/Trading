@@ -32,6 +32,7 @@ class MassiveHistory(StrictModel):
     """Исторические опционы (T10): лимит запросов, окно цен вокруг отчёта, выбор страйков."""
 
     archive_days: PositiveInt
+    stock_history_days: PositiveInt
     requests_per_minute: PositiveInt
     max_attempts: PositiveInt
     backoff_base_seconds: float = Field(ge=0)

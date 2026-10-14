@@ -17,6 +17,7 @@ from tests.core.db.archive_fakes import (
     HISTORY,
     NO_CONTRACTS,
     TODAY,
+    TOO_OLD,
     Earnings,
     Options,
     Stocks,
@@ -129,8 +130,10 @@ def test_build_fills_moves_revenue_and_date_checks(universe: Session) -> None:
     assert (jan.date_check, jan.sec_filing_date) == ("mismatch", date(2026, 2, 25))
     assert (rows[NO_CONTRACTS].date_check, rows[NO_CONTRACTS].sec_filing_date) == ("no_8k", None)
     stats = result.stats
-    assert (result.reports, stats.moves, stats.ratios, stats.revenue_matched) == (3, 3, 2, 2)
-    assert sec.since == [date(2025, 9, 6)]  # первый отчёт окна − 45 дней поиска 8-K
+    assert (result.reports, stats.moves, stats.ratios, stats.revenue_matched) == (3, 4, 2, 2)
+    assert rows[TOO_OLD].actual_move == pytest.approx(0.05)  # история движений — 5 лет цен акций
+    assert rows[TOO_OLD].implied_move is None
+    assert sec.since == [date(2024, 6, 3)]  # первый отчёт истории − 45 дней поиска 8-K
     revenue = universe.scalars(
         select(orm.FinancialQuarter).where(orm.FinancialQuarter.ticker == "NFLX")
     ).all()
@@ -157,7 +160,7 @@ def test_sec_outage_keeps_moves(universe: Session) -> None:
 
 def test_unknown_cik_skips_sec_steps(universe: Session) -> None:
     result = builder(Sec(ciks={})).build(universe, "NFLX")
-    assert (result.stats.moves, result.stats.revenue_matched, result.checks) == (3, 0, [])
+    assert (result.stats.moves, result.stats.revenue_matched, result.checks) == (4, 0, [])
 
 
 def test_missing_dates_are_pending_without_other_steps(universe: Session) -> None:
@@ -175,7 +178,8 @@ def test_coverage_report(universe: Session) -> None:
     assert "| NFLX | 3 | 3 | 2 | 2 | 3 | 2 (67%) |" in text
     assert "| **Всего** | 3 | 3 | 2 | 2 | 3 | 2 (67%) |" in text
     assert "Ещё не загружены (лимит Alpha Vantage): CRM." in text
-    assert "совпадает (0–1 день) — 1, расхождение — 1, нет 8-K рядом — 1" in text
+    assert "совпадает (0–1 день) — 1, расхождение — 1, нет 8-K рядом — 2" in text
+    assert "| NFLX | 18.07.2024 | нет |  |" in text
     assert "| NFLX | 20.01.2026 | 25.02.2026 | 36 |" in text
     assert "| NFLX | 16.07.2026 | нет |  |" in text
 

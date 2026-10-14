@@ -462,6 +462,22 @@ class OptionDailyBar(Timestamps, Base):
     transactions: Mapped[int | None]
 
 
+class OptionMinuteBar(Timestamps, Base):
+    """Минутная цена контракта в день реакции (выход до 11:00 ET); архив — как и дневные цены."""
+
+    __tablename__ = "option_minute_bar"
+
+    option_ticker: Mapped[str] = mapped_column(primary_key=True)
+    minute: Mapped[datetime] = mapped_column(primary_key=True)
+    open: Mapped[float]
+    high: Mapped[float]
+    low: Mapped[float]
+    close: Mapped[float]
+    volume: Mapped[float]
+    vwap: Mapped[float | None]
+    transactions: Mapped[int | None]
+
+
 # Хранилище задач APScheduler 3.11 (SQLAlchemyJobStore). Таблица создаётся миграцией (CLAUDE.md:
 # схема только через Alembic); колонки повторяют apscheduler.jobstores.sqlalchemy один в один.
 apscheduler_jobs = Table(

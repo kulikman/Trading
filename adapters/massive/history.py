@@ -85,6 +85,8 @@ class HistoricalStraddle:
     put_volume: float
     call_iv: float | None
     put_iv: float | None
+    call_ticker: str
+    put_ticker: str
     method: Literal["close_based"] = "close_based"
 
     @property
@@ -204,6 +206,8 @@ def straddle_from_bars(
         put_volume=put.volume,
         call_iv=implied_volatility("call", call.close, spot, strike, years, rate),
         put_iv=implied_volatility("put", put.close, spot, strike, years, rate),
+        call_ticker=call.option_ticker,
+        put_ticker=put.option_ticker,
     )
 
 

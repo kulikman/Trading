@@ -104,6 +104,10 @@ class OptionHistoryLoader:
         self._commit = commit
 
     @property
+    def settings(self) -> MassiveHistory:
+        return self._settings
+
+    @property
     def since(self) -> date:
         """Первый день, за который у источника есть цены опционов."""
         return self._today - timedelta(days=self._settings.archive_days)
