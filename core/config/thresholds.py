@@ -95,6 +95,11 @@ class Quarantine(StrictModel):
     min_reports: PositiveInt
 
 
+class FeatureWeight(StrictModel):
+    feature: str = Field(pattern=r"^[a-z_]+\.[a-z0-9_]+$")
+    scale: PositiveFloat
+
+
 class Models(StrictModel):
     holdout_fraction: Fraction
     isotonic_min_obs: PositiveInt
@@ -105,6 +110,9 @@ class Models(StrictModel):
     p_up_initial_betas: dict[str, float] = Field(min_length=1)
     # Признаки, которые идут в модели: «агент.признак». Остальные агенты пишут, но модели не видят.
     active_features: list[str] = Field(min_length=1)
+    p_up_feature_map: dict[str, FeatureWeight] = Field(min_length=1)
+    prior_lookback_days: PositiveInt
+    probability_clip: Fraction
 
     @model_validator(mode="after")
     def _within_budget(self) -> Self:
@@ -115,6 +123,15 @@ class Models(StrictModel):
             )
         if len(set(self.active_features)) != len(self.active_features):
             raise ValueError("duplicate active features")
+        if set(self.p_up_feature_map) != set(self.p_up_initial_betas):
+            raise ValueError("p_up_feature_map must cover exactly the p_up_initial_betas")
+        outside = [
+            w.feature
+            for w in self.p_up_feature_map.values()
+            if w.feature not in self.active_features
+        ]
+        if outside:
+            raise ValueError(f"p_up features not in active_features: {outside}")
         bad = [f for f in self.active_features if f.count(".") != 1]
         if bad:
             raise ValueError(f"active features must be agent.feature: {bad}")

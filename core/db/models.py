@@ -42,6 +42,7 @@ from core.domain.types import (
     EventJobStatus,
     FeatureStage,
     JobKind,
+    ModelName,
     OptionType,
     PluginKind,
     PluginStage,
@@ -286,6 +287,25 @@ class Forecast(Timestamps, Base):
 
 
 # --- решение и сделка ---
+
+
+class ModelVersion(Timestamps, Base):
+    """Версия модели (SPEC §9): параметры и метрики; на неё ссылается forecast.model_version."""
+
+    __tablename__ = "model_version"
+    __table_args__ = (
+        UniqueConstraint("model", "version"),
+        CheckConstraint(_one_of("model", ModelName), name="model"),
+    )
+
+    id: Mapped[int] = _pk_id()
+    model: Mapped[str]
+    version: Mapped[str]
+    params: Mapped[Any] = mapped_column(JSONB)
+    metrics: Mapped[Any | None] = mapped_column(JSONB)
+    trained_at: Mapped[datetime]
+    accepted: Mapped[bool]
+    reason: Mapped[str]
 
 
 class Decision(Timestamps, Base):

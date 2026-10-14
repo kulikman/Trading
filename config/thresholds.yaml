@@ -82,6 +82,20 @@ models:                              # SPEC §9, §7, §17
     skew: -0.5
     guidance_risk: -0.8
     pre_run: -1.0
+  # Стартовая p_up (T15, до первого learn season): вес SPEC §9 → признак и масштаб. Признак делится на масштаб и
+  # обрезается до [−1; 1] — веса SPEC действуют соизмеримо. Масштаб — типичный размах признака (наше толкование).
+  p_up_feature_map:
+    disclosure: {feature: dossier.disclosure, scale: 1.0}                  # −1 / 0 / 1
+    revision_trend: {feature: consensus.revision_trend_7_90, scale: 0.10}  # пересмотр консенсуса ±10%
+    peer_surprise: {feature: sector.peer_surprise_mean, scale: 0.10}       # средний сюрприз пиров ±10%
+    sector_trend: {feature: sector.trend, scale: 1.0}                      # −1 / 0 / 1
+    short_interest: {feature: positioning.short_interest_days, scale: 10.0}  # дней покрытия, 10 — много
+    skew: {feature: options.skew_25d, scale: 0.10}                         # ±10 п.п. IV
+    guidance_risk: {feature: dossier.guidance_risk, scale: 0.10}           # консенсус выше прогноза на 10%
+    pre_run: {feature: positioning.pre_run_3d, scale: 0.06}                # +6% за 3 дня — порог PRE_RUN (SPEC §10)
+  # Стартовые p_beat и move_ratio — только свободный член по частоте в архиве за этот срок (весов в SPEC нет).
+  prior_lookback_days: 1825
+  probability_clip: 0.02             # прогнозы и рыночные эталоны — в [0,02; 0,98]
 
 lifecycle:                           # SPEC §7
   promote_min_obs: 30

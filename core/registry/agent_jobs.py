@@ -52,7 +52,7 @@ def run_agent(session: Session, agent: Agent, job: EventJob) -> FeatureSnapshot:
     event = session.get(orm.Event, job.event_id)
     if event is None:
         raise ValueError(f"event {job.event_id} not found")
-    stage = _stage(job.stage)
+    stage = feature_stage(job.stage)
     ctx = EventContext(
         event_id=event.id,
         ticker=event.ticker,
@@ -100,7 +100,8 @@ def _handle_outcome(agent: OutcomeAgent, session: Session, job: EventJob) -> Non
     agent.outcome(session, job.event_id, job.run_at)
 
 
-def _stage(value: str) -> FeatureStage:
+def feature_stage(value: str) -> FeatureStage:
+    """Стадия задачи → стадия признаков (T+1 и другие стадии без признаков — ошибка)."""
     for stage in STAGES:
         if stage == value:
             return stage

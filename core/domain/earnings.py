@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Self
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from core.domain.base import DomainModel, Probability
 from core.domain.types import (
@@ -13,6 +13,7 @@ from core.domain.types import (
     DecisionStatus,
     Direction,
     FeatureStage,
+    ModelName,
     QueueStatus,
     ReportTime,
     SkipReason,
@@ -130,3 +131,16 @@ class Forecast(DomainModel):
     edge_up: float | None = None
     edge_move: float | None = None
     exploration: bool = False
+
+
+class ModelVersionRecord(DomainModel):
+    """Версия модели SPEC §9 (таблица model_version)."""
+
+    id: int | None = None
+    model: ModelName
+    version: str
+    params: dict[str, Any]
+    metrics: dict[str, float] | None = None
+    trained_at: AwareDatetime
+    accepted: bool
+    reason: str
