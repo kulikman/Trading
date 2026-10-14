@@ -331,12 +331,28 @@ class ConsensusAgent(StrictModel):
     )
 
 
+class DossierAgent(StrictModel):
+    """«Досье» (решения заказчика 14.10.2026): disclosure, guidance_risk на T−10, итог на T+1."""
+
+    release_lookback_days: PositiveInt  # прошлый пресс-релиз (8-K п. 2.02) — не старше N дней
+    disclosure_items: list[str] = Field(min_length=1)  # пункты 8-K, которые читаются как раскрытия
+    max_filings: PositiveInt  # последних подач 8-K в запросе
+    max_news: PositiveInt  # последних новостей Massive в запросе
+    max_chars_per_document: PositiveInt  # документ длиннее обрезается
+    max_chars_per_request: PositiveInt  # потолок текста одного запроса к LLM (стоимость)
+    release_window_days: int = Field(ge=0)  # T+1: пресс-релиз подан не позже даты отчёта + N дней
+    revenue_sanity_ratio: float = Field(
+        gt=1
+    )  # середина прогноза выручки дальше от консенсуса — ошибка единиц
+
+
 class Agents(StrictModel):
     sector: SectorAgent
     positioning: PositioningAgent
     macro: MacroAgent
     options: OptionsAgent
     consensus: ConsensusAgent
+    dossier: DossierAgent
 
 
 class Thresholds(StrictModel):

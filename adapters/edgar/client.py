@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from adapters.api_model import require_env
 from adapters.cache import Cache
+from adapters.edgar.documents import FilingDocument, submission_documents
 from adapters.edgar.models import CompanyFacts, Filing
 from adapters.errors import DataError
 from adapters.http import JsonHttpClient, RetryPolicy
@@ -94,6 +95,16 @@ class EdgarClient:
         """8-K с пунктом 2.02 — пресс-релиз о результатах (источник для «Досье» и guidance)."""
         item = self._settings.earnings_release_item
         return [f for f in self.filings(cik, {"8-K"}, since) if item in f.items]
+
+    def documents(self, filing: Filing) -> list[FilingDocument]:
+        """Текстовые документы подачи: полный текст с www.sec.gov (не меняется — долгий кэш)."""
+        folder = filing.accession_number.replace("-", "")
+        url = (
+            f"{self._settings.archives_base_url}/{filing.cik}/{folder}/"
+            f"{filing.accession_number}.txt"
+        )
+        text = self._http.get_text(url, ttl_seconds=self._settings.cache_ttl_seconds.documents)
+        return submission_documents(text)
 
     def company_facts(self, cik: int) -> CompanyFacts:
         """XBRL-факты компании (около 6 МБ на крупного эмитента — кэшируется на сутки)."""
