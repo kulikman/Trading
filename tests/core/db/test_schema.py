@@ -22,6 +22,7 @@ from core.domain.earnings import (
     Forecast,
     ReportAudit,
 )
+from core.domain.financials import FinancialQuarter
 from core.domain.market import Company, PeerEdge, Sector, SectorSummary
 from core.domain.news import NewsItem
 from core.domain.plugin import Plugin
@@ -43,6 +44,7 @@ EXPECTED_TABLES = {
     "trade_card_transition",
     "plugin",
     "news_article",
+    "financial_quarter",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -288,6 +290,22 @@ CASES: dict[str, Builder] = {
         orm.Plugin,
         Plugin(
             id="mode_c", version="0.1.0", kind="strategy", stage="paper", weight=0.05, enabled=True
+        ),
+    ),
+    "financial_quarter": lambda s, c: (
+        orm.FinancialQuarter,
+        FinancialQuarter(
+            ticker="GS",
+            metric="net_income",
+            period_start=date(2025, 10, 1),
+            period_end=date(2025, 12, 31),
+            value=4_100_000_000,
+            unit="USD",
+            derived=True,
+            concept="NetIncomeLoss",
+            form="10-K",
+            accession="0000886982-26-000050",
+            filed=date(2026, 2, 20),
         ),
     ),
     "news_article": lambda s, c: (

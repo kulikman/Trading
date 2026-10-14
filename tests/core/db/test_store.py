@@ -97,3 +97,30 @@ def test_news_saved_once_and_existing_tags_kept(session: Session) -> None:
     assert count == 1
     assert stored is not None
     assert (stored.title, stored.tags) == ("t", ["management"])
+
+
+def test_financial_quarter_restatement_updates_row(session: Session) -> None:
+    from core.db.store import save_financial_quarters
+    from core.domain.financials import FinancialQuarter
+
+    seed_companies(session)
+    q = FinancialQuarter(
+        ticker="GS",
+        metric="net_income",
+        period_start=date(2026, 4, 1),
+        period_end=date(2026, 6, 30),
+        value=6_628_000_000,
+        unit="USD",
+        derived=False,
+        concept="NetIncomeLoss",
+        form="10-Q",
+        accession="a1",
+        filed=date(2026, 8, 3),
+    )
+    assert save_financial_quarters(session, [q]) == 1
+    save_financial_quarters(
+        session, [q.model_copy(update={"value": 6_700_000_000, "accession": "a2"})]
+    )
+    rows = session.execute(select(orm.FinancialQuarter)).scalars().all()
+    assert [(r.value, r.accession) for r in rows] == [(6_700_000_000, "a2")]
+    assert save_financial_quarters(session, []) == 0

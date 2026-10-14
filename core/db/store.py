@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from core.db import models as orm
 from core.domain.earnings import ConsensusSnapshot
+from core.domain.financials import FinancialQuarter
 from core.domain.news import NewsItem
 
 
@@ -41,3 +42,18 @@ def save_news(session: Session, items: Iterable[NewsItem]) -> int:
         .returning(orm.NewsArticle.id)
     )
     return len(session.execute(statement).scalars().all())
+
+
+def save_financial_quarters(session: Session, quarters: Iterable[FinancialQuarter]) -> int:
+    """Кварталы компании. Пересчёт (новая подача) обновляет значение и источник."""
+    rows = [q.model_dump() for q in quarters]
+    if not rows:
+        return 0
+    statement = insert(orm.FinancialQuarter).values(rows)
+    updated = ("period_start", "value", "unit", "derived", "concept", "form", "accession", "filed")
+    statement = statement.on_conflict_do_update(
+        index_elements=["ticker", "metric", "period_end"],
+        set_={**{c: statement.excluded[c] for c in updated}, "updated_at": func.now()},
+    )
+    session.execute(statement)
+    return len(rows)

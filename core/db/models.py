@@ -363,3 +363,24 @@ class NewsArticle(Timestamps, Base):
     keywords: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
     insights: Mapped[Any | None] = mapped_column(JSONB)
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+
+
+# --- финансы ---
+
+
+class FinancialQuarter(Timestamps, Base):
+    """Квартальные показатели из SEC XBRL; пересчёт прошлых периодов обновляет строку."""
+
+    __tablename__ = "financial_quarter"
+
+    ticker: Mapped[str] = mapped_column(ForeignKey("company.ticker"), primary_key=True)
+    metric: Mapped[str] = mapped_column(primary_key=True)
+    period_end: Mapped[date] = mapped_column(primary_key=True)
+    period_start: Mapped[date]
+    value: Mapped[float]
+    unit: Mapped[str]
+    derived: Mapped[bool]
+    concept: Mapped[str]
+    form: Mapped[str]
+    accession: Mapped[str]
+    filed: Mapped[date]

@@ -67,6 +67,47 @@ class AlphaVantageSettings(HttpSourceSettings):
     cache_ttl_seconds: AlphaVantageCacheTtl
 
 
+class EdgarCacheTtl(StrictModel):
+    tickers: int = Field(ge=0)
+    submissions: int = Field(ge=0)
+    company_facts: int = Field(ge=0)
+
+
+class EdgarFinancials(StrictModel):
+    quarters: PositiveInt
+    quarter_days_min: PositiveInt
+    quarter_days_max: PositiveInt
+    non_additive_metrics: list[str]
+    concepts: dict[str, list[str]] = Field(min_length=1)
+
+
+class EdgarSettings(StrictModel):
+    data_base_url: str = Field(pattern=r"^https://")
+    tickers_url: str = Field(pattern=r"^https://")
+    archives_base_url: str = Field(pattern=r"^https://")
+    timeout_seconds: PositiveFloat
+    max_attempts: PositiveInt
+    backoff_base_seconds: float = Field(ge=0)
+    earnings_release_item: str
+    cache_ttl_seconds: EdgarCacheTtl
+    financials: EdgarFinancials
+
+
+class FredCacheTtl(StrictModel):
+    observations: int = Field(ge=0)
+
+
+class FredSettings(HttpSourceSettings):
+    cache_ttl_seconds: FredCacheTtl
+
+
+class LlmSettings(StrictModel):
+    model: str = Field(min_length=1)
+    effort: Literal["low", "medium", "high", "xhigh", "max"]
+    max_tokens: PositiveInt
+    max_attempts: PositiveInt
+
+
 class RedisSettings(StrictModel):
     timeout_seconds: PositiveFloat
 
@@ -76,3 +117,6 @@ class Sources(StrictModel):
     massive: MassiveSettings
     finnhub: FinnhubSettings
     alphavantage: AlphaVantageSettings
+    edgar: EdgarSettings
+    fred: FredSettings
+    llm: LlmSettings

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "anthropic>=1.13.0",
     "httpx>=0.28.1",
     "pandas-market-calendars>=5.5.0",
     "psycopg[binary]>=3.3.6",
@@ -18,6 +19,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "freezegun>=1.5.5",
+    "httpx2>=2.13.1",
     "mypy>=2.4.0",
     "pandas-stubs>=3.0.5.260914",
     "pre-commit>=4.7.0",

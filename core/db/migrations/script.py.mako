@@ -10,7 +10,9 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-${imports if imports else ""}
+% if imports:
+${imports}
+% endif
 
 # Alembic reads these module attributes; __all__ marks them as used for static analysis.
 __all__ = ["branch_labels", "depends_on", "down_revision", "downgrade", "revision", "upgrade"]
