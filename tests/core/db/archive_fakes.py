@@ -101,6 +101,9 @@ class Stocks:
         self.calls.append((start, end, adjusted))
         return [bar(d, c) for d, c in CLOSES.items()]
 
+    def ticker_changes(self, ticker: str) -> list[Any]:
+        return []
+
 
 class Earnings:
     def __init__(self, error: DataError | None = None) -> None:

@@ -138,6 +138,13 @@ class OptionSnapshot(ApiModel):
     underlying_asset: UnderlyingAsset | None = None
 
 
+class TickerChange(ApiModel):
+    """Смена тикера (/vX/reference/tickers/{ticker}/events): с date бумага торгуется как ticker."""
+
+    date: date
+    ticker: str
+
+
 class NewsPublisher(ApiModel):
     name: str
     homepage_url: str | None = None
