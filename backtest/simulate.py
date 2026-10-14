@@ -49,6 +49,7 @@ class Trade:
     costs: float  # $, вход + выход
     risk: float  # $, максимальный убыток с издержками входа
     variant: str = ""  # у кондора — толкование стопа (cost / loss)
+    entry_on: date | None = None  # день входа (уровень Black Swan — на закрытии дня до него)
 
     @property
     def net_pnl(self) -> float:
@@ -92,6 +93,7 @@ def simulate(
     open_slippage_minutes: int,
     width: float | None = None,
     condor_stop: CondorStopBasis | None = None,
+    entry_on: date | None = None,
 ) -> Trade | SkipReason:
     """Одна сделка: вход по ценам ног накануне, выход по первому правилу из стоп / цель / время."""
     entry = sum(leg.side * leg.entry_price for leg in legs)  # стрэддл > 0, кондор < 0
@@ -141,6 +143,7 @@ def simulate(
         costs=entry_costs.total + exit_costs.total,
         risk=max_loss + entry_costs.total,
         variant=basis or "",
+        entry_on=entry_on,
     )
 
 

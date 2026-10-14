@@ -31,6 +31,14 @@ risk_limits:                         # SPEC §10
     yellow: {size_multiplier: 0.7, min_confidence: null}
     orange: {size_multiplier: 0.4, min_confidence: 0.80}
     red: {size_multiplier: 0.0, min_confidence: null}   # новых входов нет
+    # Правило уровня (решение заказчика 13.10.2026) — стартовые гипотезы: проверяются бэктестом (T12b),
+    # закрепляются в T16. Уровень — худший из сигналов; повышение сразу, понижение — после спокойных дней подряд.
+    rule:
+      vix_levels: {yellow: 20.0, orange: 25.0, red: 35.0}   # закрытие VIX (FRED VIXCLS)
+      vix_jump: {yellow: null, orange: 0.20, red: 0.40}     # рост VIX за день; жёлтого порога нет
+      spy_drop: {yellow: 0.02, orange: 0.04, red: 0.07}     # падение SPY за день или за окно
+      spy_drop_window_days: 5
+      calm_days_to_downgrade: 2
 
 liquidity:                           # SPEC §10
   max_option_spread: 0.05            # спред опциона < 5% цены
