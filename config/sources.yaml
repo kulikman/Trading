@@ -75,7 +75,12 @@ edgar:                           # SEC EDGAR, бесплатно; заголов
   cache_ttl_seconds:
     tickers: 86400
     submissions: 3600
+    submissions_history: 604800  # старые страницы подач не меняются
     company_facts: 86400
+  archive:                       # сборка архива отчётов (T11)
+    revenue_quarters: 12         # кварталов выручки из XBRL — с запасом на окно опционов 2 года
+    fiscal_end_tolerance_days: 7 # конец квартала у Alpha Vantage — конец месяца, у XBRL — точная дата (52/53 недели)
+    filing_search_days: 45       # ближайший 8-K о результатах ищется в ±45 днях: 0–1 день — ok, иначе — mismatch; нет — no_8k
   financials:                    # вкладка «Финансы» (DASHBOARD.md §4.5)
     quarters: 8
     quarter_days_min: 80         # длительность факта, которая считается кварталом

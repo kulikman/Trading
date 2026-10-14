@@ -42,3 +42,6 @@ JobKind = Literal["analysis", "execution", "notify"]
 EventJobStatus = Literal["planned", "done", "failed", "missed", "no_handler"]
 
 OptionType = Literal["call", "put"]
+
+# Сверка даты отчёта с 8-K о результатах (T11): 0–1 день — ok, дальше — mismatch, нет — no_8k
+DateCheckStatus = Literal["ok", "mismatch", "no_8k"]

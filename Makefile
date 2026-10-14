@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options run-bot run-api
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options build-archive run-bot run-api
 
 -include .env
 
@@ -52,6 +52,9 @@ run-calendar:  ## разовый прогон «Календаря» (то же,
 
 load-options:  ## архив опционов по прошлым отчётам: make load-options ARGS="--ticker NFLX" или ARGS="--all"
 	uv run python -m backtest.load_option_history $(ARGS)
+
+build-archive:  ## архив прошлых отчётов + отчёт о покрытии: make build-archive ARGS="--all"
+	uv run python -m backtest.build_archive $(ARGS)
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1

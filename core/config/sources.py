@@ -88,6 +88,7 @@ class AlphaVantageSettings(HttpSourceSettings):
 class EdgarCacheTtl(StrictModel):
     tickers: int = Field(ge=0)
     submissions: int = Field(ge=0)
+    submissions_history: int = Field(ge=0)
     company_facts: int = Field(ge=0)
 
 
@@ -97,6 +98,14 @@ class EdgarFinancials(StrictModel):
     quarter_days_max: PositiveInt
     non_additive_metrics: list[str]
     concepts: dict[str, list[str]] = Field(min_length=1)
+
+
+class EdgarArchive(StrictModel):
+    """Сборка архива отчётов (T11): выручка из XBRL и сверка дат с 8-K."""
+
+    revenue_quarters: PositiveInt
+    fiscal_end_tolerance_days: int = Field(ge=0)
+    filing_search_days: PositiveInt
 
 
 class EdgarSettings(StrictModel):
@@ -109,6 +118,7 @@ class EdgarSettings(StrictModel):
     earnings_release_item: str
     cache_ttl_seconds: EdgarCacheTtl
     financials: EdgarFinancials
+    archive: EdgarArchive
 
 
 class FredCacheTtl(StrictModel):

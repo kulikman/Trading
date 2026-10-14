@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session
 
 from core.config.universe import Universe
 from core.db import models as orm
-from core.domain.earnings import ConsensusSnapshot
+from core.domain.earnings import ConsensusSnapshot, EarningsTrack, ReportedEarnings
 from core.domain.financials import FinancialQuarter
 from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar
 from core.domain.schedule import EventJob
-from core.domain.types import ReportTime
+from core.domain.types import DateCheckStatus, ReportTime
 
 
 def save_consensus_snapshots(session: Session, snapshots: Iterable[ConsensusSnapshot]) -> int:
@@ -79,25 +79,45 @@ def save_option_bars(session: Session, bars: Iterable[OptionDailyBar]) -> int:
     return len(rows)
 
 
-def save_earnings_dates(
-    session: Session, ticker: str, reports: Iterable[tuple[date, ReportTime | None]]
-) -> int:
-    """Даты прошлых отчётов в earnings_track. Известное время отчёта пустым не затирается."""
-    rows = [{"ticker": ticker, "report_date": d, "report_time": t} for d, t in reports]
+def save_reported_earnings(session: Session, reports: Iterable[ReportedEarnings]) -> int:
+    """Прошлые отчёты в earnings_track: дата, время, фискальный квартал, EPS.
+
+    Ключ — (ticker, report_date). Известное время отчёта пустым не затирается; EPS источника
+    перезаписывается (он мог уточнить факт). Дубли даты в ответе — последняя строка.
+    """
+    by_key = {(r.ticker, r.report_date): r.model_dump() for r in reports}
+    rows = list(by_key.values())
     if not rows:
         return 0
     statement = insert(orm.EarningsTrack).values(rows)
+    excluded = statement.excluded
     statement = statement.on_conflict_do_update(
         index_elements=["ticker", "report_date"],
         set_={
-            "report_time": func.coalesce(
-                statement.excluded.report_time, orm.EarningsTrack.report_time
-            ),
+            "report_time": func.coalesce(excluded.report_time, orm.EarningsTrack.report_time),
+            "fiscal_period_end": excluded.fiscal_period_end,
+            "eps_consensus": excluded.eps_consensus,
+            "eps_actual": excluded.eps_actual,
+            "eps_surprise_pct": excluded.eps_surprise_pct,
             "updated_at": func.now(),
         },
     )
     session.execute(statement)
     return len(rows)
+
+
+def has_reported_eps(session: Session, ticker: str) -> bool:
+    """Загружена ли история EPS: есть отчёт с фактом EPS и концом фискального квартала."""
+    found = session.scalar(
+        select(orm.EarningsTrack.id)
+        .where(
+            orm.EarningsTrack.ticker == ticker,
+            orm.EarningsTrack.eps_actual.is_not(None),
+            orm.EarningsTrack.fiscal_period_end.is_not(None),
+        )
+        .limit(1)
+    )
+    return found is not None
 
 
 def earnings_dates(
@@ -110,6 +130,48 @@ def earnings_dates(
         .order_by(orm.EarningsTrack.report_date)
     ).all()
     return [(r.report_date, _report_time(r.report_time)) for r in rows]
+
+
+ARCHIVE_FIELDS = frozenset({"rev_actual", "actual_move", "move_ratio"})
+
+
+def earnings_history(session: Session, ticker: str, since: date) -> list[EarningsTrack]:
+    """Отчёты компании из earnings_track начиная с since, по возрастанию даты."""
+    rows = session.scalars(
+        select(orm.EarningsTrack)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date >= since)
+        .order_by(orm.EarningsTrack.report_date)
+    ).all()
+    return [EarningsTrack.model_validate(r, from_attributes=True) for r in rows]
+
+
+def update_earnings(
+    session: Session, ticker: str, report_date: date, values: dict[str, float | None]
+) -> None:
+    """Поля архива прошлого отчёта (T11): выручка-факт, фактическое движение, move_ratio."""
+    unknown = set(values) - ARCHIVE_FIELDS
+    if unknown:
+        raise ValueError(f"not archive fields: {sorted(unknown)}")
+    session.execute(
+        update(orm.EarningsTrack)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
+        .values(**values, updated_at=func.now())
+    )
+
+
+def set_date_check(
+    session: Session,
+    ticker: str,
+    report_date: date,
+    filing_date: date | None,
+    status: DateCheckStatus,
+) -> None:
+    """Результат сверки даты отчёта с 8-K (T11); mismatch бэктест исключает."""
+    session.execute(
+        update(orm.EarningsTrack)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
+        .values(sec_filing_date=filing_date, date_check=status, updated_at=func.now())
+    )
 
 
 def set_implied_move(session: Session, ticker: str, report_date: date, move: float) -> None:

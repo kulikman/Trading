@@ -34,6 +34,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from core.domain.types import (
     CalibrationStatus,
     CardState,
+    DateCheckStatus,
     DateStatus,
     DecisionStatus,
     Direction,
@@ -178,6 +179,7 @@ class EarningsTrack(Timestamps, Base):
     __table_args__ = (
         UniqueConstraint("ticker", "report_date"),
         CheckConstraint(_one_of("report_time", ReportTime), name="report_time"),
+        CheckConstraint(_one_of("date_check", DateCheckStatus), name="date_check"),
         CheckConstraint(_one_of("guidance_change", Direction), name="guidance_change"),
         CheckConstraint(_one_of("decision", DecisionStatus), name="decision"),
     )
@@ -186,6 +188,9 @@ class EarningsTrack(Timestamps, Base):
     ticker: Mapped[str] = mapped_column(ForeignKey("company.ticker"))
     report_date: Mapped[date]
     report_time: Mapped[str | None]
+    fiscal_period_end: Mapped[date | None]
+    sec_filing_date: Mapped[date | None]
+    date_check: Mapped[str | None]
     eps_consensus: Mapped[float | None]
     eps_actual: Mapped[float | None]
     eps_surprise_pct: Mapped[float | None]

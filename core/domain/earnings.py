@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 
 from core.domain.base import DomainModel, Probability
 from core.domain.types import (
+    DateCheckStatus,
     DateStatus,
     DecisionStatus,
     Direction,
@@ -43,6 +44,11 @@ class EarningsTrack(DomainModel):
     ticker: str
     report_date: date
     report_time: ReportTime | None = None
+    fiscal_period_end: date | None = None  # конец фискального квартала — ключ к выручке SEC
+    sec_filing_date: date | None = None  # подача 8-K о результатах, ближайшая к дате отчёта
+    date_check: DateCheckStatus | None = (
+        None  # mismatch — дата источника под сомнением (T12 исключает)
+    )
     eps_consensus: float | None = None
     eps_actual: float | None = None
     eps_surprise_pct: float | None = None
@@ -60,6 +66,21 @@ class EarningsTrack(DomainModel):
     decision: DecisionStatus | None = None
     skip_reasons: list[SkipReason] | None = None
     shadow_pnl: Decimal | None = None
+
+
+class ReportedEarnings(DomainModel):
+    """Прошлый отчёт из истории EPS (Alpha Vantage EARNINGS): дата, время, консенсус и факт.
+
+    EPS — скорректированный (non-GAAP, как у источника); сюрприз — в процентах: 12.5 = +12,5%.
+    """
+
+    ticker: str
+    report_date: date
+    report_time: ReportTime | None = None
+    fiscal_period_end: date
+    eps_consensus: float | None = None
+    eps_actual: float | None = None
+    eps_surprise_pct: float | None = None
 
 
 class ReportAudit(DomainModel):
