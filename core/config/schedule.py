@@ -38,6 +38,15 @@ class CalendarSettings(StrictModel):
     _time = field_validator("run_time_et", mode="before")(_parse_time)
 
 
+class ArchiveSettings(StrictModel):
+    """Ежедневное пополнение архива прошлых отчётов (T12c)."""
+
+    run_time_et: time
+    lookback_trading_days: PositiveInt
+
+    _time = field_validator("run_time_et", mode="before")(_parse_time)
+
+
 class EventJobSpec(StrictModel):
     stage: str = Field(pattern=r"^T([+-]\d+|0)$")
     job: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
@@ -56,6 +65,7 @@ class EventJobSpec(StrictModel):
 class ScheduleConfig(StrictModel):
     scheduler: SchedulerSettings
     calendar: CalendarSettings
+    archive: ArchiveSettings
     event_jobs: list[EventJobSpec] = Field(min_length=1)
 
     @model_validator(mode="after")

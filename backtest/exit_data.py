@@ -124,10 +124,12 @@ class ExitDataLoader:
             constructions=self._thresholds.constructions,
         )
 
-    def load(self, db: Session, ticker: str) -> ExitDataReport:
-        """Докачать данные выхода для всех сигналов компании."""
+    def load(self, db: Session, ticker: str, *, since: date | None = None) -> ExitDataReport:
+        """Докачать данные выхода для сигналов компании (since — только отчёты с этой даты)."""
         report = ExitDataReport(ticker)
-        found = self.signals(db, ticker)
+        found = [
+            s for s in self.signals(db, ticker) if since is None or s.days.report_date >= since
+        ]
         for item in found:
             report.signals[item.construction or item.reason or "none"] += 1
         active = [(s, s.construction) for s in found if s.construction is not None]

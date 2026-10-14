@@ -96,11 +96,11 @@ class ArchiveBuilder:
         self._ciks: dict[str, int] | None = None
         self._predecessors = dict(predecessor_ciks or {})
 
-    def build(self, session: Session, ticker: str) -> TickerArchive:
+    def build(self, session: Session, ticker: str, *, refresh_dates: bool = False) -> TickerArchive:
         """Все шаги по компании; commit — после каждого шага (прерывание не теряет сделанное)."""
         result = TickerArchive(ticker)
         try:
-            self._loader.load(session, ticker)
+            self._loader.load(session, ticker, refresh_dates=refresh_dates)
         except EarningsSourceExhausted as exc:
             logger.warning("dates unavailable, other steps use stored data: %s", exc)
             result.dates_pending = True

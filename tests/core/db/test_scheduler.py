@@ -18,6 +18,7 @@ from core.scheduler import __main__ as scheduler_main
 from core.scheduler import jobs as scheduler_jobs
 from core.scheduler.dispatch import dispatch_due
 from core.scheduler.runner import (
+    ARCHIVE_JOB_ID,
     CALENDAR_JOB_ID,
     DISPATCH_JOB_ID,
     JOBS_TABLE,
@@ -105,7 +106,11 @@ def test_register_jobs_in_postgres_store_is_idempotent(
         register_jobs(scheduler, SCHEDULE)
         register_jobs(scheduler, SCHEDULE)
         jobs = {j.id: j for j in scheduler.get_jobs()}
-        assert set(jobs) == {CALENDAR_JOB_ID, DISPATCH_JOB_ID}
+        assert set(jobs) == {CALENDAR_JOB_ID, ARCHIVE_JOB_ID, DISPATCH_JOB_ID}
+        archive = jobs[ARCHIVE_JOB_ID].trigger
+        assert isinstance(archive, CronTrigger)
+        archive_fields = {f.name: str(f) for f in archive.fields}
+        assert (archive_fields["hour"], archive_fields["minute"]) == ("18", "30")
         calendar = jobs[CALENDAR_JOB_ID].trigger
         assert isinstance(calendar, CronTrigger)
         fields = {f.name: str(f) for f in calendar.fields}
@@ -118,7 +123,7 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             stored = connection.execute(
                 select(func.count()).select_from(orm.apscheduler_jobs)
             ).scalar_one()
-        assert stored == 2
+        assert stored == 3
     finally:
         scheduler.shutdown(wait=False)
         with engine.begin() as connection:
@@ -149,7 +154,7 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
     monkeypatch.setenv("DATABASE_URL", test_database_url)
     monkeypatch.setattr(scheduler_main, "create_scheduler", lambda url: fake)
     scheduler_main.main()
-    assert (fake.ids, started) == ([CALENDAR_JOB_ID, DISPATCH_JOB_ID], [True])
+    assert (fake.ids, started) == ([CALENDAR_JOB_ID, ARCHIVE_JOB_ID, DISPATCH_JOB_ID], [True])
 
 
 @pytest.fixture

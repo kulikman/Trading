@@ -112,12 +112,17 @@ class OptionHistoryLoader:
         """Первый день, за который у источника есть цены опционов."""
         return self._today - timedelta(days=self._settings.archive_days)
 
-    def load(self, session: Session, ticker: str) -> TickerReport:
-        """Архив и implied move по прошлым отчётам компании в окне доступа."""
+    def load(self, session: Session, ticker: str, *, refresh_dates: bool = False) -> TickerReport:
+        """Архив и implied move по прошлым отчётам компании в окне доступа.
+
+        refresh_dates — перезапросить историю отчётов, даже если сохранённая свежая (вышел новый
+        отчёт, которого в ней ещё нет).
+        """
         report = TickerReport(ticker)
+        reports = self._report_dates(session, ticker, refresh=refresh_dates)
         events = [
             days
-            for days in (EventDays.of(d, t) for d, t in self._report_dates(session, ticker))
+            for days in (EventDays.of(d, t) for d, t in reports)
             if days.pre >= self.since and days.reaction < self._today
         ]
         if not events:
@@ -147,10 +152,12 @@ class OptionHistoryLoader:
             self._commit(session)
         return report
 
-    def _report_dates(self, session: Session, ticker: str) -> list[tuple[date, ReportTime | None]]:
+    def _report_dates(
+        self, session: Session, ticker: str, *, refresh: bool = False
+    ) -> list[tuple[date, ReportTime | None]]:
         stored = earnings_dates(session, ticker, self.since)
         is_fresh = bool(stored) and stored[-1][0] >= self._today - timedelta(days=STALE_DATES_DAYS)
-        if is_fresh and has_reported_eps(session, ticker):
+        if not refresh and is_fresh and has_reported_eps(session, ticker):
             return stored
         try:
             history = self._earnings.earnings(ticker)

@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options build-archive backtest-data backtest run-bot run-api
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options build-archive backtest-data backtest run-archive-daily run-bot run-api
 
 -include .env
 
@@ -61,6 +61,9 @@ backtest-data:  ## данные выхода сделок бэктеста (ми
 
 backtest:  ## бэктест стратегий на move_ratio → reports/backtest_<дата>.md
 	uv run python -m backtest.run
+
+run-archive-daily:  ## разовое пополнение архива свежими отчётами (то же, что в 18:30 ET)
+	uv run python -m backtest.daily_archive
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1
