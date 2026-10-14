@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Literal, Protocol
 
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from core.domain.trading import TradeCard
 from core.domain.types import FeatureStage, ReportTime, SkipReason
@@ -35,6 +36,7 @@ class EventContext:
     report_time: ReportTime | None
     stage: FeatureStage
     as_of: datetime
+    session: Session | None = None  # архив (только чтение) — агентам, которым нужна история
 
 
 @dataclass(frozen=True)

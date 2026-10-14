@@ -24,7 +24,6 @@ from adapters.massive.history import (
     straddle_from_bars,
 )
 from adapters.massive.symbols import daily_bars
-from backtest.black_swan import Level, levels
 from backtest.exit_data import exit_window
 from backtest.mode_c_run import run_mode_c
 from backtest.option_history import STOCK_PADDING_DAYS, StockBarsSource
@@ -38,6 +37,7 @@ from core.config.thresholds import CondorStopBasis, Thresholds
 from core.db.session import create_db_engine, database_url
 from core.db.store import earnings_history, option_bars_on, option_minute_bars
 from core.domain.options import OptionDailyBar
+from core.risk.black_swan import Level, levels
 from core.session_guard import to_et
 from execution.costs import BrokerCostModel, CostModel
 

@@ -5,7 +5,7 @@ from typing import Literal
 ReportTime = Literal["BMO", "AMC", "DURING"]
 DateStatus = Literal["projected", "confirmed"]
 QueueStatus = Literal["planned", "profiling", "signals", "decided", "done"]
-FeatureStage = Literal["T-7", "T-3", "T-1", "T0"]
+FeatureStage = Literal["T-14", "T-10", "T-7", "T-3", "T-1", "T0"]
 CalibrationStatus = Literal["active", "quarantine"]
 Direction = Literal[-1, 0, 1]
 

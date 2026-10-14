@@ -103,6 +103,22 @@ class Models(StrictModel):
     feature_merge_correlation: Fraction
     quarantine: Quarantine
     p_up_initial_betas: dict[str, float] = Field(min_length=1)
+    # Признаки, которые идут в модели: «агент.признак». Остальные агенты пишут, но модели не видят.
+    active_features: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _within_budget(self) -> Self:
+        if len(self.active_features) > self.feature_budget:
+            raise ValueError(
+                f"{len(self.active_features)} active features exceed feature_budget "
+                f"{self.feature_budget}"
+            )
+        if len(set(self.active_features)) != len(self.active_features):
+            raise ValueError("duplicate active features")
+        bad = [f for f in self.active_features if f.count(".") != 1]
+        if bad:
+            raise ValueError(f"active features must be agent.feature: {bad}")
+        return self
 
 
 class Lifecycle(StrictModel):
@@ -268,6 +284,32 @@ class Backtest(StrictModel):
         return self
 
 
+class SectorAgent(StrictModel):
+    """«Тренд сектора» (решение заказчика 14.10.2026): знак среднего сюрприза отчитавшихся."""
+
+    season_window_days: PositiveInt
+    min_peers: PositiveInt
+    min_abs_surprise: Fraction
+    momentum_days: PositiveInt
+
+
+class PositioningAgent(StrictModel):
+    long_run_days: PositiveInt  # pre_run_30d — календарные дни
+    short_run_trading_days: PositiveInt  # pre_run_3d — торговые дни
+    volume_lookback_days: PositiveInt
+    short_interest_lag_days: PositiveInt  # публикация FINRA — через ~8 рабочих дней после расчёта
+
+
+class MacroAgent(StrictModel):
+    lookback_days: PositiveInt  # история VIX и SPY для уровня Black Swan
+
+
+class Agents(StrictModel):
+    sector: SectorAgent
+    positioning: PositioningAgent
+    macro: MacroAgent
+
+
 class Thresholds(StrictModel):
     capital: Capital
     sizing: Sizing
@@ -284,3 +326,4 @@ class Thresholds(StrictModel):
     costs: Costs
     notify: Notify
     backtest: Backtest
+    agents: Agents

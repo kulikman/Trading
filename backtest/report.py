@@ -4,13 +4,14 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import date
 
-from backtest.black_swan import ORDER, Level, scenarios
+from backtest.black_swan import scenarios
 from backtest.metrics import Metrics, metrics
 from backtest.mode_c_run import ModeCResult
 from backtest.result import BacktestResult
 from backtest.simulate import Trade
 from core.config.broker import CostSettings
 from core.config.thresholds import Thresholds
+from core.risk.black_swan import ORDER, Level
 from core.session_guard import ET
 
 CONSTRUCTION_NAMES = {

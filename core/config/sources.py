@@ -22,6 +22,7 @@ class MassiveCacheTtl(StrictModel):
     option_chain: int = Field(ge=0)
     news: int = Field(ge=0)
     ticker_events: int = Field(ge=0)
+    short_interest: int = Field(ge=0)
 
 
 class MassiveImpliedMove(StrictModel):

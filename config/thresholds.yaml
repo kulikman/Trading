@@ -58,6 +58,20 @@ models:                              # SPEC §9, §7, §17
   quarantine:
     max_brier: 0.30
     min_reports: 6
+  # Активные признаки «агент.признак» — идут в модели (бюджет feature_budget). Решение заказчика 14.10.2026:
+  # 8 из стартовых весов p_up + 3 для модели движения. dossier.* — после T14c (Досье).
+  active_features:
+    - consensus.revision_trend_7_90
+    - sector.peer_surprise_mean
+    - sector.trend
+    - positioning.short_interest_days
+    - options.skew_25d
+    - positioning.pre_run_3d
+    - dossier.disclosure
+    - dossier.guidance_risk
+    - options.implied_move
+    - options.iv_rank            # IV на той же стадии перед прошлыми отчётами компании (T14b)
+    - macro.vix
   # Только до первого `learn season`; дальше веса меняет обучение.
   p_up_initial_betas:
     disclosure: 2.0
@@ -149,3 +163,17 @@ backtest:                            # T12, решения заказчика 14
     volume_lookback_days: 20         # «объём > 2× среднего»: первый час против среднего первого часа за 20 дней
     min_volume_history_days: 10      # меньше дней истории объёма — сигнала нет
     assumed_spread_stock: 0.0005     # только бэктест: котировок нет, спред акции 0,05% цены — допущение
+
+agents:                              # T14: параметры агентов данных (SPEC §8)
+  sector:                            # «тренд сектора» — решение заказчика 14.10.2026
+    season_window_days: 45           # отчёты компаний сектора за последние 45 дней — текущий сезон
+    min_peers: 3                     # меньше отчитавшихся — trend = 0
+    min_abs_surprise: 0.02           # средний сюрприз EPS по модулю ≤ 2% — trend = 0
+    momentum_days: 30                # sector_momentum_30d — средняя доходность компаний сектора за 30 дней
+  positioning:
+    long_run_days: 30                # pre_run_30d
+    short_run_trading_days: 3        # pre_run_3d
+    volume_lookback_days: 20         # volume_anomaly — объём вчера / средний за 20 дней
+    short_interest_lag_days: 12      # расчёт FINRA публикуется ~через 8 рабочих дней — без заглядывания вперёд
+  macro:
+    lookback_days: 60                # история VIX и SPY для уровня Black Swan (regime 0–3)

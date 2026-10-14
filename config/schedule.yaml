@@ -22,18 +22,23 @@ archive:                            # ежедневное пополнение 
   lookback_trading_days: 5          # отчёты с реакцией за 5 торговых дней — пропущенный вечер (Mac спал) наверстается
 
 event_jobs:
-  - {stage: T-14, job: sector_cycle,       offset_days: -14, time_et: "07:00", kind: analysis}  # время стартовое
+  - {stage: T-14, job: sector_cycle,       offset_days: -14, time_et: "07:00", kind: analysis, agent: sector}  # время стартовое
   - {stage: T-10, job: dossier,            offset_days: -10, time_et: "07:00", kind: analysis}  # время стартовое
   - {stage: T-10, job: consensus,          offset_days: -10, time_et: "07:10", kind: analysis}  # время стартовое
-  - {stage: T-7,  job: positioning,        offset_days: -7,  time_et: "07:30", kind: analysis}  # время стартовое
+  - {stage: T-7,  job: positioning,        offset_days: -7,  time_et: "07:30", kind: analysis, agent: positioning}  # время стартовое
+  - {stage: T-7,  job: macro,              offset_days: -7,  time_et: "07:35", kind: analysis, agent: macro}  # время стартовое
   - {stage: T-7,  job: options,            offset_days: -7,  time_et: "15:00", kind: analysis}
   - {stage: T-7,  job: forecast,           offset_days: -7,  time_et: "15:10", kind: analysis}
   - {stage: T-7,  job: mode_a_decision,    offset_days: -7,  time_et: "15:15", kind: analysis}
-  - {stage: T-3,  job: sector_informants,  offset_days: -3,  time_et: "07:00", kind: analysis}  # время стартовое
+  - {stage: T-3,  job: sector_informants,  offset_days: -3,  time_et: "07:00", kind: analysis, agent: sector}  # время стартовое
+  - {stage: T-3,  job: positioning,        offset_days: -3,  time_et: "14:50", kind: analysis, agent: positioning}  # время стартовое
+  - {stage: T-3,  job: macro,              offset_days: -3,  time_et: "14:51", kind: analysis, agent: macro}  # время стартовое
   - {stage: T-3,  job: options,            offset_days: -3,  time_et: "15:00", kind: analysis}
   - {stage: T-3,  job: polymarket,         offset_days: -3,  time_et: "15:00", kind: analysis}
   - {stage: T-3,  job: forecast,           offset_days: -3,  time_et: "15:10", kind: analysis}
   - {stage: T-3,  job: mode_b_gate,        offset_days: -3,  time_et: "15:15", kind: analysis}
+  - {stage: T-1,  job: positioning,        offset_days: -1,  time_et: "14:50", kind: analysis, agent: positioning}  # время стартовое
+  - {stage: T-1,  job: macro,              offset_days: -1,  time_et: "14:51", kind: analysis, agent: macro}  # время стартовое
   - {stage: T-1,  job: options,            offset_days: -1,  time_et: "15:00", kind: analysis}
   - {stage: T-1,  job: final_forecast,     offset_days: -1,  time_et: "15:05", kind: analysis}
   - {stage: T-1,  job: mode_b_decision,    offset_days: -1,  time_et: "15:10", kind: analysis}
