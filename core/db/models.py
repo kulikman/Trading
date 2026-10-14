@@ -40,6 +40,7 @@ from core.domain.types import (
     EventJobStatus,
     FeatureStage,
     JobKind,
+    OptionType,
     PluginKind,
     PluginStage,
     QueueStatus,
@@ -427,6 +428,33 @@ class EventChange(Timestamps, Base):
     old_value: Mapped[str | None]
     new_value: Mapped[str | None]
     reason: Mapped[str | None]
+
+
+# --- архив опционов (T10) ---
+
+
+class OptionDailyBar(Timestamps, Base):
+    """Дневная цена контракта. Источник хранит историю скользящим окном — архив копится здесь."""
+
+    __tablename__ = "option_daily_bar"
+    __table_args__ = (
+        CheckConstraint(_one_of("option_type", OptionType), name="option_type"),
+        Index("ix_option_daily_bar_underlying_day", "underlying", "day"),
+    )
+
+    option_ticker: Mapped[str] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(primary_key=True)
+    underlying: Mapped[str]
+    expiration: Mapped[date]
+    strike: Mapped[float]
+    option_type: Mapped[str]
+    open: Mapped[float]
+    high: Mapped[float]
+    low: Mapped[float]
+    close: Mapped[float]
+    volume: Mapped[float]
+    vwap: Mapped[float | None]
+    transactions: Mapped[int | None]
 
 
 # Хранилище задач APScheduler 3.11 (SQLAlchemyJobStore). Таблица создаётся миграцией (CLAUDE.md:

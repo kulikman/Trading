@@ -28,6 +28,21 @@ class MassiveImpliedMove(StrictModel):
     max_plausible_iv: PositiveFloat
 
 
+class MassiveHistory(StrictModel):
+    """Исторические опционы (T10): лимит запросов, окно цен вокруг отчёта, выбор страйков."""
+
+    archive_days: PositiveInt
+    requests_per_minute: PositiveInt
+    max_attempts: PositiveInt
+    backoff_base_seconds: float = Field(ge=0)
+    days_before: PositiveInt
+    days_after: int = Field(ge=0)
+    expiration_lookahead_days: PositiveInt
+    strike_band: float = Field(gt=0, lt=1)
+    max_strike_attempts: PositiveInt
+    risk_free_rate: float = Field(ge=0, lt=0.2)
+
+
 class MassiveSettings(StrictModel):
     base_url: str = Field(pattern=r"^https://")
     timeout_seconds: PositiveFloat
@@ -37,6 +52,7 @@ class MassiveSettings(StrictModel):
     page_limit: MassivePageLimit
     cache_ttl_seconds: MassiveCacheTtl
     implied_move: MassiveImpliedMove
+    history: MassiveHistory
 
 
 class HttpSourceSettings(StrictModel):

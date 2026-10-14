@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import time
+from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -20,6 +21,42 @@ ERROR_BODY_PREVIEW = 200
 REDACTED = "***"
 
 Params = Mapping[str, str | int | float | bool]
+
+
+class RateLimiter:
+    """Не больше max_requests запросов за period_seconds (скользящее окно).
+
+    Нужен там, где лимит в минуту, а не в секунду: короткие повторы при 429 его не обходят.
+    """
+
+    def __init__(
+        self,
+        max_requests: int,
+        period_seconds: float,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if max_requests < 1 or period_seconds <= 0:
+            raise ValueError("rate limit needs max_requests >= 1 and period_seconds > 0")
+        self._max = max_requests
+        self._period = period_seconds
+        self._clock = clock
+        self._sleep = sleep
+        self._sent: deque[float] = deque()
+
+    def __call__(self) -> None:
+        """Подождать, если окно заполнено, и учесть запрос."""
+        now = self._clock()
+        while self._sent and self._sent[0] <= now - self._period:
+            self._sent.popleft()
+        if len(self._sent) >= self._max:
+            wait = self._sent[0] + self._period - now
+            logger.debug("rate limit: waiting", extra={"wait_seconds": round(wait, 1)})
+            self._sleep(wait)
+            now = self._clock()
+            self._sent.popleft()
+        self._sent.append(now)
 
 
 @dataclass(frozen=True)
@@ -47,8 +84,10 @@ class JsonHttpClient:
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,
         secret_params: Mapping[str, str] | None = None,
+        throttle: Callable[[], None] | None = None,
     ) -> None:
         self._source = source
+        self._throttle = throttle
         self._client = httpx.Client(
             base_url=base_url,
             headers=dict(headers or {}),
@@ -148,6 +187,8 @@ class JsonHttpClient:
     def _send(self, request: httpx.Request, url: str) -> bytes:
         for attempt in range(1, self._retry.max_attempts + 1):
             is_last = attempt == self._retry.max_attempts
+            if self._throttle is not None:
+                self._throttle()  # только сетевые запросы: ответ из кэша лимит не тратит
             try:
                 response = self._client.send(request)
             except httpx.TransportError as exc:

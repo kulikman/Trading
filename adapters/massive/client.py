@@ -1,5 +1,7 @@
 """Клиент Massive REST: свечи, котировки, снимки, опционные контракты и цепочки (SPEC §6)."""
 
+import time
+from collections.abc import Callable
 from datetime import date
 from typing import Any, Literal
 
@@ -9,7 +11,7 @@ from pydantic import ValidationError
 from adapters.api_model import ApiModel, require_env
 from adapters.cache import Cache
 from adapters.errors import DataError
-from adapters.http import JsonHttpClient, Params, RetryPolicy
+from adapters.http import JsonHttpClient, Params, RateLimiter, RetryPolicy
 from adapters.massive.models import (
     Bar,
     ContractType,
@@ -52,6 +54,31 @@ class MassiveClient:
             retry=RetryPolicy(settings.max_attempts, settings.backoff_base_seconds),
             cache=cache,
             transport=transport,
+        )
+        return cls(http, settings)
+
+    @classmethod
+    def create_history(
+        cls,
+        settings: MassiveSettings,
+        api_key: str,
+        cache: Cache | None = None,
+        transport: httpx.BaseTransport | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> "MassiveClient":
+        """Клиент исторических опционов: лимит history.requests_per_minute, долгие паузы при 429."""
+        history = settings.history
+        http = JsonHttpClient(
+            source=SOURCE,
+            base_url=settings.base_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout_seconds=settings.timeout_seconds,
+            retry=RetryPolicy(history.max_attempts, history.backoff_base_seconds),
+            cache=cache,
+            transport=transport,
+            sleep=sleep,
+            throttle=RateLimiter(history.requests_per_minute, 60, clock=clock, sleep=sleep),
         )
         return cls(http, settings)
 
@@ -99,14 +126,18 @@ class MassiveClient:
         expiration_lte: date | None = None,
         as_of: date | None = None,
         expired: bool = False,
+        strike_gte: float | None = None,
+        strike_lte: float | None = None,
     ) -> list[OptionContract]:
-        """Справочник контрактов по базовому активу."""
+        """Справочник контрактов по базовому активу. expired=True — только истёкшие."""
         params = _drop_none(
             {
                 "underlying_ticker": underlying,
                 "contract_type": contract_type,
                 "expiration_date.gte": expiration_gte,
                 "expiration_date.lte": expiration_lte,
+                "strike_price.gte": strike_gte,
+                "strike_price.lte": strike_lte,
                 "as_of": as_of,
                 "expired": expired,
                 "limit": self._settings.page_limit.option_contracts,
