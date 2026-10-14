@@ -13,6 +13,7 @@ from core.domain.earnings import (
     ConsensusSnapshot,
     EarningsTrack,
     FeatureSnapshot,
+    ReportAudit,
     ReportedEarnings,
 )
 from core.domain.financials import FinancialQuarter
@@ -20,7 +21,7 @@ from core.domain.market import SectorSummary
 from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar, OptionMinuteBar
 from core.domain.schedule import EventJob
-from core.domain.types import DateCheckStatus, ReportTime
+from core.domain.types import DateCheckStatus, Direction, ReportTime
 
 
 def save_consensus_snapshots(session: Session, snapshots: Iterable[ConsensusSnapshot]) -> int:
@@ -206,6 +207,33 @@ def set_date_check(
         .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
         .values(sec_filing_date=filing_date, date_check=status, updated_at=func.now())
     )
+
+
+def save_report_audit(session: Session, audit: ReportAudit) -> int:
+    """Новая версия разбора отчёта «Досье» (версии не перезаписываются, SPEC §5)."""
+    row = orm.ReportAudit(**audit.model_dump(exclude={"id"}))
+    session.add(row)
+    session.flush()
+    return row.id
+
+
+def set_report_outcome(
+    session: Session,
+    ticker: str,
+    report_date: date,
+    reaction_cause: str,
+    guidance_change: Direction | None,
+) -> bool:
+    """Итог отчёта от «Досье» (T+1) в earnings_track. False — строки отчёта в архиве нет."""
+    result = session.execute(
+        update(orm.EarningsTrack)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
+        .values(
+            reaction_cause=reaction_cause, guidance_change=guidance_change, updated_at=func.now()
+        )
+        .returning(orm.EarningsTrack.id)
+    )
+    return result.first() is not None
 
 
 def set_implied_move(session: Session, ticker: str, report_date: date, move: float) -> None:

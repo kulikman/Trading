@@ -80,6 +80,7 @@ edgar:                           # SEC EDGAR, бесплатно; заголов
     submissions: 3600
     submissions_history: 604800  # старые страницы подач не меняются
     company_facts: 86400
+    documents: 604800            # полный текст подачи не меняется
   archive:                       # сборка архива отчётов (T11)
     revenue_quarters: 12         # кварталов выручки из XBRL — с запасом на окно опционов 2 года
     fiscal_end_tolerance_days: 7 # конец квартала у Alpha Vantage — конец месяца, у XBRL — точная дата (52/53 недели)

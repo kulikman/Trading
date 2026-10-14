@@ -93,6 +93,7 @@ class EdgarCacheTtl(StrictModel):
     submissions: int = Field(ge=0)
     submissions_history: int = Field(ge=0)
     company_facts: int = Field(ge=0)
+    documents: int = Field(ge=0)
 
 
 class EdgarFinancials(StrictModel):
