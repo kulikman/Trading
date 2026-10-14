@@ -13,6 +13,8 @@ from core.scheduler.runner import create_scheduler, register_jobs
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    # httpx на INFO пишет полный адрес запроса — у FRED и Alpha Vantage в нём ключ API
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     handlers()  # реестр плагинов проверяется при старте: неисправный плагин — ошибка сразу
     config = load_config()
     with Session(engine()) as session, session.begin():

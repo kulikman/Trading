@@ -12,6 +12,8 @@ PORT = 8000
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    # httpx на INFO пишет полный адрес запроса — у FRED и Alpha Vantage в нём ключ API
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     uvicorn.run(create_app(), host=HOST, port=PORT)
 
 

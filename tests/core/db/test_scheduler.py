@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -169,6 +170,8 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
     )
     scheduler_main.main()
     assert synced == [len(load_config().registry.plugins)]  # реестр синхронизирован при старте
+    # адреса запросов (с ключами FRED / Alpha Vantage) не пишутся в лог планировщика
+    assert logging.getLogger("httpx").level == logging.WARNING
     assert (fake.ids, started) == (
         [CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, DISPATCH_JOB_ID],
         [True],

@@ -38,6 +38,7 @@ from core.domain.types import (
     DateStatus,
     DecisionStatus,
     Direction,
+    ErrorLevel,
     EventJobStatus,
     FeatureStage,
     JobKind,
@@ -458,6 +459,23 @@ class PluginStageChange(Timestamps, Base):
     baseline: Mapped[float | None]
     candidate: Mapped[float | None]
     at: Mapped[datetime]
+
+
+class ErrorLog(Timestamps, Base):
+    """Журнал ошибок задач и их восстановления («Настройки → Логи»); секреты вычищены при записи."""
+
+    __tablename__ = "error_log"
+    __table_args__ = (CheckConstraint(_one_of("level", ErrorLevel), name="level"),)
+
+    id: Mapped[int] = _pk_id()
+    at: Mapped[datetime] = mapped_column(index=True)
+    level: Mapped[str] = mapped_column(server_default="error")  # error / ok — снова работает
+    source: Mapped[str]  # задача: options, calendar-daily, archive-daily …
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("event.id"))
+    ticker: Mapped[str | None]
+    stage: Mapped[str | None]
+    error_type: Mapped[str]
+    message: Mapped[str]
 
 
 # --- архив опционов (T10) ---

@@ -29,6 +29,7 @@ from backtest.option_history import OptionHistoryLoader
 from core.config import AppConfig, load_config
 from core.db import models as orm
 from core.domain.types import ReportTime
+from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, previous_trading_day, to_et
 
@@ -117,6 +118,7 @@ class DailyArchive:
         return result
 
 
+@logged_job("archive-daily", lambda: engine())
 def run_daily_archive(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     factory: Callable[[AppConfig, date], DailyArchive] | None = None,

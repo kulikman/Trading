@@ -3,7 +3,7 @@
 from pydantic import AwareDatetime
 
 from core.domain.base import DomainModel
-from core.domain.types import EventJobStatus, JobKind
+from core.domain.types import ErrorLevel, EventJobStatus, JobKind
 
 
 class EventJob(DomainModel):
@@ -24,3 +24,17 @@ class EventChange(DomainModel):
     old_value: str | None = None
     new_value: str | None = None
     reason: str | None = None
+
+
+class ErrorLogEntry(DomainModel):
+    """Ошибка задачи в журнале (экран «Настройки → Логи ошибок»); текст — без секретов."""
+
+    id: int | None = None
+    at: AwareDatetime
+    level: ErrorLevel = "error"
+    source: str
+    event_id: int | None = None
+    ticker: str | None = None
+    stage: str | None = None
+    error_type: str
+    message: str
