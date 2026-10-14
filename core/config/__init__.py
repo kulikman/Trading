@@ -8,6 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from core.config.broker import BrokerConfig
 from core.config.registry import Registry
+from core.config.schedule import ScheduleConfig
 from core.config.sources import Sources
 from core.config.thresholds import Thresholds
 from core.config.universe import Universe
@@ -26,6 +27,7 @@ class AppConfig:
     registry: Registry
     sources: Sources
     broker: BrokerConfig
+    schedule: ScheduleConfig
 
 
 def load_universe(path: Path) -> Universe:
@@ -53,6 +55,11 @@ def load_broker(path: Path) -> BrokerConfig:
     return _load(path, BrokerConfig)
 
 
+def load_schedule(path: Path) -> ScheduleConfig:
+    """Читает и валидирует schedule.yaml."""
+    return _load(path, ScheduleConfig)
+
+
 def load_config(config_dir: Path = DEFAULT_CONFIG_DIR) -> AppConfig:
     """Читает все файлы из каталога config/."""
     return AppConfig(
@@ -61,6 +68,7 @@ def load_config(config_dir: Path = DEFAULT_CONFIG_DIR) -> AppConfig:
         registry=load_registry(config_dir / "registry.yaml"),
         sources=load_sources(config_dir / "sources.yaml"),
         broker=load_broker(config_dir / "broker.yaml"),
+        schedule=load_schedule(config_dir / "schedule.yaml"),
     )
 
 
@@ -98,6 +106,7 @@ __all__ = [
     "load_broker",
     "load_config",
     "load_registry",
+    "load_schedule",
     "load_sources",
     "load_thresholds",
     "load_universe",

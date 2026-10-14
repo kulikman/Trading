@@ -1,0 +1,46 @@
+# Расписание: агент «Календарь» и задачи события (SPEC §8). Время — ET.
+#
+# Отсчёт — от дня реакции рынка на отчёт: BMO — день отчёта, AMC — следующий торговый день
+# («для AMC всё сдвигается на день»). offset_days — календарные дни от него.
+#
+# Попала на выходной или праздник (SPEC §8): анализ — на предыдущий торговый день, исполнение — на
+# следующий. Где буквальное правило ломает смысл, перенос задан явно (shift) с причиной.
+# Время, которое SPEC не называет, — стартовое, помечено «стартовое».
+
+scheduler:
+  dispatch_interval_seconds: 30     # как часто диспетчер берёт наступившие задачи событий
+  misfire_grace_seconds: 300        # опоздание больше этого (простой сервиса) — задача missed, не выполняется задним числом
+
+calendar:
+  run_time_et: "06:00"              # SPEC §8: ежедневно 06:00 ET
+  lookahead_days: 21                # новые события — с T−21
+  date_match_window_days: 7         # строка Alpha Vantage той же компании в этом окне — то же событие
+  same_event_window_days: 20        # перенос даты существующего события не дальше этого окна
+
+event_jobs:
+  - {stage: T-14, job: sector_cycle,       offset_days: -14, time_et: "07:00", kind: analysis}  # время стартовое
+  - {stage: T-10, job: dossier,            offset_days: -10, time_et: "07:00", kind: analysis}  # время стартовое
+  - {stage: T-10, job: consensus,          offset_days: -10, time_et: "07:10", kind: analysis}  # время стартовое
+  - {stage: T-7,  job: positioning,        offset_days: -7,  time_et: "07:30", kind: analysis}  # время стартовое
+  - {stage: T-7,  job: options,            offset_days: -7,  time_et: "15:00", kind: analysis}
+  - {stage: T-7,  job: forecast,           offset_days: -7,  time_et: "15:10", kind: analysis}
+  - {stage: T-7,  job: mode_a_decision,    offset_days: -7,  time_et: "15:15", kind: analysis}
+  - {stage: T-3,  job: sector_informants,  offset_days: -3,  time_et: "07:00", kind: analysis}  # время стартовое
+  - {stage: T-3,  job: options,            offset_days: -3,  time_et: "15:00", kind: analysis}
+  - {stage: T-3,  job: polymarket,         offset_days: -3,  time_et: "15:00", kind: analysis}
+  - {stage: T-3,  job: forecast,           offset_days: -3,  time_et: "15:10", kind: analysis}
+  - {stage: T-3,  job: mode_b_gate,        offset_days: -3,  time_et: "15:15", kind: analysis}
+  - {stage: T-1,  job: options,            offset_days: -1,  time_et: "15:00", kind: analysis}
+  - {stage: T-1,  job: final_forecast,     offset_days: -1,  time_et: "15:05", kind: analysis}
+  - {stage: T-1,  job: mode_b_decision,    offset_days: -1,  time_et: "15:10", kind: analysis}
+  # Исполнение до отчёта не может уехать на день после него — переносится назад.
+  - {stage: T-1,  job: mode_b_entry,       offset_days: -1,  time_et: "15:30", kind: execution, shift: previous}
+  - {stage: T-1,  job: mode_a_exit,        offset_days: -1,  time_et: "15:50", kind: execution, shift: previous}
+  - {stage: T-1,  job: evening_digest,     offset_days: -1,  time_et: "16:30", kind: notify}
+  - {stage: T0,   job: parse_report,       offset_days: 0,   time_et: "07:30", kind: analysis}
+  - {stage: T0,   job: be_at_terminal,     offset_days: 0,   time_et: "09:00", kind: notify, shift: next}
+  - {stage: T0,   job: stop_gap,           offset_days: 0,   time_et: "09:30", kind: execution}
+  - {stage: T0,   job: mode_c_decision,    offset_days: 0,   time_et: "10:00", kind: execution}
+  - {stage: T0,   job: close_positions,    offset_days: 0,   time_et: "10:45", kind: execution}  # «до 11:00», время стартовое
+  # Итог T+1 нужен после дня реакции — не может уехать раньше.
+  - {stage: T+1,  job: outcome,            offset_days: 1,   time_et: "08:00", kind: analysis, shift: next}  # время стартовое

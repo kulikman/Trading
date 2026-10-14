@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from adapters.errors import DataError
-from adapters.massive.implied_move import ImpliedMove, implied_move, reaction_day
+from adapters.massive.implied_move import ImpliedMove, implied_move
 from adapters.massive.models import OptionSnapshot
 from core.config.sources import MassiveSettings
 from core.domain.types import ReportTime
@@ -66,21 +66,6 @@ def without_quotes() -> list[dict[str, Any]]:
     for row in rows:
         row.pop("last_quote")
     return rows
-
-
-@pytest.mark.parametrize(
-    ("report_date", "report_time", "expected"),
-    [
-        (date(2026, 10, 13), "BMO", date(2026, 10, 13)),
-        (date(2026, 10, 13), "DURING", date(2026, 10, 13)),
-        (date(2026, 10, 15), "AMC", date(2026, 10, 16)),
-        (date(2026, 10, 16), "AMC", date(2026, 10, 19)),  # пятница → понедельник
-        (date(2026, 11, 25), "AMC", date(2026, 11, 27)),  # через Thanksgiving
-    ],
-    ids=str,
-)
-def test_reaction_day(report_date: date, report_time: ReportTime, expected: date) -> None:
-    assert reaction_day(report_date, report_time) == expected
 
 
 # --- по котировкам (тариф с котировками опционов) ---

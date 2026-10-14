@@ -15,10 +15,9 @@ from typing import Literal, Protocol
 from adapters.errors import DataError
 from adapters.massive.models import OptionQuote, OptionSnapshot
 from core.domain.types import ReportTime
-from core.session_guard import is_trading_day, session, to_et
+from core.session_guard import reaction_day, session, to_et
 
 SOURCE = "massive"
-ONE_DAY = timedelta(days=1)
 SECONDS_PER_YEAR = 365 * 24 * 60 * 60
 ATM_STRADDLE_FACTOR = math.sqrt(2 / math.pi)  # ≈ 0.798: цена ATM-стрэддла ≈ 0.8 · S · σ · √T
 
@@ -46,16 +45,6 @@ class ImpliedMove:
     straddle: float
     move: float  # доля цены: 0.05 = ±5%
     method: ImpliedMoveMethod
-
-
-def reaction_day(report_date: date, report_time: ReportTime) -> date:
-    """День реакции цены: BMO / DURING — день отчёта, AMC — следующий торговый день."""
-    if report_time != "AMC":
-        return report_date
-    day = report_date + ONE_DAY
-    while not is_trading_day(day):
-        day += ONE_DAY
-    return day
 
 
 def implied_move(
