@@ -251,7 +251,7 @@ CREATE TABLE plugin (
 | `massive.news` | новости компании | `/v2/reference/news` — входит в тариф Stocks |
 | `finnhub` | календарь отчётов (основной), консенсус EPS и выручки, факт, сюрприз | `/calendar/earnings` (`date`, `hour`, `epsEstimate`, `revenueEstimate`, `epsActual`, `revenueActual`, `quarter`, `year`), `/stock/earnings` (`actual`, `estimate`, `surprise`, `surprisePercent`, `period`); бесплатный тариф |
 | `alphavantage` | второй источник даты отчёта, пересмотры и разброс консенсуса, история EPS | `EARNINGS_CALENDAR` (CSV), `EARNINGS_ESTIMATES` (среднее, максимум, минимум, число аналитиков, оценка 7/30/60/90 дней назад), `EARNINGS` (EPS с 1996 г.); бесплатно 25 запросов в день |
-| `massive.history` | дневные цены опционных контрактов, в том числе истёкших, за скользящие 2 года; ~5 запросов в минуту | `/v3/reference/options/contracts` (`as_of`), `/v2/aggs` по контракту; только `backtest/` и архив `option_daily_bar` |
+| `massive.history` | дневные цены опционных контрактов, в том числе истёкших, за последние 2 года (по наблюдению — скользящее окно); ~5 запросов в минуту (по наблюдению) | `/v3/reference/options/contracts` (`as_of`), `/v2/aggs` по контракту; только `backtest/` и архив `option_daily_bar` |
 | `ivolatility` | архив IV, IVX, поверхности глубже 2 лет | резерв: подключается по решению после бэктеста T12 |
 | `edgar` | 10-Q, 10-K, 8-K (пресс-релиз отчёта) | |
 | `fred` | ставки, доходности, VIX (`VIXCLS`) | |

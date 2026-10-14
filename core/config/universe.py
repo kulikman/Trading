@@ -15,6 +15,8 @@ MacroFeature = Literal["vix", "us10y", "regime"]
 class Company(StrictModel):
     ticker: str = Field(pattern=TICKER_PATTERN)
     name: str = Field(min_length=1)
+    # Прежние регистранты SEC (реорганизация в холдинг): история подач и XBRL — под их CIK.
+    sec_predecessor_ciks: list[int] = Field(default_factory=list)
 
 
 class Sector(StrictModel):
@@ -55,6 +57,15 @@ class Universe(StrictModel):
     def tickers(self) -> list[str]:
         """Все тикеры вселенной в порядке секторов."""
         return [c.ticker for s in self.sectors for c in s.companies]
+
+    def sec_predecessor_ciks(self) -> dict[str, list[int]]:
+        """Тикер → прежние CIK в SEC (только у компаний, где они есть)."""
+        return {
+            c.ticker: c.sec_predecessor_ciks
+            for s in self.sectors
+            for c in s.companies
+            if c.sec_predecessor_ciks
+        }
 
     def sector_of(self, ticker: str) -> Sector:
         """Сектор компании; KeyError, если тикера нет во вселенной."""

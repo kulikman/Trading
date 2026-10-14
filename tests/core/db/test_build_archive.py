@@ -80,7 +80,9 @@ class Sec:
         ]
 
 
-def builder(sec: Sec, earnings: Earnings | None = None) -> ArchiveBuilder:
+def builder(
+    sec: Sec, earnings: Earnings | None = None, predecessors: dict[str, list[int]] | None = None
+) -> ArchiveBuilder:
     stocks = Stocks()
     loader = OptionHistoryLoader(
         options=Options(),
@@ -90,7 +92,12 @@ def builder(sec: Sec, earnings: Earnings | None = None) -> ArchiveBuilder:
         today=TODAY,
     )
     return ArchiveBuilder(
-        loader=loader, stocks=stocks, sec=sec, edgar=CONFIG.sources.edgar, today=TODAY
+        loader=loader,
+        stocks=stocks,
+        sec=sec,
+        edgar=CONFIG.sources.edgar,
+        today=TODAY,
+        predecessor_ciks=predecessors,
     )
 
 
@@ -184,3 +191,46 @@ def test_summary_and_args() -> None:
     assert parse_args(["--ticker", "nflx"], ["NFLX", "GS"]) == ["NFLX"]
     with pytest.raises(SystemExit):
         parse_args(["--ticker", "ZZZZ"], ["NFLX"])
+
+
+OLD_CIK = 34088
+
+
+class ReorganizedSec(Sec):
+    """История — под прежним CIK, новый регистрант — только последние подачи (как у XOM)."""
+
+    def company_facts(self, cik: int) -> CompanyFacts:
+        if cik == OLD_CIK:
+            revenue = [
+                fact("2025-06-29", "2025-09-27", 11.5e9),
+                fact("2025-09-28", "2025-12-31", 99e9),
+            ]
+        else:
+            revenue = [fact("2025-09-28", "2025-12-31", 12.0e9)]
+        return CompanyFacts.model_validate(
+            {
+                "cik": cik,
+                "entityName": "x",
+                "facts": {"us-gaap": {"Revenues": {"units": {"USD": revenue}}}},
+            }
+        )
+
+    def earnings_releases(self, cik: int, since: date | None = None) -> list[Filing]:
+        self.since.append(since)
+        if cik == OLD_CIK:
+            return [filing("2025-10-21", "2025-10-21T20:01:00Z")]
+        return [filing("2026-02-25", "2026-02-25T21:00:00Z")]
+
+
+def test_predecessor_cik_history_is_merged(universe: Session) -> None:
+    sec = ReorganizedSec()
+    builder(sec, predecessors={"NFLX": [OLD_CIK]}).build(universe, "NFLX")
+    rows = track(universe)
+    assert rows[OCT].rev_actual == 11.5e9  # только у прежнего регистранта
+    assert rows[JAN].rev_actual == 12e9  # у обоих — значение текущего
+    assert (rows[OCT].date_check, rows[JAN].date_check) == ("ok", "mismatch")
+    assert len(sec.since) == 2  # 8-K искали под обоими CIK
+
+
+def test_universe_lists_predecessor_ciks() -> None:
+    assert CONFIG.universe.sec_predecessor_ciks() == {"XOM": [34088]}
