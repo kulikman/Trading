@@ -6,11 +6,10 @@ regime — уровень Black Swan 0–3 (зелёный … красный) �
 
 from collections.abc import Sequence
 from datetime import date, timedelta
-from typing import Protocol
 
 from pydantic import BaseModel
 
-from adapters.fred.client import FredObservation
+from adapters.fred.client import FredObservation, FredSource
 from adapters.massive.history import stock_closes
 from adapters.massive.symbols import StockHistorySource, daily_bars
 from core.config.thresholds import BlackSwan, MacroAgent
@@ -21,13 +20,6 @@ from core.session_guard import previous_trading_day, to_et
 VIX_SERIES = "VIXCLS"
 US10Y_SERIES = "DGS10"
 STAGES = ("T-7", "T-3", "T-1")
-
-
-class FredSource(Protocol):
-    def observations(
-        self, series_id: str, start: date | None = None, end: date | None = None
-    ) -> list[FredObservation]:
-        """Наблюдения ряда."""
 
 
 class MacroFeatures(BaseModel):

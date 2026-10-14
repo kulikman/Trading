@@ -1,7 +1,7 @@
 """Клиент FRED: наблюдения рядов (VIXCLS, DGS10) для агента «Макро» (SPEC §6, §8)."""
 
 from datetime import date
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 from pydantic import Field, ValidationError, field_validator
@@ -40,6 +40,13 @@ class FredObservation(ApiModel):
             except ValueError:
                 return None
         return raw
+
+
+class FredSource(Protocol):
+    def observations(
+        self, series_id: str, start: date | None = None, end: date | None = None
+    ) -> list[FredObservation]:
+        """Наблюдения ряда за период."""
 
 
 class FredClient:

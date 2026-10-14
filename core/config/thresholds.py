@@ -304,10 +304,39 @@ class MacroAgent(StrictModel):
     lookback_days: PositiveInt  # история VIX и SPY для уровня Black Swan
 
 
+class OptionsAgent(StrictModel):
+    """«Опционы» по дневным ценам контрактов (снимка цепочки нет на тарифе — 403, 14.10.2026)."""
+
+    skew_delta: Fraction  # skew_25d — путы и коллы с |Δ| = 0.25
+    term_back_min_days: PositiveInt  # дальняя экспирация term_slope — не раньше ближней + N дней
+    term_back_window_days: PositiveInt  # и не позже ближней + min + window
+    iv_rank_reports: PositiveInt  # прошлых отчётов для iv_rank
+    iv_rank_min_reports: PositiveInt  # меньше — iv_rank не считается
+    history_days: PositiveInt  # цены акции и ставка — на глубину архива опционов
+    rate_max_age_days: PositiveInt  # DGS3MO старше — DataError, ставку не угадываем
+
+    @model_validator(mode="after")
+    def _min_not_above_reports(self) -> Self:
+        if self.iv_rank_min_reports > self.iv_rank_reports:
+            raise ValueError("iv_rank_min_reports must not exceed iv_rank_reports")
+        return self
+
+
+class ConsensusAgent(StrictModel):
+    """«Консенсус» по EARNINGS_ESTIMATES Alpha Vantage (25 запросов в день)."""
+
+    min_abs_eps: PositiveFloat  # знаменатель пересмотра и разброса не меньше — EPS около нуля
+    max_quarter_lag_days: (
+        PositiveInt  # конец фискального квартала не раньше чем за N дней до отчёта
+    )
+
+
 class Agents(StrictModel):
     sector: SectorAgent
     positioning: PositioningAgent
     macro: MacroAgent
+    options: OptionsAgent
+    consensus: ConsensusAgent
 
 
 class Thresholds(StrictModel):

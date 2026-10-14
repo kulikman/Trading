@@ -177,3 +177,14 @@ agents:                              # T14: параметры агентов д
     short_interest_lag_days: 12      # расчёт FINRA публикуется ~через 8 рабочих дней — без заглядывания вперёд
   macro:
     lookback_days: 60                # история VIX и SPY для уровня Black Swan (regime 0–3)
+  options:                           # T14b; по дневным ценам контрактов накануне — снимка цепочки нет на тарифе
+    skew_delta: 0.25                 # skew_25d = IV пута 25Δ − IV колла 25Δ ближней экспирации
+    term_back_min_days: 28           # term_slope = ATM IV ближней − ATM IV дальней (≥ ближней + 28 дней)
+    term_back_window_days: 21        # дальняя ищется в окне ближняя + 28 … + 49 дней
+    iv_rank_reports: 8               # iv_rank — по 8 прошлым отчётам (решение заказчика 14.10.2026)
+    iv_rank_min_reports: 4           # меньше 4 с ценами в архиве — iv_rank не считается
+    history_days: 760                # цены акции и ставка DGS3MO — на глубину архива опционов (2 года)
+    rate_max_age_days: 10            # последнее значение DGS3MO не старше 10 дней
+  consensus:                         # T14b; Alpha Vantage EARNINGS_ESTIMATES
+    min_abs_eps: 0.05                # знаменатель пересмотра и разброса не меньше $0,05 — EPS около нуля
+    max_quarter_lag_days: 120        # квартал отчёта — конец не раньше чем за 120 дней до даты отчёта
