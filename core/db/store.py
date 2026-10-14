@@ -113,6 +113,47 @@ def save_reported_earnings(session: Session, reports: Iterable[ReportedEarnings]
     return len(rows)
 
 
+REPORT_FACT_FIELDS = frozenset(
+    {
+        "eps_consensus",
+        "eps_actual",
+        "eps_surprise_pct",
+        "rev_consensus",
+        "rev_actual",
+        "rev_surprise_pct",
+    }
+)
+
+
+def save_report_facts(
+    session: Session,
+    ticker: str,
+    report_date: date,
+    report_time: str | None,
+    values: dict[str, float | None],
+) -> None:
+    """Факт отчёта в день T0 (T16): EPS и выручка против консенсуса, сюрприз в процентах.
+
+    Строки отчёта ещё может не быть — создаётся; известные значения пустыми не затираются.
+    """
+    unknown = set(values) - REPORT_FACT_FIELDS
+    if unknown:
+        raise ValueError(f"not report fact fields: {sorted(unknown)}")
+    statement = insert(orm.EarningsTrack).values(
+        ticker=ticker, report_date=report_date, report_time=report_time, **values
+    )
+    excluded = statement.excluded
+    keep = {
+        name: func.coalesce(getattr(excluded, name), getattr(orm.EarningsTrack, name))
+        for name in [*values, "report_time"]
+    }
+    session.execute(
+        statement.on_conflict_do_update(
+            index_elements=["ticker", "report_date"], set_={**keep, "updated_at": func.now()}
+        )
+    )
+
+
 def has_reported_eps(session: Session, ticker: str) -> bool:
     """Загружена ли история EPS: есть отчёт с фактом EPS и концом фискального квартала."""
     found = session.scalar(

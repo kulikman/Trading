@@ -7,12 +7,14 @@ from functools import cache
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
+from adapters.finnhub.client import FinnhubClient, finnhub_api_key
 from core.config import load_config
 from core.db.session import create_db_engine
 from core.registry.agent_jobs import agent_handlers
 from core.registry.loader import load_agents, load_strategies
 from core.scheduler.dispatch import HANDLERS, DispatchResult, Handler, dispatch_due
 from decision.jobs import decision_handlers
+from decision.report import report_handlers
 from models.forecast import forecast_handlers
 
 
@@ -23,13 +25,15 @@ def engine() -> Engine:
 
 @cache
 def handlers() -> dict[str, Handler]:
-    """Обработчики задач: встроенные, агенты, прогноз и решения (один раз на процесс)."""
+    """Обработчики задач: встроенные, агенты, прогноз, решения, разбор отчёта (раз на процесс)."""
     config = load_config()
     return {
         **HANDLERS,
         **agent_handlers(config.schedule, load_agents(config)),
         **forecast_handlers(config.registry, config.thresholds.models),
         **decision_handlers(config, load_strategies(config)),
+        # без кэша: в день T0 нужен свежий факт отчёта
+        **report_handlers(FinnhubClient.create(config.sources.finnhub, finnhub_api_key())),
     }
 
 

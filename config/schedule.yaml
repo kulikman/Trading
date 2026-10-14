@@ -53,7 +53,7 @@ event_jobs:
   - {stage: T0,   job: parse_report,       offset_days: 0,   time_et: "07:30", kind: analysis}
   - {stage: T0,   job: be_at_terminal,     offset_days: 0,   time_et: "09:00", kind: notify, shift: next}
   - {stage: T0,   job: stop_gap,           offset_days: 0,   time_et: "09:30", kind: execution}
-  - {stage: T0,   job: mode_c_decision,    offset_days: 0,   time_et: "10:00", kind: execution}
+  - {stage: T0,   job: mode_c_decision,    offset_days: 0,   time_et: "10:45", kind: execution, strategies: [mode_c]}  # 10:45 — минуты с задержкой 15 мин, первый час 09:30–10:30 как в бэктесте (решение заказчика 15.10.2026)
   - {stage: T0,   job: close_positions,    offset_days: 0,   time_et: "10:45", kind: execution}  # «до 11:00», время стартовое
   # Итог T+1 нужен после дня реакции — не может уехать раньше.
   - {stage: T+1,  job: outcome,            offset_days: 1,   time_et: "08:00", kind: analysis, shift: next}  # время стартовое

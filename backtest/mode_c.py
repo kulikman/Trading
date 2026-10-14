@@ -61,6 +61,39 @@ def first_hour(bars: Sequence[Bar], day: date) -> tuple[float, float | None]:
     return volume, vwap
 
 
+def confirm(
+    direction: Direction,
+    pre_close: float,
+    reaction: date,
+    minutes: Sequence[Bar],
+    history_days: Sequence[date],
+    rules: ModeC,
+    settings: BacktestModeC,
+) -> float | NoEntry:
+    """Условия режима C к decision_time_et: цена и объём первого часа; итог — VWAP первого часа.
+
+    Общая для бэктеста и живой стратегии (T16): берутся только минуты до decision_time_et.
+    """
+    past = [first_hour(minutes, day)[0] for day in history_days]
+    past = [v for v in past if v > 0]
+    if len(past) < settings.min_volume_history_days:
+        return "no_volume_history"
+    volume, vwap = first_hour(minutes, reaction)
+    before = [b for b in minutes if _on(b, reaction) and _clock(b) < settings.decision_time_et]
+    if vwap is None or not before:
+        return "no_price_confirm"
+    if direction * (before[-1].close - pre_close) <= 0:
+        return "no_price_confirm"
+    if volume <= rules.min_volume_ratio * statistics.fmean(past):
+        return "no_volume_confirm"
+    return vwap
+
+
+def entry_limit(direction: Direction, vwap: float, rules: ModeC) -> float:
+    """Лимит входа: VWAP первого часа ± max_entry_over_vwap в сторону сделки."""
+    return vwap * (1 + direction * rules.max_entry_over_vwap)
+
+
 def entry(
     direction: Direction,
     pre_close: float,
@@ -71,22 +104,14 @@ def entry(
     settings: BacktestModeC,
 ) -> Entry | NoEntry:
     """Вход в день реакции по правилам режима C или причина, почему его нет."""
-    past = [first_hour(minutes, day)[0] for day in history_days]
-    past = [v for v in past if v > 0]
-    if len(past) < settings.min_volume_history_days:
-        return "no_volume_history"
-    volume, vwap = first_hour(minutes, reaction)
-    today = [b for b in minutes if _on(b, reaction)]
-    before = [b for b in today if _clock(b) < settings.decision_time_et]
-    if vwap is None or not before:
-        return "no_price_confirm"
-    if direction * (before[-1].close - pre_close) <= 0:
-        return "no_price_confirm"
-    if volume <= rules.min_volume_ratio * statistics.fmean(past):
-        return "no_volume_confirm"
-    limit = vwap * (1 + direction * rules.max_entry_over_vwap)
+    vwap = confirm(direction, pre_close, reaction, minutes, history_days, rules, settings)
+    if isinstance(vwap, str):
+        return vwap
+    limit = entry_limit(direction, vwap, rules)
     window = [
-        b for b in today if settings.decision_time_et <= _clock(b) < settings.fill_deadline_et
+        b
+        for b in minutes
+        if _on(b, reaction) and settings.decision_time_et <= _clock(b) < settings.fill_deadline_et
     ]
     for bar in window:
         if direction * (bar.open - limit) <= 0:  # открытие минуты уже не хуже лимита
