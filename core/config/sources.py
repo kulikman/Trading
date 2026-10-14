@@ -53,6 +53,8 @@ class FinnhubCacheTtl(StrictModel):
 
 class FinnhubSettings(HttpSourceSettings):
     consensus_lookahead_days: PositiveInt
+    calendar_chunk_days: PositiveInt
+    calendar_row_cap: int = Field(ge=2)
     cache_ttl_seconds: FinnhubCacheTtl
 
 

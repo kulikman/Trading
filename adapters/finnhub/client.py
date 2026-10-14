@@ -1,6 +1,7 @@
 """Клиент Finnhub: календарь отчётов и история EPS (замена Benzinga, SPEC §6)."""
 
-from datetime import date
+import logging
+from datetime import date, timedelta
 
 import httpx
 from pydantic import ValidationError
@@ -11,6 +12,8 @@ from adapters.errors import DataError
 from adapters.finnhub.models import FinnhubEarning, FinnhubEpsResult
 from adapters.http import JsonHttpClient, Params, RetryPolicy
 from core.config.sources import FinnhubSettings
+
+logger = logging.getLogger(__name__)
 
 SOURCE = "finnhub"
 
@@ -48,7 +51,40 @@ class FinnhubClient:
     def earnings_calendar(
         self, start: date, end: date, symbol: str | None = None
     ) -> list[FinnhubEarning]:
-        """Отчёты в окне дат (все компании или одна)."""
+        """Отчёты в окне дат (все компании или одна).
+
+        Finnhub отдаёт не больше `calendar_row_cap` строк и молча отбрасывает самые ранние даты
+        (проверено вживую 14.10.2026: окно 21 день → 1500 строк, первые 13 дней пропали).
+        Поэтому окно режется на куски по `calendar_chunk_days`, а кусок на пределе — пополам.
+        """
+        rows: list[FinnhubEarning] = []
+        chunk = timedelta(days=self._settings.calendar_chunk_days)
+        day = start
+        while day <= end:
+            last = min(day + chunk - timedelta(days=1), end)
+            rows += self._calendar_range(day, last, symbol)
+            day = last + timedelta(days=1)
+        return rows
+
+    def _calendar_range(self, start: date, end: date, symbol: str | None) -> list[FinnhubEarning]:
+        rows = self._calendar_request(start, end, symbol)
+        cap = self._settings.calendar_row_cap
+        if len(rows) < cap:
+            return rows
+        if start == end:
+            raise DataError(
+                SOURCE, f"calendar for {start} hit the {cap}-row cap: rows would be lost"
+            )
+        middle = start + (end - start) // 2
+        logger.info(
+            "finnhub calendar hit row cap, splitting",
+            extra={"start": start.isoformat(), "end": end.isoformat()},
+        )
+        return self._calendar_range(start, middle, symbol) + self._calendar_range(
+            middle + timedelta(days=1), end, symbol
+        )
+
+    def _calendar_request(self, start: date, end: date, symbol: str | None) -> list[FinnhubEarning]:
         params: Params = {"from": start.isoformat(), "to": end.isoformat()}
         if symbol is not None:
             params = {**params, "symbol": symbol}

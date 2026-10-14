@@ -44,8 +44,8 @@ class FinnhubEarning(ApiModel):
     def fiscal_period(self) -> str | None:
         """'2026Q3' или None, если год / квартал не пришли.
 
-        TODO(OPEN_QUESTIONS): в схеме EarningRelease это «Earnings year/quarter» — фискальные или
-        календарные, не уточнено; у EarningResult (/stock/earnings) — фискальные.
+        Год и квартал фискальные (проверено вживую 14.10.2026: ORCL с отчётом 08.12.2026 — 2027Q2,
+        MU 15.12.2026 — 2027Q1).
         """
         if self.year is None or self.quarter is None:
             return None
