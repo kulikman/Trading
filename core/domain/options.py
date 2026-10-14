@@ -1,4 +1,4 @@
-"""Дневная цена опционного контракта — архив для бэктеста (T10).
+"""Цены опционных контрактов — архив для бэктеста (T10, T12).
 
 Источник даёт историю только за скользящее окно (Massive — 2 года), поэтому скачанное
 хранится у нас.
@@ -6,7 +6,7 @@
 
 from datetime import date
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from core.domain.base import DomainModel
 from core.domain.types import OptionType
@@ -19,6 +19,20 @@ class OptionDailyBar(DomainModel):
     expiration: date
     strike: float = Field(gt=0)
     option_type: OptionType
+    open: float = Field(ge=0)
+    high: float = Field(ge=0)
+    low: float = Field(ge=0)
+    close: float = Field(ge=0)
+    volume: float = Field(ge=0)
+    vwap: float | None = Field(default=None, ge=0)
+    transactions: int | None = Field(default=None, ge=0)
+
+
+class OptionMinuteBar(DomainModel):
+    """Минутная цена контракта — выход сделок бэктеста по правилам SPEC §10 (до 11:00 ET)."""
+
+    option_ticker: str
+    minute: AwareDatetime  # начало минуты
     open: float = Field(ge=0)
     high: float = Field(ge=0)
     low: float = Field(ge=0)
