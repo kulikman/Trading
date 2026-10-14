@@ -9,7 +9,7 @@ export DATABASE_URL
 REDIS_URL := $(or $(REDIS_URL),redis://localhost:$(or $(REDIS_PORT),6379)/0)
 export REDIS_URL
 # Ключи и контакты из .env — в окружение процессов (без export make их не передаёт).
-export MASSIVE_API_KEY FINNHUB_API_KEY ALPHAVANTAGE_API_KEY SEC_USER_AGENT FRED_API_KEY ANTHROPIC_API_KEY
+export MASSIVE_API_KEY FINNHUB_API_KEY ALPHAVANTAGE_API_KEY SEC_USER_AGENT FRED_API_KEY ANTHROPIC_API_KEY DASHBOARD_API_TOKEN
 
 setup:
 	uv sync
@@ -74,5 +74,5 @@ promote:  ## поднять плагин на ступень: make promote ARGS=
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1
 
-run-api:
-	@echo "run-api: available after T19 (FastAPI)"; exit 1
+run-api:  ## API дашборда на http://127.0.0.1:8000 (нужен DASHBOARD_API_TOKEN в .env)
+	uv run python -m api

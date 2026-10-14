@@ -355,6 +355,27 @@ class Agents(StrictModel):
     dossier: DossierAgent
 
 
+class PathToReal(StrictModel):
+    """Критерии перехода Paper → Real (решение заказчика 2026-10-13, DASHBOARD.md §4.6)."""
+
+    min_trades: PositiveInt
+    min_sharpe: float
+    max_drawdown: Fraction
+    min_paper_days: PositiveInt
+
+
+class Dashboard(StrictModel):
+    """Пороги и интервалы дашборда (T19a, DASHBOARD.md §4.3, §5)."""
+
+    path_to_real: PathToReal
+    balance_divergence: Fraction  # расхождение баланса брокера с расчётом → «СИСТЕМА»
+    cost_divergence: Fraction  # строка доверия: издержки Paper против реальности
+    sharpe_min_days: PositiveInt  # Sharpe по дням — не меньше N дней с P&L
+    refresh_session_seconds: PositiveInt
+    refresh_off_session_seconds: PositiveInt
+    system_failure_window_hours: PositiveInt  # сбой задачи за это окно → «СИСТЕМА: СБОЙ»
+
+
 class Thresholds(StrictModel):
     capital: Capital
     sizing: Sizing
@@ -372,3 +393,4 @@ class Thresholds(StrictModel):
     notify: Notify
     backtest: Backtest
     agents: Agents
+    dashboard: Dashboard

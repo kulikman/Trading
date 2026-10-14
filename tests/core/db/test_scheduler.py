@@ -161,7 +161,14 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
     monkeypatch.setenv("DATABASE_URL", test_database_url)
     monkeypatch.setattr(scheduler_main, "create_scheduler", lambda url: fake)
     monkeypatch.setattr(scheduler_main, "handlers", dict)  # агенты требуют ключей API
+    synced: list[int] = []
+    monkeypatch.setattr(
+        scheduler_main,
+        "sync_plugins",
+        lambda session, registry: synced.append(len(registry.plugins)),
+    )
     scheduler_main.main()
+    assert synced == [len(load_config().registry.plugins)]  # реестр синхронизирован при старте
     assert (fake.ids, started) == (
         [CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, DISPATCH_JOB_ID],
         [True],

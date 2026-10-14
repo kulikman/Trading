@@ -199,3 +199,16 @@ agents:                              # T14: параметры агентов д
     max_chars_per_request: 120000    # ≈ 30 тыс. токенов на запрос: ≈ $0,06 на Sonnet 5.5 — расчётно
     release_window_days: 3           # T+1: пресс-релиз подан с дня до отчёта по отчёт + 3 дня
     revenue_sanity_ratio: 2.0        # прогноз выручки в 2+ раза от консенсуса — ошибка единиц, не признак
+
+dashboard:                           # T19a, DASHBOARD.md
+  path_to_real:                      # решение заказчика 2026-10-13 (DASHBOARD.md §4.6; SPEC §14, фаза 4)
+    min_trades: 50
+    min_sharpe: 1.0                  # строго больше
+    max_drawdown: 0.15               # строго меньше
+    min_paper_days: 30
+  balance_divergence: 0.005          # §5: баланс брокера против расчёта системы, старт 0,5%
+  cost_divergence: 0.20              # §4.3 строка доверия; тот же порог, что пересчёт CostModel (T21)
+  sharpe_min_days: 20                # меньше дней с P&L — Sharpe «мало данных»
+  refresh_session_seconds: 60        # §5: полоса счёта, «Сегодня», «Сделки» в основную сессию
+  refresh_off_session_seconds: 600   # и вне её
+  system_failure_window_hours: 24    # задача события с ошибкой за сутки → шапка «СИСТЕМА: СБОЙ»

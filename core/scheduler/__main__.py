@@ -2,17 +2,23 @@
 
 import logging
 
+from sqlalchemy.orm import Session
+
 from core.config import load_config
 from core.db.session import database_url
-from core.scheduler.jobs import handlers
+from core.registry.state import sync_plugins
+from core.scheduler.jobs import engine, handlers
 from core.scheduler.runner import create_scheduler, register_jobs
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     handlers()  # реестр плагинов проверяется при старте: неисправный плагин — ошибка сразу
+    config = load_config()
+    with Session(engine()) as session, session.begin():
+        sync_plugins(session, config.registry)  # enabled — из registry.yaml, стадия — из БД
     scheduler = create_scheduler(database_url())
-    register_jobs(scheduler, load_config().schedule)
+    register_jobs(scheduler, config.schedule)
     scheduler.start()
 
 
