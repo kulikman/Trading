@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web
 
 -include .env
 
@@ -76,3 +76,6 @@ run-bot:
 
 run-api:  ## API дашборда на http://127.0.0.1:8000 (нужен DASHBOARD_API_TOKEN в .env)
 	uv run python -m api
+
+run-web:  ## сайт дашборда на http://127.0.0.1:3000 (сначала make run-api)
+	cd web && pnpm install --frozen-lockfile && pnpm dev --hostname 127.0.0.1  # не в локальную сеть: на экране баланс
