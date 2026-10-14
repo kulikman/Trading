@@ -52,10 +52,7 @@ class EdgarClient:
         return cls(http, settings)
 
     def ticker_ciks(self) -> dict[str, int]:
-        """Тикер → CIK.
-
-        TODO(OPEN_QUESTIONS): формат файла не проверен вживую (403 без контакта в User-Agent).
-        """
+        """Тикер → CIK (www.sec.gov; без контакта в User-Agent — 403)."""
         payload = self._http.get_json(
             self._settings.tickers_url, ttl_seconds=self._settings.cache_ttl_seconds.tickers
         )

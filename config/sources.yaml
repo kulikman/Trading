@@ -84,7 +84,7 @@ fred:                            # FRED, бесплатно; ключ — FRED_A
     observations: 3600
 
 llm:                             # Claude API; ключ — ANTHROPIC_API_KEY. Только извлечение признаков и резюме (CLAUDE.md правило 2)
-  model: claude-opus-5-5
+  model: claude-sonnet-5-5       # решение заказчика 14.10.2026 (дешевле Opus: $2 / $10 за 1M токенов)
   effort: medium
   max_tokens: 16000
   max_attempts: 2                # 1 запрос + 1 повтор при ответе не по схеме (SPEC §6)
