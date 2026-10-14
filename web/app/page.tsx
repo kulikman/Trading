@@ -32,14 +32,16 @@ async function TodayContent({
       {changes.rows.length > 0 ? (
         <section>
           <h2>Изменилось</h2>
-          <ul>
+          <div className="card">
+          <ul className="mb-2 space-y-1">
             {changes.rows.map((row) => (
               <li key={`${row.time}-${row.text}`}>
-                <span className="num">{row.time}</span> {row.text}
+                <span className="num muted">{row.time}</span> {row.text}
               </li>
             ))}
           </ul>
           <SeenButton />
+          </div>
         </section>
       ) : null}
 
@@ -48,19 +50,19 @@ async function TodayContent({
         <div className="box-action">
           {today.now.rows.map((row) => (
             <div key={`${row.time}-${row.ticker}-${row.action}`}>
-              <span className="num">{row.time}</span> │ <b>{row.ticker}</b> │{" "}
+              <span className="num">{row.time}</span> · <b>{row.ticker}</b> ·{" "}
               <span className="tone-action">{row.action}</span>
               {row.card_id !== null ? (
                 <>
                   {" "}
-                  │ <Link href={`/trades/${row.card_id}`}>карточка</Link>
+                  · <Link href={`/trades/${row.card_id}`}>карточка</Link>
                 </>
               ) : null}
             </div>
           ))}
         </div>
       ) : (
-        <p>{today.now.message}</p>
+        <div className="card">{today.now.message}</div>
       )}
 
       <h2>Отчёты сегодня</h2>

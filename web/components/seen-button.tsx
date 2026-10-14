@@ -10,7 +10,7 @@ export function SeenButton(): React.ReactElement {
   return (
     <button
       type="button"
-      className="tab tabs-small"
+      className="button"
       onClick={() => {
         document.cookie = `${SEEN_COOKIE}=${new Date().toISOString()}; path=/; max-age=31536000; samesite=lax`;
         router.refresh();

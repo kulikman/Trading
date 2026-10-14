@@ -1,24 +1,20 @@
 @import "tailwindcss";
 
-/* Светлый веб 2000-х (DASHBOARD.md §2): прямые углы, без теней, градиентов и анимаций. */
+/* Современный светлый стиль (решение заказчика 14.10.2026, DASHBOARD.md §2): карточки, мягкие границы.
+   Цвета плюса, минуса и действия — по полю tone с бэкенда. */
 @theme inline {
-  --color-page: #e8e8e8;
+  --color-page: #f6f7f9;
   --color-panel: #ffffff;
-  --color-ink: #000000;
-  --color-muted: #555555;
-  --color-link: #0000cc;
-  --color-visited: #551a8b;
-  --color-action: #cc0000;
-  --color-plus: #007700;
-  --color-minus: #cc0000;
-  --color-rule: #999999;
-  --color-head: #dddddd;
-  --color-zebra: #f5f5f5;
-  --color-button: #c0c0c0;
-  --font-pixel: var(--font-press-start), monospace;
-  --font-logo: var(--font-silkscreen), monospace;
-  --font-sans: Verdana, Tahoma, sans-serif;
-  --font-mono: "Courier New", monospace;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-soft: #f1f5f9;
+  --color-link: #2563eb;
+  --color-plus: #059669;
+  --color-minus: #e11d48;
+  --color-action: #dc2626;
+  --color-action-soft: #fef2f2;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
 }
 
 html,
@@ -29,65 +25,87 @@ body {
 body {
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
   color: var(--color-link);
+  text-decoration: none;
+}
+
+a:hover {
   text-decoration: underline;
 }
 
-a:visited {
-  color: var(--color-visited);
+h1,
+h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 24px 0 10px;
 }
 
-h1,
-h2,
 h3 {
-  font-family: var(--font-pixel);
-  font-size: 12px; /* Press Start 2P 12 px ≈ Silkscreen 16 px по ширине */
-  text-transform: uppercase;
-  margin: 12px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0 8px;
 }
 
 .page {
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
-  background: var(--color-panel);
-  min-height: 100vh;
-  padding: 8px 12px 24px;
+  padding: 0 20px 40px;
 }
 
-/* таблицы: рамка 1 px, шапка серая, строки через одну; на телефоне прокрутка внутри блока */
+.card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+/* таблицы: на телефоне прокрутка внутри своего блока */
 .table-wrap {
   overflow-x: auto;
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  margin-bottom: 12px;
 }
 
 table.data-table {
   border-collapse: collapse;
   width: 100%;
-  margin-bottom: 8px;
 }
 
 table.data-table th,
 table.data-table td {
-  border: 1px solid var(--color-rule);
-  padding: 2px 6px;
+  padding: 8px 12px;
   text-align: left;
   vertical-align: top;
+  border-bottom: 1px solid var(--color-line);
 }
 
 table.data-table th {
-  background: var(--color-head);
-  font-weight: bold;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: var(--color-soft);
+  white-space: nowrap;
 }
 
-table.data-table tr:nth-child(even) td {
-  background: var(--color-zebra);
+table.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+table.data-table tbody tr:hover td {
+  background: var(--color-soft);
 }
 
 .num {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -101,71 +119,134 @@ table.data-table tr:nth-child(even) td {
 
 .tone-action {
   color: var(--color-action);
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .muted {
   color: var(--color-muted);
 }
 
-/* серые объёмные вкладки; активная — белая и сливается с панелью */
+/* основное меню: вкладки с подчёркиванием */
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  border-bottom: 2px solid var(--color-button);
-  margin-bottom: 6px;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-line);
 }
 
-.tab,
-.tab:visited {
-  font-family: var(--font-pixel);
-  font-size: 9px;
-  line-height: 14px;
-  text-transform: uppercase;
-  background: var(--color-button);
-  border: 2px outset var(--color-button);
-  border-bottom: none;
-  padding: 3px 10px;
+.tab {
+  padding: 10px 12px;
+  color: var(--color-muted);
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
   color: var(--color-ink);
   text-decoration: none;
 }
 
-.tab-active,
-.tab-active:visited {
-  background: var(--color-panel);
-  position: relative;
-  top: 2px;
+.tab-active {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-ink);
 }
 
-.tabs-small .tab,
-.tabs-small .tab:visited {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  text-transform: none;
-  padding: 1px 8px;
+/* вторичные вкладки — переключатель-«таблетки» */
+.tabs-small {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: none;
+  border-radius: 10px;
+  background: #e8edf3;
+  margin: 4px 0 12px;
+}
+
+.tabs-small .tab {
+  padding: 4px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  margin: 0;
+}
+
+.tabs-small .tab-active {
+  background: var(--color-panel);
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
 }
 
 .box-action {
-  border: 2px solid var(--color-action);
-  padding: 4px 8px;
-  margin-bottom: 8px;
+  border: 1px solid #fecaca;
+  background: var(--color-action-soft);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
 }
 
-.bar {
-  border: 1px solid var(--color-rule);
-  background: var(--color-zebra);
-  padding: 4px 8px;
-  margin: 6px 0;
-  line-height: 1.6;
+.button {
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
 }
 
-.cursor {
-  animation: blink 1s steps(1) infinite;
+.button:hover {
+  background: var(--color-soft);
 }
 
-@keyframes blink {
-  50% {
-    visibility: hidden;
-  }
+/* полоса счёта — плитки */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.stat {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-note {
+  font-size: 12px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-soft);
+  border: 1px solid var(--color-line);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-plus);
+}
+
+.dot-action {
+  background: var(--color-action);
 }

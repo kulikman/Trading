@@ -1,22 +1,13 @@
 import type { Metadata } from "next";
-import { Press_Start_2P, Silkscreen } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Suspense } from "react";
 
 import { Header } from "@/components/header";
 import { Menu } from "@/components/menu";
 import "./globals.css";
 
-// Silkscreen (DASHBOARD.md §2) без кириллицы — им только надпись EARNINGS ENGINE.
-// Русские заголовки и вкладки — пиксельным Press Start 2P (полная кириллица; шире, поэтому мельче).
-const silkscreen = Silkscreen({
-  variable: "--font-silkscreen",
-  weight: "400",
-  subsets: ["latin"],
-});
-
-const pressStart = Press_Start_2P({
-  variable: "--font-press-start",
-  weight: "400",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin", "cyrillic"],
 });
 
@@ -28,17 +19,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ru" className={`${silkscreen.variable} ${pressStart.variable}`}>
+    <html lang="ru" className={inter.variable}>
       <body>
-        <div className="page">
-          <Suspense fallback={<p className="muted">загрузка статуса…</p>}>
-            <Header />
-          </Suspense>
-          <Suspense fallback={<nav className="tabs" />}>
-            <Menu />
-          </Suspense>
-          {children}
+        <div className="z-10 border-b border-[var(--color-line)] bg-white/90 backdrop-blur md:sticky md:top-0">
+          <div className="page !pb-0">
+            <Suspense fallback={<div className="py-3 muted">загрузка статуса…</div>}>
+              <Header />
+            </Suspense>
+            <Suspense fallback={<nav className="tabs" />}>
+              <Menu />
+            </Suspense>
+          </div>
         </div>
+        <main className="page">{children}</main>
       </body>
     </html>
   );

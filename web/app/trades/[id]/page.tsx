@@ -37,7 +37,7 @@ async function CardContent({
         Карточка {card.ticker} · режим {card.mode} · {card.state} ·{" "}
         {card.is_paper ? "PAPER" : "REAL"}
       </h1>
-      <p className="num">{card.legs}</p>
+      <div className="card num">{card.legs}</div>
       <h2>История переходов</h2>
       <Grid head={["Время", "Из → в", "Причина"]}>
         {card.transitions.map((row) => (

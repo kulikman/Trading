@@ -3,36 +3,73 @@ import Link from "next/link";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { N } from "@/components/num";
 import { apiGet } from "@/lib/api";
-import type { AccountBar as AccountBarData } from "@/lib/types";
+import type { AccountBar as AccountBarData, Num } from "@/lib/types";
 
 interface AccountBarProps {
   mode: "paper" | "real";
 }
 
-/** Полоса счёта под меню на каждом экране (§3); Paper и Real не смешиваются. */
+/** Полоса счёта на каждом экране (§3): плитки с числами с бэкенда; Paper и Real не смешиваются. */
 export async function AccountBar({ mode }: AccountBarProps): Promise<React.ReactElement> {
   const bar = await apiGet<AccountBarData>(`/api/account?mode=${mode}`);
-  const other = mode === "paper" ? "real" : "paper";
-  const label = `[${mode.toUpperCase()}]`;
   return (
-    <div className="bar">
+    <section>
       <AutoRefresh intervalMs={bar.refresh_ms} />
-      <b>{label}</b>{" "}
-      <Link href={`?mode=${other}`}>{other === "real" ? "Real" : "Paper"}</Link>{" "}
+      <div className="mt-4 flex items-center gap-2">
+        <div className="tabs-small !m-0">
+          <Link href="?mode=paper" className={mode === "paper" ? "tab tab-active" : "tab"}>
+            Paper
+          </Link>
+          <Link href="?mode=real" className={mode === "real" ? "tab tab-active" : "tab"}>
+            Real
+          </Link>
+        </div>
+        {!bar.is_available ? <span className="muted">{bar.message}</span> : null}
+      </div>
       {bar.is_available ? (
-        <>
-          · БАЛАНС <N value={bar.balance} /> · СВОБОДНО <N value={bar.free} /> · В СДЕЛКАХ{" "}
-          <N value={bar.in_trades} /> (<N value={bar.in_trades_share} />)
-          <br />
-          P&amp;L СЕГОДНЯ <N value={bar.pnl_today} /> (<N value={bar.pnl_today_share} />) · МЕСЯЦ{" "}
-          <N value={bar.pnl_month} /> (<N value={bar.pnl_month_share} />)
-          <br />
-          РИСК <N value={bar.risk} /> · ПРИ ВСЕХ СТОПАХ ПРОСАДКА <N value={bar.worst_drawdown} /> /{" "}
-          <N value={bar.drawdown_threshold} />
-        </>
-      ) : (
-        <span className="muted">· {bar.message}</span>
-      )}
+        <div className="stats">
+          <Stat label="Баланс" value={bar.balance} />
+          <Stat label="Свободно" value={bar.free} />
+          <Stat label="В сделках" value={bar.in_trades} note={bar.in_trades_share} />
+          <Stat label="P&L сегодня" value={bar.pnl_today} note={bar.pnl_today_share} />
+          <Stat label="P&L месяц" value={bar.pnl_month} note={bar.pnl_month_share} />
+          <Stat label="Риск" value={bar.risk} />
+          <Stat
+            label="Просадка при всех стопах"
+            value={bar.worst_drawdown}
+            limit={bar.drawdown_threshold}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+interface StatProps {
+  label: string;
+  value: Num | null;
+  note?: Num | null;
+  limit?: Num | null;
+}
+
+function Stat({ label, value, note, limit }: StatProps): React.ReactElement {
+  return (
+    <div className="stat">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">
+        <N value={value} />
+        {limit ? (
+          <span className="stat-note muted">
+            {" "}
+            / <N value={limit} />
+          </span>
+        ) : null}
+      </div>
+      {note ? (
+        <div className="stat-note">
+          <N value={note} />
+        </div>
+      ) : null}
     </div>
   );
 }

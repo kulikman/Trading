@@ -7,16 +7,21 @@ export async function Header(): Promise<React.ReactElement> {
   const status = await apiGet<Status>("/api/status");
   const { market } = status;
   return (
-    <header className="flex flex-wrap items-baseline justify-between gap-2 py-1">
-      <span className="font-[family-name:var(--font-logo)] text-base">EARNINGS ENGINE</span>
-      <span>
-        РЫНОК: <b className={toneClass(market.tone)}>{market.level}</b>
-        {market.vix.value !== null ? ` · VIX ${market.vix.display}` : ""}
-      </span>
-      <span className={toneClass(status.tone)}>
-        {status.headline}
-        {status.is_ok ? <span className="cursor">_</span> : null} · {status.date} · {status.time}
-      </span>
+    <header className="flex flex-wrap items-center justify-between gap-3 pt-3 pb-1">
+      <span className="text-base font-semibold tracking-tight">Earnings Engine</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="badge">
+          Рынок: <b className={toneClass(market.tone)}>{market.level}</b>
+          {market.vix.value !== null ? <span className="muted">VIX {market.vix.display}</span> : null}
+        </span>
+        <span className={`badge ${toneClass(status.tone)}`}>
+          <span className={status.is_ok ? "dot" : "dot dot-action"} />
+          {status.headline}
+        </span>
+        <span className="muted text-xs">
+          {status.date} · {status.time}
+        </span>
+      </div>
     </header>
   );
 }

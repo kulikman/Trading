@@ -59,14 +59,13 @@ async function AccountContent({
         </Grid>
       ) : null}
       {summary.is_available && tab === "path" ? (
-        <p className="num">
-          {summary.path_to_real.map((item, index) => (
-            <span key={item.criterion}>
-              {index > 0 ? " · " : ""}
-              <span className={toneClass(item.tone)}>{item.display}</span>
-            </span>
+        <div className="stats">
+          {summary.path_to_real.map((item) => (
+            <div key={item.criterion} className="stat">
+              <div className={`stat-value ${toneClass(item.tone)}`}>{item.display}</div>
+            </div>
           ))}
-        </p>
+        </div>
       ) : null}
     </>
   );
@@ -96,16 +95,11 @@ function Summary({ summary }: { summary: AccountSummary }): React.ReactElement {
       </Grid>
       <h3>Кривая баланса</h3>
       {summary.curve_path !== null ? (
-        <svg
-          viewBox={CURVE_VIEWBOX}
-          width="100%"
-          role="img"
-          aria-label="Кривая баланса по дням"
-          className="border border-[#999999]"
-          shapeRendering="crispEdges"
-        >
-          <path d={summary.curve_path} fill="none" stroke="#000000" strokeWidth="1" />
-        </svg>
+        <div className="card">
+          <svg viewBox={CURVE_VIEWBOX} width="100%" role="img" aria-label="Кривая баланса по дням">
+            <path d={summary.curve_path} fill="none" stroke="#2563eb" strokeWidth="1.5" />
+          </svg>
+        </div>
       ) : (
         <Empty text={summary.curve_message} />
       )}
