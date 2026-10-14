@@ -3,7 +3,8 @@
 Правила SPEC §10 (числа — thresholds.yaml `constructions`):
 - стрэддл (покупка): стоп — стоимость упала на stop_premium_loss, цель — выросла на
   target_premium_gain, иначе выход по цене в exit_time_et;
-- iron condor (продажа): стоп — выкуп стоит stop_premium_multiple × премии, цель — выкуп за
+- iron condor (продажа): стоп по толкованию stop_basis — cost: выкуп стоит stop_premium_multiple ×
+  премии, loss: убыток stop_premium_multiple × премии (выкуп (1 + N) ×); цель — выкуп за
   (1 − target_premium_share) × премии, иначе выход в exit_time_et.
 Цена ноги — последняя сделка (минутные свечи редкие); стоимость позиции считается с минуты,
 когда по всем ногам уже были сделки. Стоп и цель проверяются по цене закрытия минуты.
@@ -17,7 +18,7 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 
 from backtest.signals import Construction
-from core.config.thresholds import Constructions
+from core.config.thresholds import CondorStopBasis, Constructions
 from core.domain.options import OptionMinuteBar
 from execution.costs import CostLeg, CostModel, total_cost
 
@@ -45,6 +46,7 @@ class Trade:
     gross_pnl: float  # $, один контракт на ногу
     costs: float  # $, вход + выход
     risk: float  # $, максимальный убыток с издержками входа
+    variant: str = ""  # у кондора — толкование стопа (cost / loss)
 
     @property
     def net_pnl(self) -> float:
@@ -87,6 +89,7 @@ def simulate(
     session_open: datetime,
     open_slippage_minutes: int,
     width: float | None = None,
+    condor_stop: CondorStopBasis | None = None,
 ) -> Trade | SkipReason:
     """Одна сделка: вход по ценам ног накануне, выход по первому правилу из стоп / цель / время."""
     entry = sum(leg.side * leg.entry_price for leg in legs)  # стрэддл > 0, кондор < 0
@@ -94,6 +97,7 @@ def simulate(
     if not path:
         return "no_exit_price"
     max_loss: float
+    basis: CondorStopBasis | None = None
     if construction == "straddle":
         premium = entry
         straddle = rules.straddle
@@ -108,7 +112,9 @@ def simulate(
         if credit <= 0 or width is None:
             return "no_credit"
         condor = rules.iron_condor
-        stop = credit * condor.stop_premium_multiple
+        basis = condor_stop or condor.stop_basis
+        multiple = condor.stop_premium_multiple
+        stop = credit * (multiple if basis == "cost" else 1 + multiple)
         target = credit * (1 - condor.target_premium_share)
         # Для кондора путь — Σ сторона × цена < 0; выкуп стоит −путь.
         moment, value, reason = _first(path, lambda v: -v >= stop, lambda v: -v <= target)
@@ -132,6 +138,7 @@ def simulate(
         gross_pnl=gross,
         costs=entry_costs.total + exit_costs.total,
         risk=max_loss + entry_costs.total,
+        variant=basis or "",
     )
 
 

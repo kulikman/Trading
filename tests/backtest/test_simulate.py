@@ -141,3 +141,26 @@ def test_position_path_waits_for_all_legs_and_forward_fills() -> None:
         (time(9, 33), 10.0),
         (time(9, 34), 11.0),
     ]
+
+
+def test_condor_loss_basis_stops_later_than_cost_basis() -> None:
+    minutes = condor_minutes(0.5, 3.5, 2.5, 0.5)  # выкуп 5,0 = 2× премии 2,5
+    by_cost = run_condor(minutes)
+    by_loss = simulate(
+        "NFLX",
+        date(2025, 10, 21),
+        "iron_condor",
+        CONDOR,
+        minutes,
+        rules=RULES,
+        costs=COSTS,
+        session_open=OPEN,
+        open_slippage_minutes=5,
+        width=10.0,
+        condor_stop="loss",
+    )
+    assert isinstance(by_cost, Trade)
+    assert isinstance(by_loss, Trade)
+    assert (by_cost.exit_reason, by_cost.variant) == ("stop", "cost")
+    # убыток 2× премии — это выкуп 7,5: при выкупе 5,0 позиция держится до выхода по времени
+    assert (by_loss.exit_reason, by_loss.variant) == ("time", "loss")

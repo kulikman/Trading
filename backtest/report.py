@@ -18,14 +18,21 @@ def render(result: BacktestResult, thresholds: Thresholds, costs: CostSettings) 
     """Полный отчёт."""
     bt = thresholds.backtest
     rules = thresholds.constructions
-    by_construction = {
-        name: [t for t in result.trades if t.construction == name] for name in CONSTRUCTION_NAMES
-    }
-    rows = [
-        (CONSTRUCTION_NAMES[name], _metrics(trades, thresholds))
-        for name, trades in by_construction.items()
+    straddles = [t for t in result.trades if t.construction == "straddle"]
+    segments = [(CONSTRUCTION_NAMES["straddle"], straddles)]
+    for basis in bt.compare_condor_stops:
+        condors = [
+            t for t in result.trades if t.construction == "iron_condor" and t.variant == basis
+        ]
+        segments.append((_trade_name("iron_condor", basis, thresholds), condors))
+    totals = [
+        (
+            f"**Все сделки** (кондор: {_stop_label(basis, thresholds)})",
+            [t for t in result.trades if t.variant in ("", basis)],
+        )
+        for basis in bt.compare_condor_stops
     ]
-    rows.append(("**Все сделки**", _metrics(result.trades, thresholds)))
+    rows = [(name, _metrics(trades, thresholds)) for name, trades in [*segments, *totals]]
     lines = [
         f"# Бэктест стратегий на move_ratio — {result.until:%d.%m.%Y}",
         "",
@@ -50,9 +57,10 @@ def render(result: BacktestResult, thresholds: Thresholds, costs: CostSettings) 
         (
             f"- Iron condor при ratio < {rules.iron_condor.max_move_ratio}: продажа на "
             f"{rules.iron_condor.short_implied_moves:g} implied move, защита на "
-            f"{rules.iron_condor.wing_implied_moves:g}; "
-            f"стоп — выкуп {rules.iron_condor.stop_premium_multiple:g}× "
-            f"премии, цель — {rules.iron_condor.target_premium_share:.0%} премии."
+            f"{rules.iron_condor.wing_implied_moves:g}; цель — "
+            f"{rules.iron_condor.target_premium_share:.0%} премии; стоп — сравниваются толкования: "
+            + "; ".join(_stop_label(b, thresholds) for b in bt.compare_condor_stops)
+            + "."
         ),
         f"- Выход — по минутам в день реакции, не позже {bt.exit_time_et:%H:%M} ET.",
         (
@@ -88,11 +96,11 @@ def render(result: BacktestResult, thresholds: Thresholds, costs: CostSettings) 
         "## Причины выхода",
         "",
     ]
-    for name, trades in by_construction.items():
+    for name, trades in segments:
         reasons = Counter(REASON_NAMES[t.exit_reason] for t in trades)
-        lines.append(f"- {CONSTRUCTION_NAMES[name]}: {_counter_line(reasons)}")
+        lines.append(f"- {name}: {_counter_line(reasons)}")
     lines += ["", "## Пропущено (нет данных)", "", _counter_line(result.skipped), ""]
-    lines += _trades_table(result.trades)
+    lines += _trades_table(result.trades, thresholds)
     lines += [
         "",
         "## Ограничения",
@@ -125,7 +133,7 @@ def _row(name: str, m: Metrics) -> str:
     )
 
 
-def _trades_table(trades: Sequence[Trade]) -> list[str]:
+def _trades_table(trades: Sequence[Trade], thresholds: Thresholds) -> list[str]:
     lines = [
         "## Сделки",
         "",
@@ -135,13 +143,26 @@ def _trades_table(trades: Sequence[Trade]) -> list[str]:
         ),
         "|---|---|---|---:|---:|---|---|---:|---:|",
     ]
-    for t in sorted(trades, key=lambda x: (x.report_date, x.ticker)):
+    for t in sorted(trades, key=lambda x: (x.report_date, x.ticker, x.variant)):
         lines.append(
-            f"| {t.report_date:%d.%m.%Y} | {t.ticker} | {CONSTRUCTION_NAMES[t.construction]} | "
+            f"| {t.report_date:%d.%m.%Y} | {t.ticker} | "
+            f"{_trade_name(t.construction, t.variant, thresholds)} | "
             f"{t.entry_value:.2f} | {t.exit_value:.2f} | {REASON_NAMES[t.exit_reason]} | "
             f"{t.exit_at.astimezone(ET):%H:%M} | {t.net_pnl:,.0f} | {t.return_on_risk:+.2f} |"
         )
     return lines
+
+
+def _stop_label(basis: str, thresholds: Thresholds) -> str:
+    multiple = thresholds.constructions.iron_condor.stop_premium_multiple
+    if basis == "cost":
+        return f"стоп при выкупе {multiple:g}× премии"
+    return f"стоп при убытке {multiple:g}× премии"
+
+
+def _trade_name(construction: str, variant: str, thresholds: Thresholds) -> str:
+    name = CONSTRUCTION_NAMES[construction]
+    return f"{name}, {_stop_label(variant, thresholds)}" if variant else name
 
 
 def _counter_line(counter: Counter[str]) -> str:

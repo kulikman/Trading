@@ -89,7 +89,7 @@ edgar:                           # SEC EDGAR, бесплатно; заголов
     quarter_days_max: 100
     non_additive_metrics: [eps_diluted]   # разницей нарастающих итогов не считаются (Q4 EPS остаётся пустым)
     concepts:                    # варианты тегов us-gaap по порядку предпочтения
-      revenue: [Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, RevenuesNetOfInterestExpense, SalesRevenueNet]
+      revenue: [Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, RevenueFromContractWithCustomerIncludingAssessedTax, RevenuesNetOfInterestExpense, SalesRevenueNet]
       net_income: [NetIncomeLoss]
       eps_diluted: [EarningsPerShareDiluted]
       operating_income: [OperatingIncomeLoss]
