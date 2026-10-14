@@ -43,7 +43,7 @@ test:
 	uv run coverage report --include=core/session_guard.py --fail-under=100 --show-missing
 
 run-scheduler:
-	@echo "run-scheduler: available after T09 (scheduler)"; exit 1
+	uv run python -m core.scheduler
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1

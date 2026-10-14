@@ -25,6 +25,7 @@ class Event(DomainModel):
     ticker: str
     report_date: date
     report_time: ReportTime | None = None
+    fiscal_period: str | None = None
     date_status: DateStatus
     date_sources: list[dict[str, Any]] = Field(default_factory=list)
     queue_status: QueueStatus = "planned"

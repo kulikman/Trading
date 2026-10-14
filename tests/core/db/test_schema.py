@@ -26,6 +26,7 @@ from core.domain.financials import FinancialQuarter
 from core.domain.market import Company, PeerEdge, Sector, SectorSummary
 from core.domain.news import NewsItem
 from core.domain.plugin import Plugin
+from core.domain.schedule import EventChange, EventJob
 from core.domain.trading import Decision, TradeCard, TradeCardTransition
 
 EXPECTED_TABLES = {
@@ -45,6 +46,9 @@ EXPECTED_TABLES = {
     "plugin",
     "news_article",
     "financial_quarter",
+    "event_job",
+    "event_change",
+    "apscheduler_jobs",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -308,6 +312,28 @@ CASES: dict[str, Builder] = {
             filed=date(2026, 2, 20),
         ),
     ),
+    "event_job": lambda s, c: (
+        orm.EventJob,
+        EventJob(
+            event_id=c["event"],
+            stage="T-1",
+            job="mode_b_entry",
+            kind="execution",
+            run_at=AT,
+            outside_session=True,
+        ),
+    ),
+    "event_change": lambda s, c: (
+        orm.EventChange,
+        EventChange(
+            event_id=c["event"],
+            at=AT,
+            field="report_date",
+            old_value="2026-10-14",
+            new_value="2026-10-15",
+            reason="calendar: finnhub",
+        ),
+    ),
     "news_article": lambda s, c: (
         orm.NewsArticle,
         NewsItem(
@@ -327,7 +353,8 @@ CASES: dict[str, Builder] = {
 
 
 def test_cases_cover_every_table() -> None:
-    assert set(CASES) == EXPECTED_TABLES
+    # apscheduler_jobs — хранилище APScheduler (pickle), доменной модели нет
+    assert set(CASES) == EXPECTED_TABLES - {"apscheduler_jobs"}
 
 
 @pytest.mark.parametrize("name", sorted(CASES))

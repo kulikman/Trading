@@ -8,17 +8,22 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Column,
     Date,
     DateTime,
     Double,
+    Float,
     ForeignKey,
     Identity,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     Numeric,
     SmallInteger,
+    Table,
     Text,
+    Unicode,
     UniqueConstraint,
     func,
     text,
@@ -32,7 +37,9 @@ from core.domain.types import (
     DateStatus,
     DecisionStatus,
     Direction,
+    EventJobStatus,
     FeatureStage,
+    JobKind,
     PluginKind,
     PluginStage,
     QueueStatus,
@@ -223,6 +230,7 @@ class Event(Timestamps, Base):
     ticker: Mapped[str] = mapped_column(ForeignKey("company.ticker"))
     report_date: Mapped[date]
     report_time: Mapped[str | None]
+    fiscal_period: Mapped[str | None]
     date_status: Mapped[str]
     date_sources: Mapped[Any] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     queue_status: Mapped[str] = mapped_column(server_default="planned")
@@ -384,3 +392,49 @@ class FinancialQuarter(Timestamps, Base):
     form: Mapped[str]
     accession: Mapped[str]
     filed: Mapped[date]
+
+
+# --- расписание и журнал события (T09) ---
+
+
+class EventJob(Timestamps, Base):
+    """Задача события по SPEC §8. Ключ идемпотентности — (event_id, stage, job)."""
+
+    __tablename__ = "event_job"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", JobKind), name="kind"),
+        CheckConstraint(_one_of("status", EventJobStatus), name="status"),
+    )
+
+    event_id: Mapped[int] = mapped_column(ForeignKey("event.id"), primary_key=True)
+    stage: Mapped[str] = mapped_column(primary_key=True)
+    job: Mapped[str] = mapped_column(primary_key=True)
+    kind: Mapped[str]
+    run_at: Mapped[datetime] = mapped_column(index=True)
+    status: Mapped[str] = mapped_column(server_default="planned")
+    outside_session: Mapped[bool] = mapped_column(server_default=text("false"))
+
+
+class EventChange(Timestamps, Base):
+    """Журнал изменений события: дата, время, статусы (блок «Изменилось», DASHBOARD.md §4.1)."""
+
+    __tablename__ = "event_change"
+
+    id: Mapped[int] = _pk_id()
+    event_id: Mapped[int] = mapped_column(ForeignKey("event.id"), index=True)
+    at: Mapped[datetime]
+    field: Mapped[str]
+    old_value: Mapped[str | None]
+    new_value: Mapped[str | None]
+    reason: Mapped[str | None]
+
+
+# Хранилище задач APScheduler 3.11 (SQLAlchemyJobStore). Таблица создаётся миграцией (CLAUDE.md:
+# схема только через Alembic); колонки повторяют apscheduler.jobstores.sqlalchemy один в один.
+apscheduler_jobs = Table(
+    "apscheduler_jobs",
+    Base.metadata,
+    Column("id", Unicode(191), primary_key=True),
+    Column("next_run_time", Float(25), index=True),
+    Column("job_state", LargeBinary, nullable=False),
+)

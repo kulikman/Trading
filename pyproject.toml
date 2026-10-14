@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
     "anthropic>=1.13.0",
+    "apscheduler>=3.11,<4",
     "httpx>=0.28.1",
     "pandas-market-calendars>=5.5.0",
     "psycopg[binary]>=3.3.6",
@@ -64,9 +65,9 @@ files = [
   "execution", "notify", "learning", "backtest", "api", "tests",
 ]
 
-# pandas_market_calendars ships no type information; its use is confined to core/session_guard.py.
+# pandas_market_calendars and APScheduler 3.x ship no type information.
 [[tool.mypy.overrides]]
-module = ["pandas_market_calendars", "pandas_market_calendars.*"]
+module = ["pandas_market_calendars", "pandas_market_calendars.*", "apscheduler", "apscheduler.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]

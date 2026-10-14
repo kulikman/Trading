@@ -7,9 +7,12 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from functools import cache
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import pandas_market_calendars as mcal
+
+from core.domain.types import ReportTime
 
 ET = ZoneInfo("America/New_York")
 MSK = ZoneInfo("Europe/Moscow")
@@ -94,3 +97,34 @@ def weekly_expiry(day: date) -> date:
     if expiry < day:
         return weekly_expiry(friday + ONE_DAY)
     return expiry
+
+
+def previous_trading_day(day: date) -> date:
+    """Ближайший торговый день строго раньше day."""
+    day -= ONE_DAY
+    while not is_trading_day(day):
+        day -= ONE_DAY
+    return day
+
+
+def next_trading_day(day: date) -> date:
+    """Ближайший торговый день строго позже day."""
+    day += ONE_DAY
+    while not is_trading_day(day):
+        day += ONE_DAY
+    return day
+
+
+def shift_to_trading_day(day: date, direction: Literal["previous", "next"]) -> date:
+    """Торговый день — без изменений; выходной или праздник — сдвиг в указанную сторону."""
+    if is_trading_day(day):
+        return day
+    return previous_trading_day(day) if direction == "previous" else next_trading_day(day)
+
+
+def reaction_day(report_date: date, report_time: ReportTime | None) -> date:
+    """День реакции цены на отчёт: BMO / DURING / время неизвестно — день отчёта, AMC — следующий
+    торговый день. Отчёт в неторговый день — следующий торговый день."""
+    if report_time == "AMC" or not is_trading_day(report_date):
+        return next_trading_day(report_date)
+    return report_date

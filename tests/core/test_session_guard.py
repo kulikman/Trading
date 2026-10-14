@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from typing import Any
 
 import pytest
 
@@ -8,7 +9,11 @@ from core.session_guard import (
     is_regular_session,
     is_trading_day,
     next_session_open,
+    next_trading_day,
+    previous_trading_day,
+    reaction_day,
     session,
+    shift_to_trading_day,
     to_et,
     to_msk,
     weekly_expiry,
@@ -195,3 +200,55 @@ def test_naive_datetime_rejected(func: object) -> None:
 )
 def test_weekly_expiry(day: date, expected: date) -> None:
     assert weekly_expiry(day) == expected
+
+
+# --- соседние торговые дни и день реакции ---
+
+
+@pytest.mark.parametrize(
+    ("day", "previous", "following"),
+    [
+        (date(2026, 10, 14), date(2026, 10, 13), date(2026, 10, 15)),  # среда
+        (date(2026, 10, 19), date(2026, 10, 16), date(2026, 10, 20)),  # понедельник
+        (date(2026, 10, 17), date(2026, 10, 16), date(2026, 10, 19)),  # суббота
+        (date(2026, 11, 27), date(2026, 11, 25), date(2026, 11, 30)),  # после Thanksgiving
+        (date(2027, 1, 4), date(2026, 12, 31), date(2027, 1, 5)),  # через Новый год
+    ],
+    ids=str,
+)
+def test_previous_and_next_trading_day(day: date, previous: date, following: date) -> None:
+    assert previous_trading_day(day) == previous
+    assert next_trading_day(day) == following
+
+
+@pytest.mark.parametrize(
+    ("day", "direction", "expected"),
+    [
+        (date(2026, 10, 14), "previous", date(2026, 10, 14)),  # торговый — без изменений
+        (date(2026, 10, 14), "next", date(2026, 10, 14)),
+        (date(2026, 10, 18), "previous", date(2026, 10, 16)),  # воскресенье → пятница
+        (date(2026, 10, 18), "next", date(2026, 10, 19)),  # воскресенье → понедельник
+        (date(2026, 11, 26), "previous", date(2026, 11, 25)),  # Thanksgiving
+        (date(2026, 11, 26), "next", date(2026, 11, 27)),
+    ],
+    ids=str,
+)
+def test_shift_to_trading_day(day: date, direction: Any, expected: date) -> None:
+    assert shift_to_trading_day(day, direction) == expected
+
+
+@pytest.mark.parametrize(
+    ("report_date", "report_time", "expected"),
+    [
+        (date(2026, 10, 13), "BMO", date(2026, 10, 13)),
+        (date(2026, 10, 13), "DURING", date(2026, 10, 13)),
+        (date(2026, 10, 13), None, date(2026, 10, 13)),  # время неизвестно — как BMO
+        (date(2026, 10, 15), "AMC", date(2026, 10, 16)),
+        (date(2026, 10, 16), "AMC", date(2026, 10, 19)),  # пятница → понедельник
+        (date(2026, 11, 25), "AMC", date(2026, 11, 27)),  # через Thanksgiving
+        (date(2026, 10, 17), "BMO", date(2026, 10, 19)),  # отчёт в субботу → понедельник
+    ],
+    ids=str,
+)
+def test_reaction_day(report_date: date, report_time: Any, expected: date) -> None:
+    assert reaction_day(report_date, report_time) == expected
