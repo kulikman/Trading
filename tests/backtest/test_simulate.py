@@ -92,6 +92,7 @@ CONDOR = [Leg("LP", 1, 1.0), Leg("SP", -1, 2.0), Leg("SC", -1, 2.5), Leg("LC", 1
 
 
 def run_condor(minutes: dict[str, list[OptionMinuteBar]], legs: list[Leg] = CONDOR) -> Trade | str:
+    """Толкование стопа «по выкупу» (cost) — явно: в конфиге выбран loss (заказчик 14.10.2026)."""
     return simulate(
         "NFLX",
         date(2025, 10, 21),
@@ -103,6 +104,7 @@ def run_condor(minutes: dict[str, list[OptionMinuteBar]], legs: list[Leg] = COND
         session_open=OPEN,
         open_slippage_minutes=5,
         width=10.0,
+        condor_stop="cost",
     )
 
 
@@ -124,6 +126,10 @@ def test_condor_stop_at_twice_the_credit() -> None:
     assert isinstance(trade, Trade)
     assert (trade.exit_reason, trade.exit_value) == ("stop", 5.0)
     assert trade.gross_pnl == pytest.approx(-250.0)
+
+
+def test_condor_uses_configured_loss_basis_by_default() -> None:
+    assert CONFIG.thresholds.constructions.iron_condor.stop_basis == "loss"  # заказчик 14.10.2026
 
 
 def test_condor_without_credit_is_skipped() -> None:
