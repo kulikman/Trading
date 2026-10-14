@@ -179,3 +179,17 @@ def test_blank_values_become_none_and_non_dict_input_passes_through() -> None:
     assert (row.reported_eps, row.estimated_eps, row.surprise) == (None, None, None)
     with pytest.raises(ValidationError):
         AvQuarterlyEarning.model_validate(["not", "a", "dict"])  # не словарь — до pydantic как есть
+
+
+def test_rate_limit_notice_quoting_the_key_is_redacted(settings: AlphaVantageSettings) -> None:
+    # Настоящий текст заглушки (14.10.2026) цитирует ключ — в DataError и лог он попасть не должен.
+    notice = {
+        "Information": f"We have detected your API key as {KEY} and our standard API rate limit "
+        "is 25 requests per day."
+    }
+    fake = by_function({"EARNINGS": notice})
+    with pytest.raises(DataError) as exc_info:
+        client(settings, fake).earnings("IBM")
+    assert KEY not in str(exc_info.value)
+    assert "API key as ***" in exc_info.value.detail
+    assert exc_info.value.__cause__ is None  # исходное сообщение с ключом не сцеплено

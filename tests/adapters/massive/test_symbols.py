@@ -21,7 +21,8 @@ def test_rename_history_is_used_when_last_change_is_current_ticker() -> None:
 
 @pytest.mark.parametrize(
     "changes",
-    [[], [TickerChange(date=date(2015, 10, 6), ticker="GOOG")]],  # GOOGL: запись про класс C
+    # GOOGL: последняя запись не на нынешний тикер
+    [[], [TickerChange(date=date(2015, 10, 6), ticker="GOOG")]],
 )
 def test_unrelated_or_empty_history_uses_current_ticker(changes: list[TickerChange]) -> None:
     assert symbol_periods("GOOGL", changes) == [(date.min, "GOOGL")]

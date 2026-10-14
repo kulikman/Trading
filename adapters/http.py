@@ -172,12 +172,23 @@ class JsonHttpClient:
         if use_cache and self._cache is not None:
             cached = self._cache.get(key)
             if cached is not None:
-                return parse(cached, url)
+                return self._parse_redacted(parse, cached, url)
         body = self._send(request, url)
-        result = parse(body, url)
+        result = self._parse_redacted(parse, body, url)
         if use_cache and self._cache is not None:
             self._cache.set(key, body, ttl)
         return result
+
+    def _parse_redacted[T](self, parse: Callable[[bytes, str], T], body: bytes, url: str) -> T:
+        """Разбор ответа; секреты вычищаются и из ошибок разбора и проверки.
+
+        Ответ-заглушка может процитировать ключ (Alpha Vantage: «We have detected your API key
+        as …» при HTTP 200) — без этого ключ попал бы в сообщение DataError и в лог.
+        """
+        try:
+            return parse(body, url)
+        except DataError as exc:
+            raise DataError(exc.source, self._redact(exc.detail)) from None
 
     def _redact(self, text: str) -> str:
         for secret in self._secrets:
