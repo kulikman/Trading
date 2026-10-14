@@ -23,7 +23,9 @@ from core.domain.options import OptionMinuteBar
 from execution.costs import CostLeg, CostModel, total_cost
 
 CONTRACT_MULTIPLIER = 100
-ExitReason = Literal["stop", "target", "time"]
+# stop / target / time — опционы (выход до 11:00); trail_stop / sma / max_hold — акция в режиме C.
+ExitReason = Literal["stop", "target", "time", "trail_stop", "sma", "max_hold"]
+TradeKind = Literal["straddle", "iron_condor", "mode_c"]
 SkipReason = Literal["no_exit_price", "no_credit"]
 
 
@@ -38,7 +40,7 @@ class Leg:
 class Trade:
     ticker: str
     report_date: date
-    construction: Construction
+    construction: TradeKind
     entry_value: float  # стрэддл — уплаченная премия, кондор — полученная, на акцию
     exit_value: float  # стоимость позиции при выходе (для кондора — цена выкупа), на акцию
     exit_reason: ExitReason

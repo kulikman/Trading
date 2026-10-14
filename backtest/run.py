@@ -23,6 +23,7 @@ from adapters.massive.history import (
     straddle_from_bars,
 )
 from backtest.exit_data import exit_window
+from backtest.mode_c_run import run_mode_c
 from backtest.option_history import STOCK_PADDING_DAYS, StockBarsSource
 from backtest.report import render
 from backtest.result import BacktestResult
@@ -35,7 +36,7 @@ from core.db.session import create_db_engine, database_url
 from core.db.store import earnings_history, option_bars_on, option_minute_bars
 from core.domain.options import OptionDailyBar
 from core.session_guard import to_et
-from execution.costs import CostModel
+from execution.costs import BrokerCostModel, CostModel
 
 logger = logging.getLogger(__name__)
 
@@ -194,11 +195,29 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
             costs=create_cost_model(config.broker),
             today=today,
         )
-    text = render(result, config.thresholds, config.broker.selected_costs)
+        stock_costs = config.broker.selected_costs.model_copy(
+            update={"assumed_spread_stock": config.thresholds.backtest.mode_c.assumed_spread_stock}
+        )
+        mode_c = run_mode_c(
+            db,
+            config.universe.tickers(),
+            thresholds=config.thresholds,
+            history=config.sources.massive.history,
+            stocks=stocks,
+            costs=BrokerCostModel(stock_costs),
+            capital=config.thresholds.capital.module_usd,
+            today=today,
+        )
+    text = render(result, config.thresholds, config.broker.selected_costs, mode_c)
     path = Path(__file__).resolve().parents[1] / "reports" / f"backtest_{today:%Y-%m-%d}.md"
     path.parent.mkdir(exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    logger.info("Сделок: %d. Отчёт: %s", len(result.trades), path)
+    logger.info(
+        "Сделок на move_ratio: %d, режима C: %d. Отчёт: %s",
+        len(result.trades),
+        len(mode_c.trades),
+        path,
+    )
     return 0
 
 
