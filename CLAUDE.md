@@ -165,7 +165,7 @@ make run-api        # с T19
 ## Карта репозитория
 
 ```
-config/       universe.yaml, thresholds.yaml, registry.yaml
+config/       universe.yaml, thresholds.yaml, registry.yaml, sources.yaml (адаптеры), broker.yaml (брокер, издержки)
 core/         domain, db, scheduler, registry, state_machine, session_guard
 adapters/     massive, ivolatility, edgar, fred, polymarket, llm, broker
 agents/       плагины-агенты

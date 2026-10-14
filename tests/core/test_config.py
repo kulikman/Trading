@@ -235,6 +235,25 @@ def test_invalid_sources_fail_with_field_path(
     assert expected in str(exc_info.value)
 
 
+def test_invalid_broker_config(config_dir: Path) -> None:
+    from core.config import load_broker
+
+    path = config_dir / "broker.yaml"
+    for mutation, expected in [
+        (_set("broker", "robinhood"), "broker"),
+        (_set("costs.manual.open_slippage", 2), "costs.manual.open_slippage"),
+        (
+            _delete("costs.manual.commission_per_contract"),
+            "commission_per_contract: Field required",
+        ),
+    ]:
+        shutil.copy(DEFAULT_CONFIG_DIR / "broker.yaml", path)
+        _mutate(path, mutation)
+        with pytest.raises(ConfigError, match=r"broker\.yaml") as exc_info:
+            load_broker(path)
+        assert expected in str(exc_info.value)
+
+
 # --- файл отсутствует или не парсится ---
 
 
