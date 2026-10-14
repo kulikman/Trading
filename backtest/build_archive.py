@@ -13,7 +13,7 @@
 
 import argparse
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -49,6 +49,7 @@ from core.config.sources import EdgarSettings
 from core.db.session import create_db_engine, database_url
 from core.db.store import earnings_history, save_financial_quarters, sync_universe
 from core.domain.earnings import EarningsTrack
+from core.domain.financials import FinancialQuarter
 from core.session_guard import to_et
 
 logger = logging.getLogger("backtest.build_archive")
@@ -85,6 +86,7 @@ class ArchiveBuilder:
         sec: SecSource,
         edgar: EdgarSettings,
         today: date,
+        predecessor_ciks: Mapping[str, Sequence[int]] | None = None,
     ) -> None:
         self._loader = loader
         self._stocks = stocks
@@ -92,6 +94,7 @@ class ArchiveBuilder:
         self._edgar = edgar
         self._today = today
         self._ciks: dict[str, int] | None = None
+        self._predecessors = dict(predecessor_ciks or {})
 
     def build(self, session: Session, ticker: str) -> TickerArchive:
         """Все шаги по компании; commit — после каждого шага (прерывание не теряет сделанное)."""
@@ -138,13 +141,19 @@ class ArchiveBuilder:
             raise DataError("edgar", f"{ticker}: no CIK")
         archive = self._edgar.archive
         settings = self._edgar.financials.model_copy(update={"quarters": archive.revenue_quarters})
-        quarters = financial_quarters(ticker, self._sec.company_facts(cik), settings)
+        # Текущий регистрант первым: его значение за квартал важнее значения прежнего.
+        ciks = [cik, *self._predecessors.get(ticker, [])]
+        by_key: dict[tuple[str, date], FinancialQuarter] = {}
+        for each in reversed(ciks):
+            for quarter in financial_quarters(ticker, self._sec.company_facts(each), settings):
+                by_key[(quarter.metric, quarter.period_end)] = quarter
+        quarters = list(by_key.values())
         save_financial_quarters(session, quarters)
         result.stats.revenue_matched = apply_revenue(
             session, ticker, rows, quarters, archive.fiscal_end_tolerance_days
         )
         since = rows[0].report_date - timedelta(days=archive.filing_search_days)
-        filings = self._sec.earnings_releases(cik, since=since)
+        filings = [f for each in ciks for f in self._sec.earnings_releases(each, since=since)]
         result.checks = check_dates(ticker, rows, filings, archive.filing_search_days)
         save_date_checks(session, result.checks)
 
@@ -200,6 +209,7 @@ def main(argv: Sequence[str] | None = None, today: date | None = None) -> int:  
         sec=EdgarClient.create(sources.edgar, sec_user_agent(), cache),
         edgar=sources.edgar,
         today=day,
+        predecessor_ciks=config.universe.sec_predecessor_ciks(),
     )
     checks: list[DateCheck] = []
     pending: list[str] = []

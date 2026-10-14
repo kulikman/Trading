@@ -71,7 +71,8 @@ class EarningsTrack(DomainModel):
 class ReportedEarnings(DomainModel):
     """Прошлый отчёт из истории EPS (Alpha Vantage EARNINGS): дата, время, консенсус и факт.
 
-    EPS — скорректированный (non-GAAP, как у источника); сюрприз — в процентах: 12.5 = +12,5%.
+    EPS — как у источника (база GAAP / скорректированный у Alpha Vantage не документирована);
+    сюрприз — в процентах: 12.5 = +12,5%.
     """
 
     ticker: str

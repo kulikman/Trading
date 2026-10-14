@@ -102,7 +102,8 @@ sectors:
     key_metrics: [production volume, realized prices, capex, international revenue]
     macro_sensitivity: [regime]
     companies:
-      - {ticker: XOM, name: Exxon Mobil}
+      # С 01.07.2026 XOM — ExxonMobil Holdings Corp (CIK 2115436); история до этого — EXXON MOBIL CORP (CIK 34088)
+      - {ticker: XOM, name: Exxon Mobil, sec_predecessor_ciks: [34088]}
       - {ticker: CVX, name: Chevron}
       - {ticker: SLB, name: SLB}
       - {ticker: HAL, name: Halliburton}
