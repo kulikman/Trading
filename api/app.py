@@ -157,8 +157,8 @@ def create_app(
         return view
 
     @app.get("/api/system/models")
-    def models() -> system.Models:
-        return system.models_view()
+    def models(db: Db) -> system.Models:
+        return system.models_view(db)
 
     @app.get("/api/system/errors")
     def errors(db: Db, limit: Annotated[int, Query(ge=1, le=500)] = 100) -> system.Errors:

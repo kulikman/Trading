@@ -20,6 +20,7 @@ from core.domain.earnings import (
     Event,
     FeatureSnapshot,
     Forecast,
+    ModelVersionRecord,
     ReportAudit,
 )
 from core.domain.financials import FinancialQuarter
@@ -54,6 +55,7 @@ EXPECTED_TABLES = {
     "option_minute_bar",
     "plugin_stage_change",
     "error_log",
+    "model_version",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -361,6 +363,18 @@ CASES: dict[str, Builder] = {
             metric="sharpe",
             observations=0,
             at=AT,
+        ),
+    ),
+    "model_version": lambda s, c: (
+        orm.ModelVersion,
+        ModelVersionRecord(
+            model="p_up",
+            version="0.1.0",
+            params={"intercept": 0.0, "betas": {"dossier.disclosure": 2.0}},
+            metrics={"brier_holdout": 0.21},
+            trained_at=AT,
+            accepted=True,
+            reason="стартовая версия",
         ),
     ),
     "error_log": lambda s, c: (

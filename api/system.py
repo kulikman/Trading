@@ -132,8 +132,38 @@ def _failing_sources(session: Session, since: datetime) -> list[str]:
     return list(dict.fromkeys(sources))
 
 
-def models_view() -> Models:
-    return Models(rows=[], message="Модели появятся с обучением (T15)")
+def models_view(session: Session) -> Models:
+    """Версии моделей: модель · версия · дата обучения · Brier на отложенной выборке · принята."""
+    rows = session.scalars(
+        select(orm.ModelVersion).order_by(
+            orm.ModelVersion.trained_at.desc(), orm.ModelVersion.model
+        )
+    ).all()
+    labels = {
+        "p_beat": "p_beat — EPS ≥ консенсуса",
+        "p_up": "p_up — рост цены",
+        "move_ratio": "move_ratio — движение > ожидаемого",
+    }
+    return Models(
+        rows=[
+            ModelRow(
+                model=labels.get(r.model, r.model),
+                version=r.version,
+                trained=day(to_et(r.trained_at).date()),
+                brier=_brier(r.metrics),
+                accepted=("да" if r.accepted else "нет") + f" — {r.reason}",
+            )
+            for r in rows
+        ],
+        message=None if rows else "моделей нет: make models-init",
+    )
+
+
+def _brier(metrics: object) -> Num:
+    """Brier на отложенной выборке появится с первым learn season (T20)."""
+    if isinstance(metrics, dict) and isinstance(metrics.get("brier_holdout"), int | float):
+        return ratio(float(metrics["brier_holdout"]), 3)
+    return empty("нет — стартовая версия, без обучения")
 
 
 def plugins_view(session: Session) -> list[PluginRow]:

@@ -294,6 +294,32 @@ def test_errors_newest_first(seeded: Session, client: TestClient) -> None:
     assert client.get("/api/system/errors?limit=0", headers=AUTH).status_code == 422
 
 
+def test_models_screen_lists_versions(seeded: Session, client: TestClient) -> None:
+    assert client.get("/api/system/models", headers=AUTH).json()["message"] == (
+        "моделей нет: make models-init"
+    )
+    seeded.add(
+        orm.ModelVersion(
+            model="p_up",
+            version="0.1.0",
+            params={"intercept": 0.0},
+            metrics=None,
+            trained_at=datetime(2026, 10, 14, 4, 0, tzinfo=UTC),
+            accepted=True,
+            reason="стартовая версия",
+        )
+    )
+    seeded.flush()
+    row = client.get("/api/system/models", headers=AUTH).json()["rows"][0]
+    assert (row["model"], row["version"], row["trained"]) == (
+        "p_up — рост цены",
+        "0.1.0",
+        "14.10.2026",
+    )
+    assert row["brier"]["display"] == "нет — стартовая версия, без обучения"
+    assert row["accepted"] == "да — стартовая версия"
+
+
 def test_company_track_and_not_found(seeded: Session, client: TestClient) -> None:
     track = client.get("/api/companies/gs/track", headers=AUTH).json()
     row = track["rows"][0]

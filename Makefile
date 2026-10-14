@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init
 
 -include .env
 
@@ -70,6 +70,9 @@ run-archive-daily:  ## разовое пополнение архива свеж
 
 rerun-job:  ## повторить упавшую задачу события: make rerun-job ARGS="NFLX T-7 options"
 	uv run python -m core.scheduler.rerun $(ARGS)
+
+models-init:  ## стартовая версия моделей p_beat, p_up, move_ratio (SPEC §9; повтор ничего не меняет)
+	uv run python -m models
 
 promote:  ## поднять плагин на ступень: make promote ARGS="mode_c" (отказ — с причиной)
 	uv run python -m core.registry promote $(ARGS)
