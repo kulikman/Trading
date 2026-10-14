@@ -148,7 +148,7 @@ def test_rerun_resolves_the_error_once(session: Session) -> None:
     session.flush()
     seen: list[datetime] = []
     later = NOW + timedelta(hours=8)
-    assert rerun(
+    is_done = rerun(
         session,
         "NFLX",
         "T-7",
@@ -156,6 +156,7 @@ def test_rerun_resolves_the_error_once(session: Session) -> None:
         job_handlers={"options": lambda s, job: seen.append(job.run_at)},
         now=later,
     )
+    assert is_done
     assert seen == [NOW]  # тот же момент оценки, что в расписании
     job = session.scalars(select(orm.EventJob)).one()
     assert job.status == "done"
