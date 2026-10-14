@@ -1,21 +1,39 @@
-"""Отчёт бэктеста (T12a) в Markdown: параметры, итоги по конструкциям, выходы, пропуски, сделки."""
+"""Отчёт бэктеста (T12) в Markdown: параметры, итоги по конструкциям, выходы, пропуски, сделки."""
 
 from collections import Counter
 from collections.abc import Sequence
 
 from backtest.metrics import Metrics, metrics
+from backtest.mode_c_run import ModeCResult
 from backtest.result import BacktestResult
 from backtest.simulate import Trade
 from core.config.broker import CostSettings
 from core.config.thresholds import Thresholds
 from core.session_guard import ET
 
-CONSTRUCTION_NAMES = {"straddle": "Стрэддл (покупка)", "iron_condor": "Iron condor (продажа)"}
-REASON_NAMES = {"stop": "стоп", "target": "цель", "time": "время (11:00)"}
+CONSTRUCTION_NAMES = {
+    "straddle": "Стрэддл (покупка)",
+    "iron_condor": "Iron condor (продажа)",
+    "mode_c": "Режим C (акция)",
+}
+REASON_NAMES = {
+    "stop": "стоп",
+    "target": "цель",
+    "time": "время (11:00)",
+    "trail_stop": "трейлинг-стоп",
+    "sma": "закрытие хуже SMA",
+    "max_hold": "срок удержания",
+}
+SIDE_NAMES = {"long": "покупка", "short": "продажа"}
 
 
-def render(result: BacktestResult, thresholds: Thresholds, costs: CostSettings) -> str:
-    """Полный отчёт."""
+def render(
+    result: BacktestResult,
+    thresholds: Thresholds,
+    costs: CostSettings,
+    mode_c: ModeCResult | None = None,
+) -> str:
+    """Полный отчёт: стратегии на move_ratio и (если передан) упрощённый режим C."""
     bt = thresholds.backtest
     rules = thresholds.constructions
     straddles = [t for t in result.trades if t.construction == "straddle"]
@@ -101,6 +119,8 @@ def render(result: BacktestResult, thresholds: Thresholds, costs: CostSettings) 
         lines.append(f"- {name}: {_counter_line(reasons)}")
     lines += ["", "## Пропущено (нет данных)", "", _counter_line(result.skipped), ""]
     lines += _trades_table(result.trades, thresholds)
+    if mode_c is not None:
+        lines += _mode_c_section(mode_c, thresholds)
     lines += [
         "",
         "## Ограничения",
@@ -162,7 +182,67 @@ def _stop_label(basis: str, thresholds: Thresholds) -> str:
 
 def _trade_name(construction: str, variant: str, thresholds: Thresholds) -> str:
     name = CONSTRUCTION_NAMES[construction]
+    if construction == "mode_c":
+        return f"{name}, {SIDE_NAMES[variant]}"
     return f"{name}, {_stop_label(variant, thresholds)}" if variant else name
+
+
+def _mode_c_section(mc: ModeCResult, thresholds: Thresholds) -> list[str]:
+    rules, settings = thresholds.modes.C, thresholds.backtest.mode_c
+    trades = mc.trades
+    segments = [
+        ("Режим C, все сделки", trades),
+        ("Режим C, покупка", [t for t in trades if t.variant == "long"]),
+        ("Режим C, продажа", [t for t in trades if t.variant == "short"]),
+    ]
+    years = sorted({t.report_date.year for t in trades})
+    segments += [(f"Режим C, {y}", [t for t in trades if t.report_date.year == y]) for y in years]
+    lines = [
+        "",
+        "## Режим C (упрощённый)",
+        "",
+        f"Окно: отчёты с {mc.since:%d.%m.%Y} (цены акций — 5 лет). Без выручки и guidance — "
+        "их истории в бесплатных источниках нет (решение заказчика 14.10.2026).",
+        "",
+        (
+            f"- Вход: |сюрприз EPS| > {rules.min_eps_surprise:.0%}; к "
+            f"{settings.decision_time_et:%H:%M} ET цена ушла от закрытия накануне в сторону "
+            f"сюрприза; объём 09:30–10:30 > {rules.min_volume_ratio:g}× среднего за "
+            f"{settings.volume_lookback_days} дней; лимит VWAP первого часа ± "
+            f"{rules.max_entry_over_vwap:.1%}, не исполнен до {settings.fill_deadline_et:%H:%M} — "
+            "сделки нет."
+        ),
+        (
+            f"- Выход: трейлинг {rules.trailing_atr_multiple:g} × ATR({rules.atr_period}) "
+            f"после закрытия, закрытие хуже SMA({rules.exit_sma_period}), не дольше "
+            f"{rules.max_hold_days} торговых дней."
+        ),
+        (
+            f"- Размер: риск {thresholds.backtest.risk_per_trade:.0%} капитала при стопе "
+            f"{rules.trailing_atr_multiple:g} × ATR; "
+            f"спред акции {settings.assumed_spread_stock:.2%} "
+            "цены — допущение (котировок нет)."
+        ),
+        "",
+        "Сигналы: " + _counter_line(mc.signals) + ".",
+        "",
+        "| Сегмент | Сделок | Выигрыш | EV на $1 риска | Медиана | P&L, $ | Издержки, $ | "
+        "Sharpe | Просадка | Капитал | Правило 30 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    lines += [_row(name, _metrics(group, thresholds)) for name, group in segments]
+    reasons = Counter(REASON_NAMES[t.exit_reason] for t in trades)
+    lines += [
+        "",
+        f"P&L — при риске {thresholds.backtest.risk_per_trade:.0%} капитала на сделку.",
+        "",
+        f"Причины выхода: {_counter_line(reasons)}.",
+        "",
+        f"Пропущено: {_counter_line(mc.skipped)}.",
+        "",
+    ]
+    lines += _trades_table(trades, thresholds)
+    return lines
 
 
 def _counter_line(counter: Counter[str]) -> str:

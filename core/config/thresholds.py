@@ -200,6 +200,27 @@ class Notify(StrictModel):
     watchdog_grace_minutes: PositiveInt
 
 
+class BacktestModeC(StrictModel):
+    """Упрощённый режим C в бэктесте (T12b): без выручки и guidance — их истории нет."""
+
+    decision_time_et: time
+    fill_deadline_et: time
+    volume_lookback_days: PositiveInt
+    min_volume_history_days: PositiveInt
+    assumed_spread_stock: Fraction
+
+    @field_validator("decision_time_et", "fill_deadline_et", mode="before")
+    @classmethod
+    def _time(cls, value: object) -> object:
+        return time.fromisoformat(value) if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _deadline_after_decision(self) -> Self:
+        if self.fill_deadline_et <= self.decision_time_et:
+            raise ValueError("backtest.mode_c.fill_deadline_et must be after decision_time_et")
+        return self
+
+
 class Backtest(StrictModel):
     """Бэктест T12: сигнал по истории движений, выход, риск для кривой капитала."""
 
@@ -209,6 +230,7 @@ class Backtest(StrictModel):
     open_slippage_minutes: PositiveInt
     risk_per_trade: Fraction
     compare_condor_stops: list[CondorStopBasis] = Field(min_length=1)
+    mode_c: BacktestModeC
 
     @field_validator("exit_time_et", mode="before")
     @classmethod

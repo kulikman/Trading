@@ -50,3 +50,12 @@ def daily_bars(source: StockHistorySource, ticker: str, start: date, end: date) 
         if lo <= hi:
             bars += source.aggregates(symbol, 1, "day", lo, hi, adjusted=False)
     return bars
+
+
+def symbol_on(periods: Sequence[tuple[date, str]], day: date) -> str:
+    """Тикер, под которым бумага торговалась в день day."""
+    current = periods[0][1]
+    for since, symbol in periods:
+        if since <= day:
+            current = symbol
+    return current
