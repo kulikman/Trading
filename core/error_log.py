@@ -1,6 +1,7 @@
 """Журнал задач (экран «Настройки → Логи»): что упало, когда и почему, и когда снова заработало.
 
-После ошибки первый успешный запуск той же задачи пишет запись «ok» (одну, а не на каждый успех).
+Ошибка решена, когда та же задача потом отработала (у задачи события — тот же тикер и стадия):
+ошибке ставится resolved_at, в журнал пишется одна запись «ok».
 
 Текст ошибки сохраняется без секретов: значения переменных окружения с KEY / TOKEN / SECRET /
 PASSWORD в имени и параметры ключей в адресах (`apikey=…`, `token=…`) заменяются на «***».
@@ -58,35 +59,48 @@ def error_entry(
     )
 
 
-def recovery_entry(
+def resolve(
     session: Session,
     source: str,
     *,
     at: datetime,
     event_id: int | None = None,
-    ticker: str | None = None,
     stage: str | None = None,
-) -> orm.ErrorLog | None:
-    """Запись «снова работает», если последняя запись этой задачи — ошибка; иначе None."""
-    last = session.scalars(
-        select(orm.ErrorLog.level)
-        .where(orm.ErrorLog.source == source)
-        .order_by(orm.ErrorLog.at.desc(), orm.ErrorLog.id.desc())
-        .limit(1)
-    ).first()
-    if last != "error":
-        return None
-    where = " ".join(part for part in (ticker, stage) if part)
-    return orm.ErrorLog(
-        at=at,
-        level="ok",
-        source=source,
-        event_id=event_id,
-        ticker=ticker,
-        stage=stage,
-        error_type="OK",
-        message=f"Задача снова работает{f' ({where})' if where else ''}.",
+) -> int:
+    """Та же задача отработала: её нерешённые ошибки — «решено», в журнал — одна запись «ok».
+
+    Задача события — это (source, event_id, stage): успех у другого тикера чужую ошибку не решает.
+    Ежедневная задача (без события) решает свои ошибки следующим успешным запуском.
+    """
+    query = select(orm.ErrorLog).where(
+        orm.ErrorLog.level == "error",
+        orm.ErrorLog.resolved_at.is_(None),
+        orm.ErrorLog.source == source,
     )
+    if event_id is None:
+        query = query.where(orm.ErrorLog.event_id.is_(None))
+    else:
+        query = query.where(orm.ErrorLog.event_id == event_id, orm.ErrorLog.stage == stage)
+    errors = session.scalars(query).all()
+    if not errors:
+        return 0
+    for error in errors:
+        error.resolved_at = at
+    ticker = errors[0].ticker
+    where = " ".join(part for part in (ticker, stage) if part)
+    session.add(
+        orm.ErrorLog(
+            at=at,
+            level="ok",
+            source=source,
+            event_id=event_id,
+            ticker=ticker,
+            stage=stage,
+            error_type="OK",
+            message=f"Решено{f': {where}' if where else ''} — задача отработала успешно.",
+        )
+    )
+    return len(errors)
 
 
 def logged_job[**P, R](
@@ -108,9 +122,7 @@ def logged_job[**P, R](
                 raise
             try:
                 with Session(engine()) as session, session.begin():
-                    entry = recovery_entry(session, source, at=datetime.now(UTC))
-                    if entry is not None:
-                        session.add(entry)
+                    resolve(session, source, at=datetime.now(UTC))
             except Exception:  # журнал не должен ломать успешную задачу
                 logger.exception("error log write failed", extra={"source": source})
             return result

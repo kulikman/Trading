@@ -1,8 +1,8 @@
 """Шапка (статус, РЫНОК) и раздел «Система» (DASHBOARD.md §2, §3, §4.7).
 
 РЫНОК — последний снимок агента «Макро» (VIX, regime = уровень Black Swan, T14a).
-Сбой — задача, у которой последняя запись журнала error_log за system_failure_window_hours — ошибка;
-после записи «снова работает» шапка возвращается в «СИСТЕМА ОК».
+Сбой — нерешённая ошибка задачи в журнале error_log за system_failure_window_hours. Когда та же
+задача отработала (у задачи события — тот же тикер и стадия), ошибка «решена», шапка — «ОК».
 Журнала состояния источников и сообщений «СИСТЕМА» пока нет (сторож и Telegram — T18):
 источники показываются как «нет данных», а не «ОК».
 """
@@ -72,14 +72,16 @@ class Models(BaseModel):
 
 class ErrorRow(BaseModel):
     time: str
-    level: str  # «ошибка» / «работает»
+    level: str  # «ошибка» / «решено <когда>»
     tone: Tone
     source: str
     ticker: str
     stage: str
     error_type: str
     message: str
-    report: str | None  # текст для кнопки «копировать» (только у ошибок) — отправить на исправление
+    report: (
+        str | None
+    )  # текст для кнопки «копировать» (только у нерешённых) — отправить на исправление
 
 
 class Errors(BaseModel):
@@ -117,16 +119,17 @@ def status_view(session: Session, now: datetime, thresholds: Thresholds) -> Stat
 
 
 def _failing_sources(session: Session, since: datetime) -> list[str]:
-    """Задачи, у которых последняя запись журнала за окно — ошибка (после «работает» сбоя нет)."""
-    entries = session.scalars(
-        select(orm.ErrorLog)
-        .where(orm.ErrorLog.at >= since)
-        .order_by(orm.ErrorLog.at.desc(), orm.ErrorLog.id.desc())
+    """Задачи с нерешёнными ошибками за окно (решённая ошибка — уже не сбой)."""
+    sources = session.scalars(
+        select(orm.ErrorLog.source)
+        .where(
+            orm.ErrorLog.level == "error",
+            orm.ErrorLog.resolved_at.is_(None),
+            orm.ErrorLog.at >= since,
+        )
+        .order_by(orm.ErrorLog.at.desc())
     ).all()
-    latest: dict[str, str] = {}
-    for entry in entries:
-        latest.setdefault(entry.source, entry.level)
-    return [source for source, level in latest.items() if level == "error"]
+    return list(dict.fromkeys(sources))
 
 
 def models_view() -> Models:
@@ -177,21 +180,29 @@ def errors_view(session: Session, limit: int) -> Errors:
     rows = []
     for e in entries:
         time = f"{day(to_et(e.at).date())} {et_msk(e.at)}"
-        is_error = e.level == "error"
+        is_open = e.level == "error" and e.resolved_at is None
         rows.append(
             ErrorRow(
                 time=time,
-                level="ошибка" if is_error else "работает",
-                tone="negative" if is_error else "positive",
+                level=_level(e),
+                tone="negative" if is_open else "positive",
                 source=e.source,
                 ticker=e.ticker or "—",
                 stage=e.stage or "—",
                 error_type=e.error_type,
                 message=e.message,
-                report=_error_report(e, time) if is_error else None,
+                report=_error_report(e, time) if is_open else None,
             )
         )
     return Errors(rows=rows, message=None if rows else "ошибок нет")
+
+
+def _level(entry: orm.ErrorLog) -> str:
+    if entry.level == "ok":
+        return "решено"
+    if entry.resolved_at is None:
+        return "ошибка"
+    return f"решено {day(to_et(entry.resolved_at).date())} {et_msk(entry.resolved_at)}"
 
 
 def _error_report(entry: orm.ErrorLog, time: str) -> str:

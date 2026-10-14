@@ -476,6 +476,7 @@ class ErrorLog(Timestamps, Base):
     stage: Mapped[str | None]
     error_type: Mapped[str]
     message: Mapped[str]
+    resolved_at: Mapped[datetime | None]  # та же задача потом отработала — ошибка решена
 
 
 # --- архив опционов (T10) ---

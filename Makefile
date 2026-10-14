@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job
 
 -include .env
 
@@ -67,6 +67,9 @@ backtest:  ## бэктест стратегий на move_ratio → reports/back
 
 run-archive-daily:  ## разовое пополнение архива свежими отчётами (то же, что в 18:30 ET)
 	uv run python -m backtest.daily_archive
+
+rerun-job:  ## повторить упавшую задачу события: make rerun-job ARGS="NFLX T-7 options"
+	uv run python -m core.scheduler.rerun $(ARGS)
 
 promote:  ## поднять плагин на ступень: make promote ARGS="mode_c" (отказ — с причиной)
 	uv run python -m core.registry promote $(ARGS)

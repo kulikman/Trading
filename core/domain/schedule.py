@@ -38,3 +38,4 @@ class ErrorLogEntry(DomainModel):
     stage: str | None = None
     error_type: str
     message: str
+    resolved_at: AwareDatetime | None = None

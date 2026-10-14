@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.app import create_app
@@ -273,22 +274,19 @@ def test_errors_newest_first(seeded: Session, client: TestClient) -> None:
     ]
     status = client.get("/api/status", headers=AUTH).json()
     assert status["headline"] == "СИСТЕМА: СБОЙ options, calendar-daily"
-    seeded.add(
-        orm.ErrorLog(
-            at=datetime(2026, 10, 14, 19, 30, tzinfo=UTC),
-            level="ok",
-            source="options",
-            ticker="TSLA",
-            stage="T-7",
-            error_type="OK",
-            message="Задача снова работает.",
-        )
-    )
+    options_error = seeded.scalars(
+        select(orm.ErrorLog).where(orm.ErrorLog.source == "options")
+    ).one()
+    options_error.resolved_at = datetime(2026, 10, 14, 19, 30, tzinfo=UTC)  # перезапуск прошёл
     seeded.flush()
-    after = client.get("/api/system/errors", headers=AUTH).json()["rows"][0]
-    assert (after["level"], after["tone"], after["report"]) == ("работает", "positive", None)
+    resolved = client.get("/api/system/errors", headers=AUTH).json()["rows"][0]
+    assert (resolved["level"], resolved["tone"], resolved["report"]) == (
+        "решено 14.10.2026 15:30 ET / 22:30 МСК",
+        "positive",
+        None,
+    )
     status = client.get("/api/status", headers=AUTH).json()
-    assert status["headline"] == "СИСТЕМА: СБОЙ calendar-daily"  # options снова работает
+    assert status["headline"] == "СИСТЕМА: СБОЙ calendar-daily"  # options решено
     report = rows[0]["report"]
     assert "Задача: options" in report
     assert "Тикер: NFLX · стадия: T-7" in report
