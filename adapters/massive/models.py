@@ -138,6 +138,16 @@ class OptionSnapshot(ApiModel):
     underlying_asset: UnderlyingAsset | None = None
 
 
+class ShortInterest(ApiModel):
+    """/stocks/v1/short-interest (FINRA, расчёт дважды в месяц); поля — по ответу 14.10.2026."""
+
+    settlement_date: date
+    ticker: str
+    short_interest: float
+    avg_daily_volume: float | None = None
+    days_to_cover: float | None = None
+
+
 class TickerChange(ApiModel):
     """Смена тикера (/vX/reference/tickers/{ticker}/events): с date бумага торгуется как ticker."""
 

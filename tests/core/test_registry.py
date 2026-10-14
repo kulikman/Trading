@@ -1,4 +1,5 @@
 import dataclasses
+import importlib
 import sys
 from pathlib import Path
 
@@ -156,7 +157,10 @@ def test_loader_fails_loudly(
         load_agents(config_with(entry(plugin_id)), fake_packages)
 
 
-def test_real_registry_loads_without_errors() -> None:
-    config = load_config()
-    assert load_agents(config) == {}  # пока включён только календарь (runs: schedule)
-    assert load_strategies(config) == {}
+def test_real_registry_plugins_resolve() -> None:
+    """Каждый включённый плагин конвейера события находится по соглашению (без клиентов)."""
+    for entry_ in load_config().registry.plugins:
+        if entry_.enabled and entry_.runs == "event":
+            package = "agents" if entry_.kind == "agent" else "strategies"
+            module = importlib.import_module(f"{package}.{entry_.id}.plugin")
+            assert callable(module.create_plugin), entry_.id

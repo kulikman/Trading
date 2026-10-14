@@ -153,6 +153,7 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
     fake = FakeScheduler()
     monkeypatch.setenv("DATABASE_URL", test_database_url)
     monkeypatch.setattr(scheduler_main, "create_scheduler", lambda url: fake)
+    monkeypatch.setattr(scheduler_main, "handlers", dict)  # агенты требуют ключей API
     scheduler_main.main()
     assert (fake.ids, started) == ([CALENDAR_JOB_ID, ARCHIVE_JOB_ID, DISPATCH_JOB_ID], [True])
 
@@ -167,7 +168,7 @@ def isolated_engine(monkeypatch: pytest.MonkeyPatch, engine: Engine) -> Engine:
 def test_run_dispatch_entry_point(isolated_engine: Engine) -> None:
     with isolated_engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM event_job")).scalar_one() == 0
-    result = scheduler_jobs.run_dispatch(now=lambda: NOW)
+    result = scheduler_jobs.run_dispatch(now=lambda: NOW, job_handlers=dict)
     assert (result.done, result.missed) == ([], [])
 
 

@@ -7,11 +7,11 @@
 plugins:
   # --- Агенты данных (SPEC §8, реализация — T09, T14) ---
   - {id: calendar,    kind: agent, version: 0.1.0, stage: paper,  enabled: true,  runs: schedule}   # T09
-  - {id: sector,      kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: sector,      kind: agent, version: 0.1.0, stage: paper,  enabled: true,  runs: event}   # T14a
   - {id: dossier,     kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
   - {id: consensus,   kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
-  - {id: positioning, kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
-  - {id: macro,       kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: positioning, kind: agent, version: 0.1.0, stage: paper,  enabled: true,  runs: event}   # T14a
+  - {id: macro,       kind: agent, version: 0.1.0, stage: paper,  enabled: true,  runs: event}   # T14a
   - {id: options,     kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
   # доступ к Polymarket из юрисдикции заказчика не подтверждён (OPEN_QUESTIONS.md)
   - {id: polymarket,  kind: agent, version: 0.1.0, stage: shadow, enabled: false, runs: event}

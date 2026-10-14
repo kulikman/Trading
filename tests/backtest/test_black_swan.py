@@ -2,9 +2,10 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from backtest.black_swan import Level, level_at_entry, levels, scenarios
+from backtest.black_swan import scenarios
 from backtest.simulate import Trade
 from core.config import load_config
+from core.risk.black_swan import Level, level_at_entry, levels
 from core.session_guard import next_trading_day
 
 SETTINGS = load_config().thresholds.risk_limits.black_swan  # VIX 20/25/35, рост 20/40%, SPY 2/4/7%

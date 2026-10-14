@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from core.config import load_config
 from core.db.session import create_db_engine
-from core.scheduler.dispatch import HANDLERS, DispatchResult, dispatch_due
+from core.registry.agent_jobs import agent_handlers
+from core.registry.loader import load_agents
+from core.scheduler.dispatch import HANDLERS, DispatchResult, Handler, dispatch_due
 
 
 @cache
@@ -17,8 +19,18 @@ def engine() -> Engine:
     return create_db_engine()
 
 
-def run_dispatch(now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> DispatchResult:
+@cache
+def handlers() -> dict[str, Handler]:
+    """Обработчики задач: встроенные + агенты, загруженные реестром (один раз на процесс)."""
+    config = load_config()
+    return {**HANDLERS, **agent_handlers(config.schedule, load_agents(config))}
+
+
+def run_dispatch(
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    job_handlers: Callable[[], dict[str, Handler]] = handlers,
+) -> DispatchResult:
     """Наступившие задачи событий — в одной транзакции."""
     grace = timedelta(seconds=load_config().schedule.scheduler.misfire_grace_seconds)
     with Session(engine()) as session, session.begin():
-        return dispatch_due(session, now=now(), grace=grace, handlers=HANDLERS)
+        return dispatch_due(session, now=now(), grace=grace, handlers=job_handlers())

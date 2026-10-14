@@ -9,8 +9,14 @@ from sqlalchemy.orm import Session
 
 from core.config.universe import Universe
 from core.db import models as orm
-from core.domain.earnings import ConsensusSnapshot, EarningsTrack, ReportedEarnings
+from core.domain.earnings import (
+    ConsensusSnapshot,
+    EarningsTrack,
+    FeatureSnapshot,
+    ReportedEarnings,
+)
 from core.domain.financials import FinancialQuarter
+from core.domain.market import SectorSummary
 from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar, OptionMinuteBar
 from core.domain.schedule import EventJob
@@ -157,6 +163,34 @@ def update_earnings(
         .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
         .values(**values, updated_at=func.now())
     )
+
+
+def save_feature_snapshot(session: Session, snapshot: FeatureSnapshot) -> bool:
+    """Признаки агента на стадии события. Версия агента — часть ключа: повтор не перезаписывает."""
+    statement = (
+        insert(orm.FeatureSnapshot)
+        .values(snapshot.model_dump())
+        .on_conflict_do_nothing(index_elements=["event_id", "stage", "agent_id", "agent_version"])
+        .returning(orm.FeatureSnapshot.event_id)
+    )
+    return session.execute(statement).scalar_one_or_none() is not None
+
+
+def save_sector_summary(session: Session, summary: SectorSummary) -> None:
+    """Итог агента «Сектор» на дату: повтор за ту же дату обновляет строку, а не дублирует."""
+    row = session.scalars(
+        select(orm.SectorSummary).where(
+            orm.SectorSummary.sector_id == summary.sector_id,
+            orm.SectorSummary.as_of == summary.as_of,
+        )
+    ).first()
+    values = summary.model_dump(exclude={"id"})
+    if row is None:
+        session.add(orm.SectorSummary(**values))
+    else:
+        for name, value in values.items():
+            setattr(row, name, value)
+    session.flush()
 
 
 def set_date_check(

@@ -18,6 +18,7 @@ from adapters.massive.models import (
     NewsArticle,
     OptionContract,
     OptionSnapshot,
+    ShortInterest,
     StockQuote,
     StockSnapshot,
     TickerChange,
@@ -178,6 +179,18 @@ class MassiveClient:
             self._settings.cache_ttl_seconds.option_chain,
         )
         return [_parse(OptionSnapshot, row) for row in rows]
+
+    def short_interest(self, ticker: str, limit: int = 10) -> list[ShortInterest]:
+        """Расчёты коротких позиций, от новых к старым (публикуются через ~8 рабочих дней)."""
+        payload = self._http.get_json(
+            "/stocks/v1/short-interest",
+            {"ticker": ticker, "limit": limit, "sort": "settlement_date.desc"},
+            self._settings.cache_ttl_seconds.short_interest,
+        )
+        rows = payload.get("results", [])
+        if not isinstance(rows, list):
+            raise DataError(SOURCE, f"{ticker}: short interest results is not a list")
+        return [_parse(ShortInterest, row) for row in rows]
 
     def ticker_changes(self, ticker: str) -> list[TickerChange]:
         """История тикеров бумаги по возрастанию даты (переименования, например FB → META)."""
