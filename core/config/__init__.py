@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from core.config.broker import BrokerConfig
 from core.config.registry import Registry
 from core.config.sources import Sources
 from core.config.thresholds import Thresholds
@@ -24,6 +25,7 @@ class AppConfig:
     thresholds: Thresholds
     registry: Registry
     sources: Sources
+    broker: BrokerConfig
 
 
 def load_universe(path: Path) -> Universe:
@@ -46,6 +48,11 @@ def load_sources(path: Path) -> Sources:
     return _load(path, Sources)
 
 
+def load_broker(path: Path) -> BrokerConfig:
+    """Читает и валидирует broker.yaml."""
+    return _load(path, BrokerConfig)
+
+
 def load_config(config_dir: Path = DEFAULT_CONFIG_DIR) -> AppConfig:
     """Читает все файлы из каталога config/."""
     return AppConfig(
@@ -53,6 +60,7 @@ def load_config(config_dir: Path = DEFAULT_CONFIG_DIR) -> AppConfig:
         thresholds=load_thresholds(config_dir / "thresholds.yaml"),
         registry=load_registry(config_dir / "registry.yaml"),
         sources=load_sources(config_dir / "sources.yaml"),
+        broker=load_broker(config_dir / "broker.yaml"),
     )
 
 
@@ -81,11 +89,13 @@ def _describe(path: Path, exc: ValidationError) -> str:
 
 __all__ = [
     "AppConfig",
+    "BrokerConfig",
     "ConfigError",
     "Registry",
     "Sources",
     "Thresholds",
     "Universe",
+    "load_broker",
     "load_config",
     "load_registry",
     "load_sources",
