@@ -146,7 +146,7 @@ def fetch_event_bars(
             SOURCE, f"{ticker} {days.report_date}: no option contracts as of {days.pre}"
         )
     expiration = min(c.expiration_date for c in contracts)
-    pairs = _pairs_by_distance([c for c in contracts if c.expiration_date == expiration], spot)
+    pairs = pairs_by_distance([c for c in contracts if c.expiration_date == expiration], spot)
     start = days.pre - timedelta(days=settings.days_before)
     end = days.reaction + timedelta(days=settings.days_after)
     fetched: list[OptionDailyBar] = []
@@ -193,7 +193,7 @@ def straddle_from_bars(
         )
     strike = strikes[0]
     call, put = calls[strike], puts[strike]
-    years = _years(days.pre, expiration)
+    years = years_to_expiration(days.pre, expiration)
     return HistoricalStraddle(
         ticker=ticker,
         days=days,
@@ -224,9 +224,10 @@ def spot_on(closes: Mapping[date, float], ticker: str, days: EventDays) -> float
     return spot
 
 
-def _pairs_by_distance(
+def pairs_by_distance(
     contracts: Sequence[OptionContract], spot: float
 ) -> list[tuple[OptionContract, OptionContract]]:
+    """Пары колл / пут одного страйка, от ближайшего к цене акции."""
     calls = {c.strike_price: c for c in contracts if c.contract_type == "call"}
     puts = {c.strike_price: c for c in contracts if c.contract_type == "put"}
     strikes = sorted(set(calls) & set(puts), key=lambda k: (abs(k - spot), k))
@@ -243,8 +244,8 @@ def _option_type(contract: OptionContract) -> OptionType:
     )
 
 
-def _years(pre: date, expiration: date) -> float:
-    """От закрытия накануне до закрытия в день экспирации (с учётом сокращённых сессий)."""
+def years_to_expiration(pre: date, expiration: date) -> float:
+    """В годах: от закрытия дня pre до закрытия в день экспирации (с учётом сокращённых сессий)."""
     return (_close(expiration) - _close(pre)).total_seconds() / SECONDS_PER_YEAR
 
 
