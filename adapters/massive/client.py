@@ -20,6 +20,7 @@ from adapters.massive.models import (
     OptionSnapshot,
     StockQuote,
     StockSnapshot,
+    TickerChange,
 )
 from core.config.sources import MassiveSettings
 
@@ -177,6 +178,28 @@ class MassiveClient:
             self._settings.cache_ttl_seconds.option_chain,
         )
         return [_parse(OptionSnapshot, row) for row in rows]
+
+    def ticker_changes(self, ticker: str) -> list[TickerChange]:
+        """История тикеров бумаги по возрастанию даты (переименования, например FB → META)."""
+        payload = self._http.get_json(
+            f"/vX/reference/tickers/{ticker}/events",
+            ttl_seconds=self._settings.cache_ttl_seconds.ticker_events,
+        )
+        results = payload.get("results")
+        if not isinstance(results, dict):
+            raise DataError(SOURCE, f"{ticker}: no results in ticker events")
+        events = results.get("events", [])
+        if not isinstance(events, list):
+            raise DataError(SOURCE, f"{ticker}: ticker events is not a list")
+        changes = [
+            _parse(
+                TickerChange,
+                {"date": e.get("date"), "ticker": (e.get("ticker_change") or {}).get("ticker")},
+            )
+            for e in events
+            if isinstance(e, dict) and e.get("type") == "ticker_change"
+        ]
+        return sorted(changes, key=lambda c: c.date)
 
     def news(self, ticker: str, published_gte: date | None = None) -> list[NewsArticle]:
         """Новости по тикеру, от новых к старым. Входит во все тарифы Stocks."""

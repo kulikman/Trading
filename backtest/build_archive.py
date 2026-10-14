@@ -29,6 +29,7 @@ from adapters.edgar.models import CompanyFacts, Filing
 from adapters.errors import DataError
 from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.history import EventDays, stock_closes
+from adapters.massive.symbols import StockHistorySource, daily_bars
 from backtest.archive_steps import (
     ArchiveStats,
     DateCheck,
@@ -42,7 +43,6 @@ from backtest.option_history import (
     STOCK_PADDING_DAYS,
     EarningsSourceExhausted,
     OptionHistoryLoader,
-    StockBarsSource,
 )
 from core.config import load_config
 from core.config.sources import EdgarSettings
@@ -82,7 +82,7 @@ class ArchiveBuilder:
         self,
         *,
         loader: OptionHistoryLoader,
-        stocks: StockBarsSource,
+        stocks: StockHistorySource,
         sec: SecSource,
         edgar: EdgarSettings,
         today: date,
@@ -118,13 +118,11 @@ class ArchiveBuilder:
             return result
         first = EventDays.of(rows[0].report_date, rows[0].report_time)
         last = EventDays.of(rows[-1].report_date, rows[-1].report_time)
-        bars = self._stocks.aggregates(
+        bars = daily_bars(  # через смены тикера: до 09.06.2022 META торговалась как FB
+            self._stocks,
             ticker,
-            1,
-            "day",
             max(first.pre - timedelta(days=STOCK_PADDING_DAYS), stock_since),
             last.reaction,
-            adjusted=False,
         )
         apply_moves(session, ticker, rows, stock_closes(bars), self._today, result.stats)
         session.commit()

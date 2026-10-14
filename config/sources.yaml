@@ -23,6 +23,7 @@ massive:
     option_contracts: 86400    # справочник контрактов обновляется раз в день
     option_chain: 60
     news: 900
+    ticker_events: 86400       # история смены тикера (FB → META)
   implied_move:
     expiration_lookahead_days: 14   # окно поиска ближайшей экспирации после реакции на отчёт
     # IV выше — почти наверняка проценты вместо долей (единица в документации не указана) → DataError.

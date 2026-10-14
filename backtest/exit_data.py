@@ -213,7 +213,7 @@ class ExitDataLoader:
 
     def _ensure_minutes(self, db: Session, legs: Sequence[str], day: date) -> int:
         """Минутные цены ног с открытия до времени выхода; уже сохранённые не качаются."""
-        start, end = _window(day, self._thresholds.backtest.exit_time_et)
+        start, end = exit_window(day, self._thresholds.backtest.exit_time_et)
         stored = option_minute_bars(db, legs, start, end)
         saved = 0
         for leg in legs:
@@ -240,7 +240,7 @@ class ExitDataLoader:
         return saved
 
 
-def _window(day: date, exit_time: time) -> tuple[datetime, datetime]:
+def exit_window(day: date, exit_time: time) -> tuple[datetime, datetime]:
     """С открытия основной сессии до времени выхода включительно (минута выхода — в окне)."""
     trading = session(day)
     if trading is None:
