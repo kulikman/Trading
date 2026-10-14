@@ -5,15 +5,16 @@ from typing import Self
 from pydantic import Field, model_validator
 
 from core.config.base import StrictModel
-from core.domain.types import PluginKind, PluginStage
+from core.domain.types import PluginKind, PluginRuns, PluginStage
 
 
 class PluginEntry(StrictModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     kind: PluginKind
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
-    stage: PluginStage
+    stage: PluginStage  # начальная стадия; текущая — в БД (таблица plugin), меняет только promote
     enabled: bool
+    runs: PluginRuns
 
 
 class Registry(StrictModel):

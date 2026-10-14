@@ -193,6 +193,7 @@ def _registry_append(entry: dict[str, object]) -> Mutation:
                     "version": "0.1.0",
                     "stage": "shadow",
                     "enabled": False,
+                    "runs": "schedule",
                 }
             ),
             "duplicate plugin calendar 0.1.0",

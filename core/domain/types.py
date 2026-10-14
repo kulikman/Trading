@@ -36,6 +36,9 @@ CardState = Literal[
 
 PluginKind = Literal["agent", "strategy"]
 PluginStage = Literal["shadow", "paper", "live_small", "live"]
+# event — конвейер события (агенты T14, стратегии T16); schedule — своя задача планировщика
+PluginRuns = Literal["event", "schedule"]
+PromotionMetric = Literal["brier", "sharpe"]
 
 JobKind = Literal["analysis", "execution", "notify"]
 # no_handler — исполнитель задачи ещё не реализован (агенты T14, решения T16 и т. д.).

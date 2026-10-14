@@ -1,23 +1,25 @@
 # Реестр плагинов. Ядро не знает имён — только этот файл (SPEC §7).
 # Стадии: shadow → paper → live_small → live. Вверх — только командой `promote`.
+# stage здесь — начальная стадия: текущая хранится в БД (таблица plugin), её меняет только promote
+# (решение заказчика 14.10.2026). runs: event — конвейер события, schedule — своя задача планировщика.
 # enabled: false — плагин ещё не реализован; включает задача, которая его пишет.
 
 plugins:
   # --- Агенты данных (SPEC §8, реализация — T09, T14) ---
-  - {id: calendar,    kind: agent, version: 0.1.0, stage: paper,  enabled: true}   # T09
-  - {id: sector,      kind: agent, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: dossier,     kind: agent, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: consensus,   kind: agent, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: positioning, kind: agent, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: macro,       kind: agent, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: options,     kind: agent, version: 0.1.0, stage: paper,  enabled: false}
+  - {id: calendar,    kind: agent, version: 0.1.0, stage: paper,  enabled: true,  runs: schedule}   # T09
+  - {id: sector,      kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: dossier,     kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: consensus,   kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: positioning, kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: macro,       kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: options,     kind: agent, version: 0.1.0, stage: paper,  enabled: false, runs: event}
   # доступ к Polymarket из юрисдикции заказчика не подтверждён (OPEN_QUESTIONS.md)
-  - {id: polymarket,  kind: agent, version: 0.1.0, stage: shadow, enabled: false}
+  - {id: polymarket,  kind: agent, version: 0.1.0, stage: shadow, enabled: false, runs: event}
 
   # --- Стратегии (SPEC §17 п.4, реализация — T16) ---
-  - {id: mode_a,            kind: strategy, version: 0.1.0, stage: shadow, enabled: false}  # до бэктеста
-  - {id: mode_b,            kind: strategy, version: 0.1.0, stage: shadow, enabled: false}  # до 30+ наблюдений с Brier лучше базового
-  - {id: mode_c,            kind: strategy, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: straddle,          kind: strategy, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: iron_condor,       kind: strategy, version: 0.1.0, stage: paper,  enabled: false}
-  - {id: polymarket_binary, kind: strategy, version: 0.1.0, stage: shadow, enabled: false}
+  - {id: mode_a,            kind: strategy, version: 0.1.0, stage: shadow, enabled: false, runs: event}  # до бэктеста
+  - {id: mode_b,            kind: strategy, version: 0.1.0, stage: shadow, enabled: false, runs: event}  # до 30+ наблюдений с Brier лучше базового
+  - {id: mode_c,            kind: strategy, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: straddle,          kind: strategy, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: iron_condor,       kind: strategy, version: 0.1.0, stage: paper,  enabled: false, runs: event}
+  - {id: polymarket_binary, kind: strategy, version: 0.1.0, stage: shadow, enabled: false, runs: event}
