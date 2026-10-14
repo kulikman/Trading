@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options build-archive backtest-data backtest run-archive-daily run-bot run-api
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api
 
 -include .env
 
@@ -64,6 +64,9 @@ backtest:  ## бэктест стратегий на move_ratio → reports/back
 
 run-archive-daily:  ## разовое пополнение архива свежими отчётами (то же, что в 18:30 ET)
 	uv run python -m backtest.daily_archive
+
+promote:  ## поднять плагин на ступень: make promote ARGS="mode_c" (отказ — с причиной)
+	uv run python -m core.registry promote $(ARGS)
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1

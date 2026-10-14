@@ -44,6 +44,7 @@ from core.domain.types import (
     OptionType,
     PluginKind,
     PluginStage,
+    PromotionMetric,
     QueueStatus,
     ReportTime,
 )
@@ -433,6 +434,30 @@ class EventChange(Timestamps, Base):
     old_value: Mapped[str | None]
     new_value: Mapped[str | None]
     reason: Mapped[str | None]
+
+
+class PluginStageChange(Timestamps, Base):
+    """Журнал promote (T13): переходы стадий и отказы с причиной."""
+
+    __tablename__ = "plugin_stage_change"
+    __table_args__ = (
+        CheckConstraint(_one_of("from_stage", PluginStage), name="from_stage"),
+        CheckConstraint(_one_of("to_stage", PluginStage), name="to_stage"),
+        CheckConstraint(_one_of("metric", PromotionMetric), name="metric"),
+    )
+
+    id: Mapped[int] = _pk_id()
+    plugin_id: Mapped[str] = mapped_column(index=True)
+    version: Mapped[str]
+    from_stage: Mapped[str]
+    to_stage: Mapped[str | None]
+    accepted: Mapped[bool]
+    reason: Mapped[str]
+    metric: Mapped[str]
+    observations: Mapped[int]
+    baseline: Mapped[float | None]
+    candidate: Mapped[float | None]
+    at: Mapped[datetime]
 
 
 # --- архив опционов (T10) ---

@@ -26,7 +26,7 @@ from core.domain.financials import FinancialQuarter
 from core.domain.market import Company, PeerEdge, Sector, SectorSummary
 from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar, OptionMinuteBar
-from core.domain.plugin import Plugin
+from core.domain.plugin import Plugin, PluginStageChange
 from core.domain.schedule import EventChange, EventJob
 from core.domain.trading import Decision, TradeCard, TradeCardTransition
 
@@ -52,6 +52,7 @@ EXPECTED_TABLES = {
     "apscheduler_jobs",
     "option_daily_bar",
     "option_minute_bar",
+    "plugin_stage_change",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -345,6 +346,20 @@ CASES: dict[str, Builder] = {
             volume=12,
             vwap=60.3,
             transactions=7,
+        ),
+    ),
+    "plugin_stage_change": lambda s, c: (
+        orm.PluginStageChange,
+        PluginStageChange(
+            plugin_id="mode_c",
+            version="0.1.0",
+            from_stage="paper",
+            to_stage=None,
+            accepted=False,
+            reason="мало наблюдений: 0 из 30",
+            metric="sharpe",
+            observations=0,
+            at=AT,
         ),
     ),
     "event_job": lambda s, c: (
