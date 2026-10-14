@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api
 
 -include .env
 
@@ -49,6 +49,9 @@ run-scheduler:
 
 run-calendar:  ## разовый прогон «Календаря» (то же, что в 06:00 ET)
 	uv run python -m agents.calendar
+
+run-consensus:  ## разовый снимок консенсуса (то же, что в 06:10 ET)
+	uv run python -m agents.consensus
 
 load-options:  ## архив опционов по прошлым отчётам: make load-options ARGS="--ticker NFLX" или ARGS="--all"
 	uv run python -m backtest.load_option_history $(ARGS)
