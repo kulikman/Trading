@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from core.db import models as orm
 from core.domain.schedule import EventJob
+from core.error_log import error_entry
 from core.scheduler.plan import job_key
 
 logger = logging.getLogger(__name__)
@@ -63,10 +64,21 @@ def dispatch_due(
         try:
             with session.begin_nested():
                 handler(session, EventJob.model_validate(row))
-        except Exception:
+        except Exception as error:
             row.status = "failed"
             result.failed.append(key)
             logger.exception("event job failed", extra={"job": key})
+            event = session.get(orm.Event, row.event_id)
+            session.add(
+                error_entry(
+                    row.job,
+                    error,
+                    at=now,
+                    event_id=row.event_id,
+                    ticker=event.ticker if event else None,
+                    stage=row.stage,
+                )
+            )
             continue
         row.status = "done"
         result.done.append(key)

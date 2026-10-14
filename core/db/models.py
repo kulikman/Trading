@@ -460,6 +460,21 @@ class PluginStageChange(Timestamps, Base):
     at: Mapped[datetime]
 
 
+class ErrorLog(Timestamps, Base):
+    """Журнал ошибок задач для экрана «Настройки → Логи ошибок» (секреты вычищены при записи)."""
+
+    __tablename__ = "error_log"
+
+    id: Mapped[int] = _pk_id()
+    at: Mapped[datetime] = mapped_column(index=True)
+    source: Mapped[str]  # задача: options, calendar-daily, archive-daily …
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("event.id"))
+    ticker: Mapped[str | None]
+    stage: Mapped[str | None]
+    error_type: Mapped[str]
+    message: Mapped[str]
+
+
 # --- архив опционов (T10) ---
 
 

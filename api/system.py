@@ -66,6 +66,20 @@ class Models(BaseModel):
     message: str | None
 
 
+class ErrorRow(BaseModel):
+    time: str
+    source: str
+    ticker: str
+    stage: str
+    error_type: str
+    message: str
+
+
+class Errors(BaseModel):
+    rows: list[ErrorRow]
+    message: str | None
+
+
 class PluginRow(BaseModel):
     name: str
     kind: str
@@ -136,3 +150,22 @@ def _market(session: Session) -> Market:
         tone=LEVEL_TONES[level] if level else "neutral",
         as_of=et_msk(snapshot.created_at),
     )
+
+
+def errors_view(session: Session, limit: int) -> Errors:
+    """Последние ошибки задач, от новых к старым (журнал error_log, секреты вычищены при записи)."""
+    entries = session.scalars(
+        select(orm.ErrorLog).order_by(orm.ErrorLog.at.desc(), orm.ErrorLog.id.desc()).limit(limit)
+    ).all()
+    rows = [
+        ErrorRow(
+            time=f"{day(to_et(e.at).date())} {et_msk(e.at)}",
+            source=e.source,
+            ticker=e.ticker or "—",
+            stage=e.stage or "—",
+            error_type=e.error_type,
+            message=e.message,
+        )
+        for e in entries
+    ]
+    return Errors(rows=rows, message=None if rows else "ошибок нет")
