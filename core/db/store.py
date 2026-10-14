@@ -1,8 +1,9 @@
 """Запись данных источников в БД. Повторный запуск задачи не создаёт дублей (SPEC §13)."""
 
 from collections.abc import Iterable
+from datetime import date
 
-from sqlalchemy import func
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -11,7 +12,9 @@ from core.db import models as orm
 from core.domain.earnings import ConsensusSnapshot
 from core.domain.financials import FinancialQuarter
 from core.domain.news import NewsItem
+from core.domain.options import OptionDailyBar
 from core.domain.schedule import EventJob
+from core.domain.types import ReportTime
 
 
 def save_consensus_snapshots(session: Session, snapshots: Iterable[ConsensusSnapshot]) -> int:
@@ -59,6 +62,84 @@ def save_financial_quarters(session: Session, quarters: Iterable[FinancialQuarte
     )
     session.execute(statement)
     return len(rows)
+
+
+def save_option_bars(session: Session, bars: Iterable[OptionDailyBar]) -> int:
+    """Дневные цены контрактов. Повторная загрузка обновляет цену (источник мог её уточнить)."""
+    rows = [b.model_dump() for b in bars]
+    if not rows:
+        return 0
+    statement = insert(orm.OptionDailyBar).values(rows)
+    updated = ("open", "high", "low", "close", "volume", "vwap", "transactions")
+    statement = statement.on_conflict_do_update(
+        index_elements=["option_ticker", "day"],
+        set_={**{c: statement.excluded[c] for c in updated}, "updated_at": func.now()},
+    )
+    session.execute(statement)
+    return len(rows)
+
+
+def save_earnings_dates(
+    session: Session, ticker: str, reports: Iterable[tuple[date, ReportTime | None]]
+) -> int:
+    """Даты прошлых отчётов в earnings_track. Известное время отчёта пустым не затирается."""
+    rows = [{"ticker": ticker, "report_date": d, "report_time": t} for d, t in reports]
+    if not rows:
+        return 0
+    statement = insert(orm.EarningsTrack).values(rows)
+    statement = statement.on_conflict_do_update(
+        index_elements=["ticker", "report_date"],
+        set_={
+            "report_time": func.coalesce(
+                statement.excluded.report_time, orm.EarningsTrack.report_time
+            ),
+            "updated_at": func.now(),
+        },
+    )
+    session.execute(statement)
+    return len(rows)
+
+
+def earnings_dates(
+    session: Session, ticker: str, since: date
+) -> list[tuple[date, ReportTime | None]]:
+    """Даты отчётов компании из earnings_track начиная с since, по возрастанию."""
+    rows = session.execute(
+        select(orm.EarningsTrack.report_date, orm.EarningsTrack.report_time)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date >= since)
+        .order_by(orm.EarningsTrack.report_date)
+    ).all()
+    return [(r.report_date, _report_time(r.report_time)) for r in rows]
+
+
+def set_implied_move(session: Session, ticker: str, report_date: date, move: float) -> None:
+    """Ожидаемое движение прошлого отчёта (T10)."""
+    session.execute(
+        update(orm.EarningsTrack)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date == report_date)
+        .values(implied_move=move, updated_at=func.now())
+    )
+
+
+def option_bars_on(session: Session, underlying: str, day: date) -> list[OptionDailyBar]:
+    """Архивные цены контрактов базового актива за день."""
+    rows = session.scalars(
+        select(orm.OptionDailyBar).where(
+            orm.OptionDailyBar.underlying == underlying, orm.OptionDailyBar.day == day
+        )
+    ).all()
+    return [OptionDailyBar.model_validate(r, from_attributes=True) for r in rows]
+
+
+REPORT_TIMES: dict[str, ReportTime] = {"BMO": "BMO", "AMC": "AMC", "DURING": "DURING"}
+
+
+def _report_time(value: str | None) -> ReportTime | None:
+    if value is None:
+        return None
+    if value not in REPORT_TIMES:
+        raise ValueError(f"unexpected report_time in earnings_track: {value}")
+    return REPORT_TIMES[value]
 
 
 def sync_universe(session: Session, universe: Universe) -> None:

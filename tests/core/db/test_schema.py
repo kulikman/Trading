@@ -25,6 +25,7 @@ from core.domain.earnings import (
 from core.domain.financials import FinancialQuarter
 from core.domain.market import Company, PeerEdge, Sector, SectorSummary
 from core.domain.news import NewsItem
+from core.domain.options import OptionDailyBar
 from core.domain.plugin import Plugin
 from core.domain.schedule import EventChange, EventJob
 from core.domain.trading import Decision, TradeCard, TradeCardTransition
@@ -49,6 +50,7 @@ EXPECTED_TABLES = {
     "event_job",
     "event_change",
     "apscheduler_jobs",
+    "option_daily_bar",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -310,6 +312,24 @@ CASES: dict[str, Builder] = {
             form="10-K",
             accession="0000886982-26-000050",
             filed=date(2026, 2, 20),
+        ),
+    ),
+    "option_daily_bar": lambda s, c: (
+        orm.OptionDailyBar,
+        OptionDailyBar(
+            option_ticker="O:NFLX241018C00687500",
+            day=date(2024, 10, 17),
+            underlying="NFLX",
+            expiration=date(2024, 10, 18),
+            strike=687.5,
+            option_type="call",
+            open=34.0,
+            high=36.1,
+            low=24.9,
+            close=25.57,
+            volume=381,
+            vwap=29.8,
+            transactions=212,
         ),
     ),
     "event_job": lambda s, c: (
