@@ -47,6 +47,14 @@ class ArchiveSettings(StrictModel):
     _time = field_validator("run_time_et", mode="before")(_parse_time)
 
 
+class ConsensusSnapshotSettings(StrictModel):
+    """Ежедневный снимок консенсуса (T06); окно — sources.finnhub.consensus_lookahead_days."""
+
+    run_time_et: time
+
+    _time = field_validator("run_time_et", mode="before")(_parse_time)
+
+
 class EventJobSpec(StrictModel):
     stage: str = Field(pattern=r"^T([+-]\d+|0)$")
     job: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
@@ -67,6 +75,7 @@ class ScheduleConfig(StrictModel):
     scheduler: SchedulerSettings
     calendar: CalendarSettings
     archive: ArchiveSettings
+    consensus: ConsensusSnapshotSettings
     event_jobs: list[EventJobSpec] = Field(min_length=1)
 
     @model_validator(mode="after")

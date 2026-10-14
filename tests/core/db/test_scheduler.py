@@ -9,8 +9,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import Engine, delete, func, select, text
 from sqlalchemy.orm import Session
 
+from adapters.finnhub.client import FinnhubClient
 from agents.calendar import job as calendar_job
 from agents.calendar.agent import CalendarAgent, CalendarRunResult
+from agents.consensus import job as consensus_job
 from core.config import load_config
 from core.db import models as orm
 from core.domain.schedule import EventJob
@@ -20,6 +22,7 @@ from core.scheduler.dispatch import dispatch_due
 from core.scheduler.runner import (
     ARCHIVE_JOB_ID,
     CALENDAR_JOB_ID,
+    CONSENSUS_JOB_ID,
     DISPATCH_JOB_ID,
     JOBS_TABLE,
     create_scheduler,
@@ -106,7 +109,11 @@ def test_register_jobs_in_postgres_store_is_idempotent(
         register_jobs(scheduler, SCHEDULE)
         register_jobs(scheduler, SCHEDULE)
         jobs = {j.id: j for j in scheduler.get_jobs()}
-        assert set(jobs) == {CALENDAR_JOB_ID, ARCHIVE_JOB_ID, DISPATCH_JOB_ID}
+        assert set(jobs) == {CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, DISPATCH_JOB_ID}
+        consensus = jobs[CONSENSUS_JOB_ID].trigger
+        assert isinstance(consensus, CronTrigger)
+        consensus_fields = {f.name: str(f) for f in consensus.fields}
+        assert (consensus_fields["hour"], consensus_fields["minute"]) == ("6", "10")
         archive = jobs[ARCHIVE_JOB_ID].trigger
         assert isinstance(archive, CronTrigger)
         archive_fields = {f.name: str(f) for f in archive.fields}
@@ -123,7 +130,7 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             stored = connection.execute(
                 select(func.count()).select_from(orm.apscheduler_jobs)
             ).scalar_one()
-        assert stored == 3
+        assert stored == 4
     finally:
         scheduler.shutdown(wait=False)
         with engine.begin() as connection:
@@ -155,7 +162,10 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
     monkeypatch.setattr(scheduler_main, "create_scheduler", lambda url: fake)
     monkeypatch.setattr(scheduler_main, "handlers", dict)  # агенты требуют ключей API
     scheduler_main.main()
-    assert (fake.ids, started) == ([CALENDAR_JOB_ID, ARCHIVE_JOB_ID, DISPATCH_JOB_ID], [True])
+    assert (fake.ids, started) == (
+        [CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, DISPATCH_JOB_ID],
+        [True],
+    )
 
 
 @pytest.fixture
@@ -203,3 +213,37 @@ def test_build_calendar_agent_wires_real_clients(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("ALPHAVANTAGE_API_KEY", "av-fake")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     assert isinstance(calendar_job.build_calendar_agent(load_config()), CalendarAgent)
+
+
+class CalendarSource:
+    def __init__(self) -> None:
+        self.calls: list[tuple[date, date]] = []
+
+    def earnings_calendar(self, start: date, end: date, symbol: str | None = None) -> list[Any]:
+        self.calls.append((start, end))
+        return []  # строки не пишутся: тест не оставляет данных в общей тестовой базе
+
+
+def test_run_consensus_snapshot_on_trading_days_only(
+    monkeypatch: pytest.MonkeyPatch, engine: Engine
+) -> None:
+    monkeypatch.setattr(consensus_job, "engine", lambda: engine)
+    source = CalendarSource()
+
+    def factory(config: Any) -> CalendarSource:
+        return source
+
+    saturday = datetime(2026, 10, 17, 10, 10, tzinfo=UTC)
+    assert (
+        consensus_job.run_consensus_snapshot(now=lambda: saturday, source_factory=factory) is None
+    )
+    tuesday = datetime(2026, 10, 13, 10, 10, tzinfo=UTC)
+    assert consensus_job.run_consensus_snapshot(now=lambda: tuesday, source_factory=factory) == 0
+    lookahead = load_config().sources.finnhub.consensus_lookahead_days
+    assert source.calls == [(date(2026, 10, 13), date(2026, 10, 13) + timedelta(days=lookahead))]
+
+
+def test_build_consensus_source_wires_finnhub(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FINNHUB_API_KEY", "fh-fake")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    assert isinstance(consensus_job.build_source(load_config()), FinnhubClient)

@@ -21,6 +21,9 @@ archive:                            # ежедневное пополнение 
   run_time_et: "18:30"              # после закрытия: дневные и минутные цены дня реакции уже есть (задержка Massive 15 мин)
   lookback_trading_days: 5          # отчёты с реакцией за 5 торговых дней — пропущенный вечер (Mac спал) наверстается
 
+consensus:                          # ежедневный снимок консенсуса предстоящих отчётов (T06; Finnhub, бесплатно)
+  run_time_et: "06:10"              # после «Календаря»; окно вперёд — sources.yaml: finnhub.consensus_lookahead_days
+
 event_jobs:
   - {stage: T-14, job: sector_cycle,       offset_days: -14, time_et: "07:00", kind: analysis, agent: sector}  # время стартовое
   - {stage: T-10, job: dossier,            offset_days: -10, time_et: "07:00", kind: analysis, agent: dossier}  # время стартовое
