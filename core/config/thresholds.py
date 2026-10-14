@@ -18,6 +18,7 @@ class Sizing(StrictModel):
     kelly_initial_b: PositiveFloat
     stop_implied_moves: PositiveFloat
     max_risk_per_trade: Fraction | None
+    data_collection_risk: Fraction  # сезоны 1–2: фиксированный риск paper-входа по сигналу
 
 
 class LosingStreak(StrictModel):
@@ -65,6 +66,7 @@ class BlackSwanRule(StrictModel):
 
 
 class BlackSwan(StrictModel):
+    manual_red: bool  # ручной красный уровень от заказчика (SPEC §10)
     yellow: BlackSwanLevel
     orange: BlackSwanLevel
     red: BlackSwanLevel

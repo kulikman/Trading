@@ -17,6 +17,7 @@ from core.domain.types import (
     QueueStatus,
     ReportTime,
     SkipReason,
+    StepOutcome,
 )
 
 MIN_DATE_SOURCES_FOR_CONFIRMED = 2  # SPEC §6: дата подтверждена только двумя источниками
@@ -144,3 +145,24 @@ class ModelVersionRecord(DomainModel):
     trained_at: AwareDatetime
     accepted: bool
     reason: str
+
+
+class DecisionStepRecord(DomainModel):
+    """Шаг решения (таблица decision_step)."""
+
+    id: int | None = None
+    event_id: int
+    stage: str
+    job: str
+    strategy_id: str
+    is_shadow: bool
+    outcome: StepOutcome
+    mode: str | None = None
+    construction: str | None = None
+    reasons: list[SkipReason] = Field(default_factory=list)
+    edge: float | None = None
+    confidence: float | None = None
+    probability: float | None = None
+    cost_fraction: float | None = None
+    risk_fraction: float | None = None
+    at: AwareDatetime

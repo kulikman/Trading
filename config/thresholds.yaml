@@ -17,6 +17,10 @@ sizing:                              # SPEC §10
   # Объём позиции = риск / (stop_implied_moves · implied_move).
   stop_implied_moves: 2.0
   max_risk_per_trade: null           # без потолка — решение заказчика 2026-10-13
+  # Сбор данных в сезоны 1–2 (решение заказчика 15.10.2026: «широкая воронка, сужаем по данным»): paper-стратегии
+  # входят по своему сигналу без порога edge и θ, риск — фиксированная доля капитала, как в бэктесте.
+  # Edge и уверенность всё равно пишутся в decision_step. Black Swan: красный — вето, жёлтый / оранжевый — множитель.
+  data_collection_risk: 0.01
 
 risk_limits:                         # SPEC §10
   cluster_max_positions: null        # сектор × неделя; без лимита — решение заказчика 2026-10-13
@@ -28,6 +32,7 @@ risk_limits:                         # SPEC §10
     manual_review: 0.10
     paper_only: 0.15
   black_swan:
+    manual_red: false                # ручной красный уровень от заказчика (SPEC §10): true — новых входов нет, снимает сам
     yellow: {size_multiplier: 0.7, min_confidence: null}
     orange: {size_multiplier: 0.4, min_confidence: 0.80}
     red: {size_multiplier: 0.0, min_confidence: null}   # новых входов нет

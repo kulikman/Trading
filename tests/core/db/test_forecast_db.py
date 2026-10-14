@@ -116,7 +116,7 @@ def test_forecast_by_hand_with_features_from_earlier_stages(session: Session, ev
     assert forecast.p_beat == pytest.approx(0.75)
     assert (forecast.market_p_beat, forecast.edge_beat) == (None, None)  # рынка предсказаний нет
     assert forecast.move_ratio == pytest.approx(0.25)
-    assert forecast.edge_move == pytest.approx(-0.25)
+    assert forecast.edge_move == pytest.approx(0.0)  # эталон — частота архива 25% (решение 14.10)
     assert (forecast.implied_move, forecast.model_version) == (0.084, PRIOR_VERSION)
     run_forecast(session, job(event), registry=CONFIG.registry, settings=SETTINGS)  # повтор
     rows = session.scalars(select(orm.Forecast)).all()

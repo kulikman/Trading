@@ -63,6 +63,7 @@ class EventJobSpec(StrictModel):
     kind: JobKind
     shift: Shift | None = None
     agent: str | None = None  # плагин-агент из registry.yaml, который запускает задача (T14)
+    strategies: list[str] | None = None  # стратегии, которые решают на этой задаче (T16)
 
     _time = field_validator("time_et", mode="before")(_parse_time)
 
