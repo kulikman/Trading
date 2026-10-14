@@ -1,0 +1,50 @@
+{
+  "cik": "0000070858",
+  "name": "BANK OF AMERICA CORP /DE/",
+  "filings": {
+    "recent": {
+      "accessionNumber": [
+        "0000070858-26-000481",
+        "0001918704-26-031341"
+      ],
+      "filingDate": [
+        "2026-10-14",
+        "2026-10-14"
+      ],
+      "reportDate": [
+        "2026-10-14",
+        ""
+      ],
+      "acceptanceDateTime": [
+        "2026-10-14T10:44:44.000Z",
+        "2026-10-13T21:43:42.000Z"
+      ],
+      "form": [
+        "8-K",
+        "424B2"
+      ],
+      "items": [
+        "2.02,7.01,9.01",
+        ""
+      ],
+      "primaryDocument": [
+        "bac-20261014.htm",
+        "form424b2.htm"
+      ]
+    },
+    "files": [
+      {
+        "name": "CIK0000070858-submissions-002.json",
+        "filingCount": 2048,
+        "filingFrom": "2025-05-29",
+        "filingTo": "2025-08-11"
+      },
+      {
+        "name": "CIK0000070858-submissions-003.json",
+        "filingCount": 2071,
+        "filingFrom": "2025-03-04",
+        "filingTo": "2025-05-27"
+      }
+    ]
+  }
+}

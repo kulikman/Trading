@@ -275,3 +275,43 @@ def test_items_may_already_be_a_list() -> None:
         }
     )
     assert filing.items == ["2.02"]
+
+
+BAC = 70858
+
+
+def bac_routes() -> FakeApi:
+    return FakeApi(
+        {
+            "/submissions/CIK0000070858.json": lambda _: load_json("edgar", "submissions_bac.json"),
+            "/submissions/CIK0000070858-submissions-002.json": lambda _: load_json(
+                "edgar", "CIK0000070858-submissions-002.json"
+            ),
+        }
+    )
+
+
+def test_since_reads_only_older_pages_covering_the_period(settings: EdgarSettings) -> None:
+    fake = bac_routes()
+    releases = client(settings, fake).earnings_releases(BAC, since=date(2025, 6, 1))
+    assert [f.filing_date for f in releases] == [date(2026, 10, 14), date(2025, 7, 16)]
+    # страница 003 (до 27.05.2025) не нужна для периода с 01.06.2025
+    assert [r.url.path for r in fake.requests] == [
+        "/submissions/CIK0000070858.json",
+        "/submissions/CIK0000070858-submissions-002.json",
+    ]
+
+
+def test_without_since_only_recent_block_is_read(settings: EdgarSettings) -> None:
+    fake = bac_routes()
+    assert [f.form for f in client(settings, fake).filings(BAC, {"8-K"})] == ["8-K"]
+    assert len(fake.requests) == 1
+
+
+@pytest.mark.parametrize("files", ["oops", [{"name": "x.json"}]])
+def test_bad_files_list_is_data_error(settings: EdgarSettings, files: object) -> None:
+    body = load_json("edgar", "submissions_bac.json")
+    body["filings"]["files"] = files
+    fake = FakeApi({"/submissions/CIK0000070858.json": lambda _: body})
+    with pytest.raises(DataError, match=r"filings\.files"):
+        client(settings, fake).filings(BAC, since=date(2025, 1, 1))

@@ -63,28 +63,37 @@ class EdgarClient:
             mapping[str(row["ticker"]).upper()] = int(row["cik_str"])
         return mapping
 
-    def filings(self, cik: int, forms: Collection[str] = PERIODIC_FORMS) -> list[Filing]:
-        """Недавние подачи компании нужных форм, от новых к старым.
+    def filings(
+        self, cik: int, forms: Collection[str] = PERIODIC_FORMS, since: date | None = None
+    ) -> list[Filing]:
+        """Подачи компании нужных форм, от новых к старым.
 
-        Только блок `recent` (около 1000 последних подач); старые страницы `files` не читаются.
+        Блок `recent` — около 1000 последних подач (у банков с тысячами выпусков нот — меньше года).
+        С since дочитываются старые страницы `files`, перекрывающие период; они не меняются и
+        кэшируются надолго.
         """
         payload = self._http.get_json(
             f"/submissions/{cik10(cik)}.json",
             ttl_seconds=self._settings.cache_ttl_seconds.submissions,
         )
-        recent = payload.get("filings", {}).get("recent")
+        filings_node = payload.get("filings", {})
+        recent = filings_node.get("recent")
         if not isinstance(recent, dict):
             raise DataError(SOURCE, f"{cik10(cik)}: no filings.recent")
-        return [f for f in _rows(cik, recent) if f.form in forms]
+        rows = _rows(cik, recent)
+        if since is not None:
+            for name in _older_pages(cik, filings_node.get("files", []), since):
+                page = self._http.get_json(
+                    f"/submissions/{name}",
+                    ttl_seconds=self._settings.cache_ttl_seconds.submissions_history,
+                )
+                rows += _rows(cik, page)
+        return [f for f in rows if f.form in forms and (since is None or f.filing_date >= since)]
 
     def earnings_releases(self, cik: int, since: date | None = None) -> list[Filing]:
         """8-K с пунктом 2.02 — пресс-релиз о результатах (источник для «Досье» и guidance)."""
         item = self._settings.earnings_release_item
-        return [
-            f
-            for f in self.filings(cik, {"8-K"})
-            if item in f.items and (since is None or f.filing_date >= since)
-        ]
+        return [f for f in self.filings(cik, {"8-K"}, since) if item in f.items]
 
     def company_facts(self, cik: int) -> CompanyFacts:
         """XBRL-факты компании (около 6 МБ на крупного эмитента — кэшируется на сутки)."""
@@ -96,6 +105,19 @@ class EdgarClient:
             return CompanyFacts.model_validate(payload)
         except ValidationError as exc:
             raise DataError(SOURCE, f"{cik10(cik)}: unexpected companyfacts shape") from exc
+
+
+def _older_pages(cik: int, files: object, since: date) -> list[str]:
+    """Имена старых страниц подач, которые заканчиваются не раньше since."""
+    if not isinstance(files, list):
+        raise DataError(SOURCE, f"{cik10(cik)}: filings.files is not a list")
+    names = []
+    for page in files:
+        if not isinstance(page, dict) or "name" not in page or "filingTo" not in page:
+            raise DataError(SOURCE, f"{cik10(cik)}: unexpected filings.files entry")
+        if date.fromisoformat(str(page["filingTo"])) >= since:
+            names.append(str(page["name"]))
+    return names
 
 
 def _rows(cik: int, recent: dict[str, Any]) -> list[Filing]:

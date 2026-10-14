@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
@@ -7,113 +7,27 @@ from sqlalchemy.orm import Session
 
 from adapters.alphavantage.models import AvEarnings
 from adapters.errors import DataError
-from adapters.massive.models import Bar, OptionContract
 from backtest.option_history import EarningsSourceExhausted, OptionHistoryLoader
-from core.config import load_config
 from core.db import models as orm
-from core.db.store import earnings_dates, save_earnings_dates, save_option_bars, sync_universe
+from core.db.store import (
+    earnings_dates,
+    save_option_bars,
+    save_reported_earnings,
+    sync_universe,
+)
+from core.domain.earnings import ReportedEarnings
 from core.domain.options import OptionDailyBar
-from core.session_guard import ET
-
-TODAY = date(2026, 10, 14)
-CONFIG = load_config()
-HISTORY = CONFIG.sources.massive.history
-
-# Отчёты NFLX (AMC): два с ценами опционов, один без контрактов, один вне окна доступа (2 года).
-TRADED = {
-    date(2025, 10, 21): (date(2025, 10, 24), 100.0),
-    date(2026, 1, 20): (date(2026, 1, 23), 90.0),
-}
-NO_CONTRACTS = date(2026, 7, 16)
-TOO_OLD = date(2024, 7, 18)
-
-
-def bar(day: date, close: float) -> Bar:
-    start = datetime.combine(day, time(0), tzinfo=ET).timestamp() * 1000
-    return Bar.model_validate({"o": close, "h": close, "l": close, "c": close, "v": 50, "t": start})
-
-
-def contract(kind: str, strike: float, expiration: date) -> OptionContract:
-    letter = "C" if kind == "call" else "P"
-    return OptionContract.model_validate(
-        {
-            "ticker": f"O:NFLX{expiration:%y%m%d}{letter}{int(strike * 1000):08d}",
-            "underlying_ticker": "NFLX",
-            "contract_type": kind,
-            "exercise_style": "american",
-            "expiration_date": expiration.isoformat(),
-            "strike_price": strike,
-            "shares_per_contract": 100,
-        }
-    )
-
-
-class Options:
-    """ATM-пара на каждый отчёт из TRADED; пре-день = день отчёта (AMC)."""
-
-    def __init__(self) -> None:
-        self.contract_calls = 0
-        self.aggregate_calls: list[str] = []
-        self.contracts: list[OptionContract] = []
-        self.bars: dict[str, list[Bar]] = {}
-        for report, (expiration, spot) in TRADED.items():
-            for kind, price in (("call", 4.0), ("put", 3.0)):
-                item = contract(kind, spot, expiration)
-                self.contracts.append(item)
-                self.bars[item.ticker] = [bar(report - timedelta(days=1), 1.0), bar(report, price)]
-
-    def option_contracts(self, underlying: str, **kwargs: Any) -> list[OptionContract]:
-        self.contract_calls += 1
-        low, high = kwargs["expiration_gte"], kwargs["expiration_lte"]
-        return [c for c in self.contracts if low <= c.expiration_date <= high]
-
-    def aggregates(self, ticker: str, *args: Any, **kwargs: Any) -> list[Bar]:
-        self.aggregate_calls.append(ticker)
-        return self.bars.get(ticker, [])
-
-
-class Stocks:
-    def __init__(self) -> None:
-        self.calls: list[tuple[date, date, bool]] = []
-
-    def aggregates(
-        self,
-        ticker: str,
-        multiplier: int,
-        timespan: str,
-        start: date,
-        end: date,
-        *,
-        adjusted: bool = True,
-    ) -> list[Bar]:
-        self.calls.append((start, end, adjusted))
-        closes = {d: spot for d, (_, spot) in TRADED.items()} | {NO_CONTRACTS: 80.0}
-        return [bar(d, c) for d, c in closes.items()]
-
-
-class Earnings:
-    def __init__(self, error: DataError | None = None) -> None:
-        self.error = error
-        self.calls = 0
-
-    def earnings(self, symbol: str) -> AvEarnings:
-        self.calls += 1
-        if self.error is not None:
-            raise self.error
-        reports = [*TRADED, NO_CONTRACTS, TOO_OLD]
-        return AvEarnings.model_validate(
-            {
-                "symbol": symbol,
-                "quarterlyEarnings": [
-                    {
-                        "fiscalDateEnding": "2026-06-30",
-                        "reportedDate": d.isoformat(),
-                        "reportTime": "post-market",
-                    }
-                    for d in reports
-                ],
-            }
-        )
+from tests.core.db.archive_fakes import (
+    CONFIG,
+    HISTORY,
+    NO_CONTRACTS,
+    TODAY,
+    TOO_OLD,
+    TRADED,
+    Earnings,
+    Options,
+    Stocks,
+)
 
 
 def loader(
@@ -152,9 +66,10 @@ def test_first_run_downloads_saves_and_computes(universe: Session) -> None:
         date(2025, 10, 21): pytest.approx(0.07),
         date(2026, 1, 20): pytest.approx(7 / 90),
         NO_CONTRACTS: None,
-    }  # отчёт старше окна доступа не записан
+        TOO_OLD: None,  # старше окна доступа опционов: только EPS, без implied move
+    }
     assert stocks.calls == [(date(2025, 10, 11), date(2026, 7, 17), False)]  # без поправки на сплит
-    assert earnings_dates(universe, "NFLX", date(2024, 1, 1))[0] == (date(2025, 10, 21), "AMC")
+    assert earnings_dates(universe, "NFLX", date(2024, 1, 1))[0] == (TOO_OLD, "AMC")
 
 
 def test_rerun_uses_archive_and_stored_dates(universe: Session) -> None:
@@ -201,17 +116,48 @@ def test_alphavantage_limit_stops_the_run(universe: Session) -> None:
         )
 
 
+def reported(day: date, report_time: Any = "AMC", eps: float | None = 1.0) -> ReportedEarnings:
+    return ReportedEarnings(
+        ticker="NFLX",
+        report_date=day,
+        report_time=report_time,
+        fiscal_period_end=day - timedelta(days=20),
+        eps_actual=eps,
+    )
+
+
 def test_stale_stored_dates_are_refreshed(universe: Session) -> None:
-    save_earnings_dates(universe, "NFLX", [(date(2025, 1, 21), "AMC")])
+    save_reported_earnings(universe, [reported(date(2025, 1, 21))])
     earnings = Earnings()
     loader(Options(), earnings).load(universe, "NFLX")
     assert earnings.calls == 1
 
 
+def test_fresh_dates_without_eps_are_refetched(universe: Session) -> None:
+    save_reported_earnings(universe, [reported(NO_CONTRACTS, eps=None)])  # как после T10
+    earnings = Earnings()
+    loader(Options(), earnings).load(universe, "NFLX")
+    assert earnings.calls == 1
+    row = universe.scalars(
+        select(orm.EarningsTrack).where(orm.EarningsTrack.report_date == NO_CONTRACTS)
+    ).one()
+    assert (row.eps_consensus, row.eps_actual, row.eps_surprise_pct) == (1.0, 1.1, 10.0)
+    assert row.fiscal_period_end == date(2026, 6, 30)
+
+
 def test_known_report_time_is_not_overwritten_with_unknown(universe: Session) -> None:
-    save_earnings_dates(universe, "NFLX", [(date(2026, 7, 16), "AMC")])
-    save_earnings_dates(universe, "NFLX", [(date(2026, 7, 16), None)])
+    save_reported_earnings(universe, [reported(date(2026, 7, 16))])
+    save_reported_earnings(universe, [reported(date(2026, 7, 16), None)])
     assert earnings_dates(universe, "NFLX", date(2026, 1, 1)) == [(date(2026, 7, 16), "AMC")]
+
+
+def test_duplicate_dates_in_one_batch_keep_the_last(universe: Session) -> None:
+    saved = save_reported_earnings(
+        universe, [reported(date(2026, 7, 16), eps=1.0), reported(date(2026, 7, 16), eps=2.0)]
+    )
+    assert saved == 1
+    row = universe.scalars(select(orm.EarningsTrack)).one()
+    assert row.eps_actual == 2.0
 
 
 def test_no_reports_in_window_does_nothing(universe: Session) -> None:

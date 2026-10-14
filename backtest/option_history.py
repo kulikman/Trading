@@ -1,8 +1,8 @@
 """Загрузка архива опционов вокруг прошлых отчётов и расчёт implied move (T10).
 
 Для каждой компании:
-1. даты прошлых отчётов — из earnings_track, а если их там нет — из Alpha Vantage EARNINGS
-   (25 запросов в день, поэтому записываются в earnings_track и больше не запрашиваются);
+1. даты прошлых отчётов — из earnings_track, а если их там нет (или нет EPS) — из Alpha Vantage
+   EARNINGS (25 запросов в день): вся история с EPS записывается в earnings_track одним запросом;
 2. закрытия акции — Massive, без поправки на сплиты (опционы до сплита — в тогдашних страйках);
 3. по каждому отчёту: если пара ATM уже в архиве — расчёт без запросов, иначе скачивание цен
    контрактов (с лимитом частоты) в option_daily_bar;
@@ -19,6 +19,7 @@ from typing import Literal, Protocol
 
 from sqlalchemy.orm import Session
 
+from adapters.alphavantage.mapping import reported_earnings
 from adapters.alphavantage.models import AvEarnings
 from adapters.errors import DataError
 from adapters.massive.history import (
@@ -34,9 +35,10 @@ from adapters.massive.models import Bar
 from core.config.sources import MassiveHistory
 from core.db.store import (
     earnings_dates,
+    has_reported_eps,
     option_bars_on,
-    save_earnings_dates,
     save_option_bars,
+    save_reported_earnings,
     set_implied_move,
 )
 from core.domain.types import ReportTime
@@ -143,20 +145,17 @@ class OptionHistoryLoader:
 
     def _report_dates(self, session: Session, ticker: str) -> list[tuple[date, ReportTime | None]]:
         stored = earnings_dates(session, ticker, self.since)
-        if stored and stored[-1][0] >= self._today - timedelta(days=STALE_DATES_DAYS):
+        is_fresh = bool(stored) and stored[-1][0] >= self._today - timedelta(days=STALE_DATES_DAYS)
+        if is_fresh and has_reported_eps(session, ticker):
             return stored
         try:
             history = self._earnings.earnings(ticker)
         except DataError as exc:
             raise EarningsSourceExhausted(f"{ticker}: {exc.detail}") from exc
-        reports = sorted(
-            (q.reported_date, q.report_time)
-            for q in history.quarterly
-            if q.reported_date is not None and q.reported_date >= self.since
-        )
-        save_earnings_dates(session, ticker, reports)
+        reports = reported_earnings(history)  # вся история EPS (с 1996 г.) — для модели p_beat
+        save_reported_earnings(session, reports)
         self._commit(session)
-        return list(reports)
+        return [(r.report_date, r.report_time) for r in reports if r.report_date >= self.since]
 
     def _event(
         self,
