@@ -9,6 +9,7 @@ from core.db import models as orm
 from core.domain.schedule import EventJob
 from core.error_log import MAX_MESSAGE_LENGTH, error_entry, logged_job, redact
 from core.scheduler.dispatch import dispatch_due
+from core.scheduler.rerun import rerun
 
 NOW = datetime(2026, 10, 14, 19, 0, 30, tzinfo=UTC)
 
@@ -75,7 +76,7 @@ def test_daily_job_error_is_logged_and_reraised(session: Session) -> None:
         other.commit()
 
 
-def test_first_success_after_error_logs_recovery_once(session: Session) -> None:
+def seed_events(session: Session) -> dict[str, int]:
     session.add(orm.Sector(id="tech", name="Tech", key_metrics=[]))
     session.flush()
     session.add_all(
@@ -90,25 +91,83 @@ def test_first_success_after_error_logs_recovery_once(session: Session) -> None:
         session.add(event)
         session.flush()
         ids[ticker] = event.id
-    session.add(error_entry("options", RuntimeError("HTTP 429"), at=NOW, event_id=ids["NFLX"]))
+    return ids
+
+
+def test_only_the_same_ticker_and_stage_resolves_an_error(session: Session) -> None:
+    ids = seed_events(session)
+    session.add(
+        error_entry(
+            "options",
+            RuntimeError("HTTP 429"),
+            at=NOW,
+            event_id=ids["NFLX"],
+            ticker="NFLX",
+            stage="T-7",
+        )
+    )
     later = NOW + timedelta(days=1)
-    for ticker in ("TSLA", "NFLX"):  # два успеха подряд — запись «работает» одна
+    jobs = [("TSLA", "T-7"), ("NFLX", "T-3")]  # другой тикер и другая стадия — не решают
+    for ticker, stage in jobs:
         session.add(
             orm.EventJob(
-                event_id=ids[ticker], stage="T-3", job="options", kind="analysis", run_at=later
+                event_id=ids[ticker], stage=stage, job="options", kind="analysis", run_at=later
             )
         )
     session.flush()
-    result = dispatch_due(
+    dispatch_due(
         session, now=later, grace=timedelta(minutes=5), handlers={"options": lambda s, j: None}
     )
-    assert len(result.done) == 2
+    error = session.scalars(select(orm.ErrorLog).where(orm.ErrorLog.level == "error")).one()
+    assert error.resolved_at is None
+    assert session.scalars(select(orm.ErrorLog).where(orm.ErrorLog.level == "ok")).all() == []
+
+
+def test_rerun_resolves_the_error_once(session: Session) -> None:
+    ids = seed_events(session)
+    session.add(
+        orm.EventJob(
+            event_id=ids["NFLX"],
+            stage="T-7",
+            job="options",
+            kind="analysis",
+            run_at=NOW,
+            status="failed",
+        )
+    )
+    session.add(
+        error_entry(
+            "options",
+            RuntimeError("HTTP 429"),
+            at=NOW,
+            event_id=ids["NFLX"],
+            ticker="NFLX",
+            stage="T-7",
+        )
+    )
+    session.flush()
+    seen: list[datetime] = []
+    later = NOW + timedelta(hours=8)
+    is_done = rerun(
+        session,
+        "NFLX",
+        "T-7",
+        "options",
+        job_handlers={"options": lambda s, job: seen.append(job.run_at)},
+        now=later,
+    )
+    assert is_done
+    assert seen == [NOW]  # тот же момент оценки, что в расписании
+    job = session.scalars(select(orm.EventJob)).one()
+    assert job.status == "done"
     rows = session.scalars(select(orm.ErrorLog).order_by(orm.ErrorLog.id)).all()
-    assert [(r.level, r.ticker) for r in rows] == [("error", None), ("ok", "TSLA")]
-    assert rows[1].message == "Задача снова работает (TSLA T-3)."
+    assert [(r.level, r.resolved_at) for r in rows] == [("error", later), ("ok", None)]
+    assert rows[1].message == "Решено: NFLX T-7 — задача отработала успешно."
+    with pytest.raises(LookupError, match="no failed or missed job"):
+        rerun(session, "NFLX", "T-7", "options", job_handlers={}, now=later)
 
 
-def test_daily_job_success_after_error_logs_recovery(session: Session) -> None:
+def test_daily_job_success_resolves_its_errors(session: Session) -> None:
     engine = session.connection().engine
     calls = iter([RuntimeError("finnhub down"), None, None])
 
@@ -128,7 +187,10 @@ def test_daily_job_success_after_error_logs_recovery(session: Session) -> None:
             .where(orm.ErrorLog.source == "consensus-daily-test")
             .order_by(orm.ErrorLog.id)
         ).all()
-        assert [r.level for r in rows] == ["error", "ok"]
+        assert [(r.level, r.resolved_at is not None) for r in rows] == [
+            ("error", True),
+            ("ok", False),
+        ]
         for r in rows:  # тестовая база общая: убираем за собой
             other.delete(r)
         other.commit()

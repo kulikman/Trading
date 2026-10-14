@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from core.db import models as orm
 from core.domain.schedule import EventJob
-from core.error_log import error_entry, recovery_entry
+from core.error_log import error_entry, resolve
 from core.scheduler.plan import job_key
 
 logger = logging.getLogger(__name__)
@@ -61,36 +61,37 @@ def dispatch_due(
             result.no_handler.append(key)
             logger.info("no handler for event job yet", extra={"job": key})
             continue
-        try:
-            with session.begin_nested():
-                handler(session, EventJob.model_validate(row))
-        except Exception as error:
-            row.status = "failed"
+        if run_job(session, row, handler, now=now):
+            result.done.append(key)
+        else:
             result.failed.append(key)
-            logger.exception("event job failed", extra={"job": key})
-            event = session.get(orm.Event, row.event_id)
-            session.add(
-                error_entry(
-                    row.job,
-                    error,
-                    at=now,
-                    event_id=row.event_id,
-                    ticker=event.ticker if event else None,
-                    stage=row.stage,
-                )
-            )
-            continue
-        row.status = "done"
-        result.done.append(key)
-        event = session.get(orm.Event, row.event_id)
-        recovered = recovery_entry(
-            session,
-            row.job,
-            at=now,
-            event_id=row.event_id,
-            ticker=event.ticker if event else None,
-            stage=row.stage,
-        )
-        if recovered is not None:
-            session.add(recovered)
     return result
+
+
+def run_job(session: Session, row: orm.EventJob, handler: Handler, *, now: datetime) -> bool:
+    """Выполнить одну задачу события: статус done / failed и запись в журнал ошибок.
+
+    Успех решает прежние ошибки этой же задачи (тот же тикер и стадия) — они больше не «сбой».
+    """
+    key = job_key(row.event_id, row.stage, row.job)
+    try:
+        with session.begin_nested():
+            handler(session, EventJob.model_validate(row))
+    except Exception as error:
+        row.status = "failed"
+        logger.exception("event job failed", extra={"job": key})
+        event = session.get(orm.Event, row.event_id)
+        session.add(
+            error_entry(
+                row.job,
+                error,
+                at=now,
+                event_id=row.event_id,
+                ticker=event.ticker if event else None,
+                stage=row.stage,
+            )
+        )
+        return False
+    row.status = "done"
+    resolve(session, row.job, at=now, event_id=row.event_id, stage=row.stage)
+    return True
