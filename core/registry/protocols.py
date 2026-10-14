@@ -50,13 +50,21 @@ class DecisionContext:
 
 @dataclass(frozen=True)
 class Proposal:
-    """Предложение сделки; размер и лимиты режет Capital Manager (T16)."""
+    """Предложение сделки; размер и лимиты режет Capital Manager (T16).
+
+    probability — вероятность выигрыша для Келли; cost_fraction — издержки входа и выхода по
+    CostModel / максимальный убыток конструкции (порог edge > costs + 0.03, решение заказчика
+    15.10.2026); size_multiplier — поправка размера правилами стратегии (рост перед отчётом).
+    """
 
     strategy_id: str
     mode: str
     construction: str
     edge: float
     confidence: float
+    probability: float
+    cost_fraction: float
+    size_multiplier: float = 1.0
 
 
 @dataclass(frozen=True)

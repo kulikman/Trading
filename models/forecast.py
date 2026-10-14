@@ -18,7 +18,7 @@ from core.registry.agent_jobs import feature_stage
 from core.scheduler.dispatch import Handler
 from models.features import stage_features
 from models.logistic import clip, predict
-from models.market import MOVE_RATIO_MARKET, market_p_up
+from models.market import market_move_ratio, market_p_up
 from models.versions import active_models
 
 FORECAST_JOBS = ("forecast", "final_forecast")
@@ -40,6 +40,7 @@ def run_forecast(
     market_up = market_p_up(
         features.get("options.skew_25d"), features.get("options.atm_iv"), margin
     )
+    market_move = market_move_ratio(models.move_base_rate, margin)
     forecast = Forecast(
         event_id=job.event_id,
         stage=stage,
@@ -52,7 +53,7 @@ def run_forecast(
         implied_move=features.get("options.implied_move"),
         edge_beat=None if market_beat is None else p_beat - market_beat,
         edge_up=p_up - market_up,
-        edge_move=move - MOVE_RATIO_MARKET,
+        edge_move=move - market_move,
     )
     session.execute(
         insert(orm.Forecast)

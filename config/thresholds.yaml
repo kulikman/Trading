@@ -28,6 +28,7 @@ risk_limits:                         # SPEC §10
     manual_review: 0.10
     paper_only: 0.15
   black_swan:
+    manual_red: false                # ручной красный уровень от заказчика (SPEC §10): true — новых входов нет, снимает сам
     yellow: {size_multiplier: 0.7, min_confidence: null}
     orange: {size_multiplier: 0.4, min_confidence: 0.80}
     red: {size_multiplier: 0.0, min_confidence: null}   # новых входов нет

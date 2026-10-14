@@ -28,6 +28,13 @@ MODEL_NAMES: tuple[ModelName, ...] = ("p_beat", "p_up", "move_ratio")
 class ActiveModels:
     version: str
     params: Mapping[ModelName, ModelParams]
+    metrics: Mapping[ModelName, Mapping[str, float]]
+
+    @property
+    def move_base_rate(self) -> float | None:
+        """Частота «движение > implied move» в архиве — рыночный эталон move_ratio."""
+        value = self.metrics.get("move_ratio", {}).get("base_rate")
+        return float(value) if value is not None else None
 
 
 class NoModels(LookupError):
@@ -108,15 +115,18 @@ def active_models(session: Session) -> ActiveModels:
         .order_by(orm.ModelVersion.trained_at.desc(), orm.ModelVersion.id.desc())
     ).all()
     by_version: dict[str, dict[ModelName, ModelParams]] = {}
+    metrics: dict[str, dict[ModelName, Mapping[str, float]]] = {}
     order: list[str] = []
     for row in rows:
         if row.version not in by_version:
             by_version[row.version] = {}
+            metrics[row.version] = {}
             order.append(row.version)
         for name in MODEL_NAMES:
             if row.model == name:
                 by_version[row.version][name] = ModelParams.model_validate(row.params)
+                metrics[row.version][name] = row.metrics or {}
     for version in order:
         if set(by_version[version]) == set(MODEL_NAMES):
-            return ActiveModels(version, by_version[version])
+            return ActiveModels(version, by_version[version], metrics[version])
     raise NoModels("no accepted model version: run `make models-init`")

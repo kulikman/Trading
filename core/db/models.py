@@ -49,6 +49,7 @@ from core.domain.types import (
     PromotionMetric,
     QueueStatus,
     ReportTime,
+    StepOutcome,
 )
 
 NAMING_CONVENTION = {
@@ -322,6 +323,37 @@ class Decision(Timestamps, Base):
     construction: Mapped[str | None]
     shadow: Mapped[Any | None] = mapped_column(JSONB)
     decided_at: Mapped[datetime]
+
+
+class DecisionStep(Timestamps, Base):
+    """Шаг решения (T16): предложение или отказ одной стратегии на одной задаче события.
+
+    Из шагов собираются коды пропуска итогового Decision и лучшая отклонённая конструкция для
+    теневой сделки. Шаги shadow-стратегий пишутся, но в решение не идут (SPEC §7).
+    """
+
+    __tablename__ = "decision_step"
+    __table_args__ = (
+        UniqueConstraint("event_id", "stage", "job", "strategy_id"),
+        CheckConstraint(_one_of("outcome", StepOutcome), name="outcome"),
+    )
+
+    id: Mapped[int] = _pk_id()
+    event_id: Mapped[int] = mapped_column(ForeignKey("event.id"), index=True)
+    stage: Mapped[str]
+    job: Mapped[str]
+    strategy_id: Mapped[str]
+    is_shadow: Mapped[bool]
+    outcome: Mapped[str]
+    mode: Mapped[str | None]
+    construction: Mapped[str | None]
+    reasons: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    edge: Mapped[float | None]
+    confidence: Mapped[float | None]
+    probability: Mapped[float | None]
+    cost_fraction: Mapped[float | None]
+    risk_fraction: Mapped[float | None]
+    at: Mapped[datetime]
 
 
 class TradeCard(Timestamps, Base):

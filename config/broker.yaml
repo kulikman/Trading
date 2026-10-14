@@ -10,7 +10,7 @@ costs:
     commission_per_contract: 0.65        # IBKR Pro Fixed, опционы США (там же)
     min_commission_per_option_order: 0.0 # минимум для опционов не подтверждён — OPEN_QUESTIONS
     open_slippage: 0.001                 # проскальзывание на открытии 0,1% — стартовое допущение, калибруется по исполнениям (T21)
-    assumed_spread_stock: null           # без котировки — DataError, не угадываем
+    assumed_spread_stock: 0.0005         # котировок акций на тарифе нет: спред 0,05% — как в бэктесте (решение заказчика 15.10.2026)
     assumed_spread_option: 0.03          # Options Starter без котировок: спред = 3% цены опциона (решение заказчика 14.10.2026)
   ib:
     commission_per_share: 0.005
@@ -19,6 +19,6 @@ costs:
     commission_per_contract: 0.65
     min_commission_per_option_order: 0.0
     open_slippage: 0.001
-    assumed_spread_stock: null
+    assumed_spread_stock: 0.0005
     assumed_spread_option: 0.03
   # freedom: тариф Freedom (Tradernet) не проверен — добавить при выборе брокера (T22).

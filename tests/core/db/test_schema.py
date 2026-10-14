@@ -16,6 +16,7 @@ from core.db import models as orm
 from core.domain.base import DomainModel
 from core.domain.earnings import (
     ConsensusSnapshot,
+    DecisionStepRecord,
     EarningsTrack,
     Event,
     FeatureSnapshot,
@@ -56,6 +57,7 @@ EXPECTED_TABLES = {
     "plugin_stage_change",
     "error_log",
     "model_version",
+    "decision_step",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -362,6 +364,25 @@ CASES: dict[str, Builder] = {
             reason="мало наблюдений: 0 из 30",
             metric="sharpe",
             observations=0,
+            at=AT,
+        ),
+    ),
+    "decision_step": lambda s, c: (
+        orm.DecisionStep,
+        DecisionStepRecord(
+            event_id=c["event"],
+            stage="T-1",
+            job="mode_b_decision",
+            strategy_id="iron_condor",
+            is_shadow=False,
+            outcome="skip",
+            mode="move",
+            construction="iron_condor",
+            reasons=["EDGE_LOW"],
+            edge=0.01,
+            confidence=0.64,
+            probability=0.64,
+            cost_fraction=0.08,
             at=AT,
         ),
     ),

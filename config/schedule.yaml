@@ -32,7 +32,7 @@ event_jobs:
   - {stage: T-7,  job: macro,              offset_days: -7,  time_et: "07:35", kind: analysis, agent: macro}  # время стартовое
   - {stage: T-7,  job: options,            offset_days: -7,  time_et: "15:00", kind: analysis, agent: options}
   - {stage: T-7,  job: forecast,           offset_days: -7,  time_et: "15:10", kind: analysis}
-  - {stage: T-7,  job: mode_a_decision,    offset_days: -7,  time_et: "15:15", kind: analysis}
+  - {stage: T-7,  job: mode_a_decision,    offset_days: -7,  time_et: "15:15", kind: analysis, strategies: [mode_a]}
   - {stage: T-3,  job: consensus,          offset_days: -3,  time_et: "07:10", kind: analysis, agent: consensus}  # SPEC §8: признаки T−10 и T−3
   - {stage: T-3,  job: sector_informants,  offset_days: -3,  time_et: "07:00", kind: analysis, agent: sector}  # время стартовое
   - {stage: T-3,  job: positioning,        offset_days: -3,  time_et: "14:50", kind: analysis, agent: positioning}  # время стартовое
@@ -40,12 +40,12 @@ event_jobs:
   - {stage: T-3,  job: options,            offset_days: -3,  time_et: "15:00", kind: analysis, agent: options}
   - {stage: T-3,  job: polymarket,         offset_days: -3,  time_et: "15:00", kind: analysis}
   - {stage: T-3,  job: forecast,           offset_days: -3,  time_et: "15:10", kind: analysis}
-  - {stage: T-3,  job: mode_b_gate,        offset_days: -3,  time_et: "15:15", kind: analysis}
+  - {stage: T-3,  job: mode_b_gate,        offset_days: -3,  time_et: "15:15", kind: analysis, strategies: [mode_b]}
   - {stage: T-1,  job: positioning,        offset_days: -1,  time_et: "14:50", kind: analysis, agent: positioning}  # время стартовое
   - {stage: T-1,  job: macro,              offset_days: -1,  time_et: "14:51", kind: analysis, agent: macro}  # время стартовое
   - {stage: T-1,  job: options,            offset_days: -1,  time_et: "15:00", kind: analysis, agent: options}
   - {stage: T-1,  job: final_forecast,     offset_days: -1,  time_et: "15:05", kind: analysis}
-  - {stage: T-1,  job: mode_b_decision,    offset_days: -1,  time_et: "15:10", kind: analysis}
+  - {stage: T-1,  job: mode_b_decision,    offset_days: -1,  time_et: "15:10", kind: analysis, strategies: [mode_b, straddle, iron_condor]}
   # Исполнение до отчёта не может уехать на день после него — переносится назад.
   - {stage: T-1,  job: mode_b_entry,       offset_days: -1,  time_et: "15:30", kind: execution, shift: previous}
   - {stage: T-1,  job: mode_a_exit,        offset_days: -1,  time_et: "15:50", kind: execution, shift: previous}

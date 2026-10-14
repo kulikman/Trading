@@ -65,6 +65,7 @@ class BlackSwanRule(StrictModel):
 
 
 class BlackSwan(StrictModel):
+    manual_red: bool  # ручной красный уровень от заказчика (SPEC §10)
     yellow: BlackSwanLevel
     orange: BlackSwanLevel
     red: BlackSwanLevel
