@@ -30,7 +30,7 @@ from backtest.signals import Construction, Signal, condor_strikes, signals
 from backtest.simulate import Leg, Trade, simulate
 from core.config import load_config
 from core.config.sources import MassiveHistory
-from core.config.thresholds import Thresholds
+from core.config.thresholds import CondorStopBasis, Thresholds
 from core.db.session import create_db_engine, database_url
 from core.db.store import earnings_history, option_bars_on, option_minute_bars
 from core.domain.options import OptionDailyBar
@@ -54,6 +54,7 @@ def run_backtest(
     if costs is None:
         raise ValueError("backtest requires a CostModel (SPEC §17 п.3)")
     since = today - timedelta(days=history.archive_days)
+    bt = thresholds.backtest
     result = BacktestResult(since=since, until=today)
     for ticker in tickers:
         found = signals(
@@ -84,11 +85,17 @@ def run_backtest(
         for item in active:
             if item.construction is None:
                 continue
-            outcome = _trade(db, item, item.construction, closes, thresholds, history, costs)
-            if isinstance(outcome, Trade):
-                result.trades.append(outcome)
-            else:
-                result.skipped[f"{item.construction}: {outcome}"] += 1
+            variants: list[CondorStopBasis | None] = (
+                [None] if item.construction == "straddle" else list(bt.compare_condor_stops)
+            )
+            for i, variant in enumerate(variants):
+                outcome = _trade(
+                    db, item, item.construction, closes, thresholds, history, costs, variant
+                )
+                if isinstance(outcome, Trade):
+                    result.trades.append(outcome)
+                elif i == 0:  # пропуск считается один раз на событие, не на вариант
+                    result.skipped[f"{item.construction}: {outcome}"] += 1
     return result
 
 
@@ -100,6 +107,7 @@ def _trade(
     thresholds: Thresholds,
     history: MassiveHistory,
     costs: CostModel,
+    condor_stop: CondorStopBasis | None = None,
 ) -> Trade | str:
     try:
         spot = spot_on(closes, item.ticker, item.days)
@@ -133,6 +141,7 @@ def _trade(
         session_open=start,
         open_slippage_minutes=thresholds.backtest.open_slippage_minutes,
         width=width,
+        condor_stop=condor_stop,
     )
 
 

@@ -1,7 +1,7 @@
 """Модель config/thresholds.yaml. У полей нет значений по умолчанию: числа живут только в YAML."""
 
 from datetime import time
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, field_validator, model_validator
 
@@ -147,9 +147,14 @@ class Straddle(StrictModel):
     target_premium_gain: PositiveFloat
 
 
+# Стоп кондора: cost — выкуп стоит N× премии (убыток = (N − 1)× премии), loss — убыток N× премии.
+CondorStopBasis = Literal["cost", "loss"]
+
+
 class IronCondor(StrictModel):
     max_move_ratio: PositiveFloat
     stop_premium_multiple: PositiveFloat
+    stop_basis: CondorStopBasis
     target_premium_share: Fraction
     short_implied_moves: PositiveFloat
     wing_implied_moves: PositiveFloat
@@ -203,6 +208,7 @@ class Backtest(StrictModel):
     exit_time_et: time
     open_slippage_minutes: PositiveInt
     risk_per_trade: Fraction
+    compare_condor_stops: list[CondorStopBasis] = Field(min_length=1)
 
     @field_validator("exit_time_et", mode="before")
     @classmethod
