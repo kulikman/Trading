@@ -1,25 +1,28 @@
 @import "tailwindcss";
 
-/* Современный светлый стиль (решение заказчика 14.10.2026, DASHBOARD.md §2): карточки, мягкие границы.
-   Цвета плюса, минуса и действия — по полю tone с бэкенда. */
+/* Тёмный стиль как на signals.aurioncode.com/trades (решение заказчика 15.10.2026; ранее — светлый, DASHBOARD.md §2):
+   карточки на тёмной подложке, цифры моноширинным. Цвета плюса, минуса и действия — по полю tone с бэкенда. */
 @theme inline {
-  --color-page: #f6f7f9;
-  --color-panel: #ffffff;
-  --color-ink: #0f172a;
-  --color-muted: #64748b;
-  --color-line: #e2e8f0;
-  --color-soft: #f1f5f9;
-  --color-link: #2563eb;
-  --color-plus: #059669;
-  --color-minus: #e11d48;
-  --color-action: #dc2626;
-  --color-action-soft: #fef2f2;
+  --color-page: #0a0e17;
+  --color-panel: #121826;
+  --color-ink: #e8ecf4;
+  --color-muted: #8a93a8;
+  --color-line: #232c3f;
+  --color-soft: #1a2233;
+  --color-link: #5aa2ff;
+  --color-plus: #2ee6a6;
+  --color-minus: #ff5f6e;
+  --color-action: #ff5f6e;
+  --color-action-soft: rgb(255 95 110 / 0.1);
   --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-header: rgb(10 14 23 / 0.9);
 }
 
 html,
 body {
   background: var(--color-page);
+  color-scheme: dark;
 }
 
 body {
@@ -105,6 +108,7 @@ table.data-table tbody tr:hover td {
 }
 
 .num {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -131,15 +135,15 @@ table.data-table tbody tr:hover td {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  border-bottom: 1px solid var(--color-line);
+  padding: 8px 0;
 }
 
 .tab {
-  padding: 10px 12px;
+  padding: 6px 12px;
   color: var(--color-muted);
   font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-radius: 8px;
 }
 
 .tab:hover {
@@ -149,7 +153,8 @@ table.data-table tbody tr:hover td {
 
 .tab-active {
   color: var(--color-ink);
-  border-bottom-color: var(--color-ink);
+  background: var(--color-soft);
+  border-color: var(--color-line);
 }
 
 /* вторичные вкладки — переключатель-«таблетки» */
@@ -159,7 +164,7 @@ table.data-table tbody tr:hover td {
   padding: 3px;
   border: none;
   border-radius: 10px;
-  background: #e8edf3;
+  background: var(--color-soft);
   margin: 4px 0 12px;
 }
 
@@ -174,11 +179,11 @@ table.data-table tbody tr:hover td {
 .tabs-small .tab-active {
   background: var(--color-panel);
   color: var(--color-ink);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  box-shadow: 0 0 0 1px var(--color-line);
 }
 
 .box-action {
-  border: 1px solid #fecaca;
+  border: 1px solid rgb(255 95 110 / 0.4);
   background: var(--color-action-soft);
   border-radius: 12px;
   padding: 12px 16px;
@@ -209,8 +214,8 @@ table.data-table tbody tr:hover td {
 .stat {
   background: var(--color-panel);
   border: 1px solid var(--color-line);
-  border-radius: 12px;
-  padding: 10px 14px;
+  border-radius: 10px;
+  padding: 12px 14px;
 }
 
 .stat-label {
@@ -219,6 +224,7 @@ table.data-table tbody tr:hover td {
 }
 
 .stat-value {
+  font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -241,6 +247,7 @@ table.data-table tbody tr:hover td {
 }
 
 .dot {
+  box-shadow: 0 0 0 3px rgb(46 230 166 / 0.15);
   width: 8px;
   height: 8px;
   border-radius: 999px;

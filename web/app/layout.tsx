@@ -21,7 +21,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ru" className={inter.variable}>
       <body>
-        <div className="z-10 border-b border-[var(--color-line)] bg-white/90 backdrop-blur md:sticky md:top-0">
+        <div className="z-10 border-b border-[var(--color-line)] bg-[var(--color-header)] backdrop-blur md:sticky md:top-0">
           <div className="page !pb-0">
             <Suspense fallback={<div className="py-3 muted">загрузка статуса…</div>}>
               <Header />
