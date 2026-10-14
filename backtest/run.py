@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from adapters.broker.factory import create_cost_model
 from adapters.cache import RedisCache
 from adapters.errors import DataError
+from adapters.fred.client import FredClient, fred_api_key
 from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.history import (
     HistoricalStraddle,
@@ -22,6 +23,8 @@ from adapters.massive.history import (
     stock_closes,
     straddle_from_bars,
 )
+from adapters.massive.symbols import daily_bars
+from backtest.black_swan import Level, levels
 from backtest.exit_data import exit_window
 from backtest.mode_c_run import run_mode_c
 from backtest.option_history import STOCK_PADDING_DAYS, StockBarsSource
@@ -29,7 +32,7 @@ from backtest.report import render
 from backtest.result import BacktestResult
 from backtest.signals import Construction, Signal, condor_strikes, signals
 from backtest.simulate import Leg, Trade, simulate
-from core.config import load_config
+from core.config import AppConfig, ConfigError, load_config
 from core.config.sources import MassiveHistory
 from core.config.thresholds import CondorStopBasis, Thresholds
 from core.db.session import create_db_engine, database_url
@@ -143,6 +146,7 @@ def _trade(
         open_slippage_minutes=thresholds.backtest.open_slippage_minutes,
         width=width,
         condor_stop=condor_stop,
+        entry_on=item.days.pre,  # вход по закрытию накануне реакции
     )
 
 
@@ -208,7 +212,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
             capital=config.thresholds.capital.module_usd,
             today=today,
         )
-    text = render(result, config.thresholds, config.broker.selected_costs, mode_c)
+    swan = _black_swan_levels(config, stocks, cache, today)
+    text = render(result, config.thresholds, config.broker.selected_costs, mode_c, swan)
     path = Path(__file__).resolve().parents[1] / "reports" / f"backtest_{today:%Y-%m-%d}.md"
     path.parent.mkdir(exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -219,6 +224,23 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
         path,
     )
     return 0
+
+
+def _black_swan_levels(
+    config: AppConfig, stocks: MassiveClient, cache: RedisCache, today: date
+) -> dict[date, Level] | None:  # pragma: no cover
+    """Уровни Black Swan за глубину цен акций: VIX — FRED, SPY — Massive. Нет ключа FRED — None."""
+    since = today - timedelta(days=config.sources.massive.history.stock_history_days)
+    try:
+        fred = FredClient.create(config.sources.fred, fred_api_key(), cache)
+    except ConfigError as exc:
+        logger.warning("Black Swan пропущен: %s", exc)
+        return None
+    vix = {
+        o.date: o.value for o in fred.observations("VIXCLS", since, today) if o.value is not None
+    }
+    spy = stock_closes(daily_bars(stocks, "SPY", since, today))
+    return levels(vix, spy, config.thresholds.risk_limits.black_swan)
 
 
 if __name__ == "__main__":  # pragma: no cover

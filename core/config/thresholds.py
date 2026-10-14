@@ -41,10 +41,34 @@ class BlackSwanLevel(StrictModel):
     min_confidence: Fraction | None
 
 
+class LevelThresholds(StrictModel):
+    yellow: PositiveFloat | None  # null — у сигнала нет жёлтого порога
+    orange: PositiveFloat
+    red: PositiveFloat
+
+    @model_validator(mode="after")
+    def _increasing(self) -> Self:
+        steps = [v for v in (self.yellow, self.orange, self.red) if v is not None]
+        if steps != sorted(steps) or len(set(steps)) != len(steps):
+            raise ValueError("black swan thresholds must increase from yellow to red")
+        return self
+
+
+class BlackSwanRule(StrictModel):
+    """Правило уровня (решение заказчика 13.10.2026): худший из сигналов VIX и SPY."""
+
+    vix_levels: LevelThresholds
+    vix_jump: LevelThresholds
+    spy_drop: LevelThresholds
+    spy_drop_window_days: PositiveInt
+    calm_days_to_downgrade: PositiveInt
+
+
 class BlackSwan(StrictModel):
     yellow: BlackSwanLevel
     orange: BlackSwanLevel
     red: BlackSwanLevel
+    rule: BlackSwanRule
 
 
 class RiskLimits(StrictModel):

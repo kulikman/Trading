@@ -1,8 +1,10 @@
 """Отчёт бэктеста (T12) в Markdown: параметры, итоги по конструкциям, выходы, пропуски, сделки."""
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from datetime import date
 
+from backtest.black_swan import ORDER, Level, scenarios
 from backtest.metrics import Metrics, metrics
 from backtest.mode_c_run import ModeCResult
 from backtest.result import BacktestResult
@@ -32,6 +34,7 @@ def render(
     thresholds: Thresholds,
     costs: CostSettings,
     mode_c: ModeCResult | None = None,
+    swan: Mapping[date, Level] | None = None,
 ) -> str:
     """Полный отчёт: стратегии на move_ratio и (если передан) упрощённый режим C."""
     bt = thresholds.backtest
@@ -121,6 +124,11 @@ def render(
     lines += _trades_table(result.trades, thresholds)
     if mode_c is not None:
         lines += _mode_c_section(mode_c, thresholds)
+    if swan is not None:
+        groups = [(name, group) for name, group in segments]
+        if mode_c is not None:
+            groups.append(("Режим C", mode_c.trades))
+        lines += _black_swan_section(groups, swan, thresholds)
     lines += [
         "",
         "## Ограничения",
@@ -247,6 +255,84 @@ def _mode_c_section(mc: ModeCResult, thresholds: Thresholds) -> list[str]:
     ]
     lines += _trades_table(trades, thresholds)
     return lines
+
+
+def _black_swan_section(
+    groups: Sequence[tuple[str, Sequence[Trade]]],
+    by_day: Mapping[date, Level],
+    thresholds: Thresholds,
+) -> list[str]:
+    settings = thresholds.risk_limits.black_swan
+    rule = settings.rule
+    counts = Counter(by_day.values())
+    days = sorted(by_day)
+    lines = [
+        "",
+        "## Black Swan",
+        "",
+        (
+            f"Правило (стартовые гипотезы, решение заказчика 13.10.2026): VIX ≥ "
+            f"{rule.vix_levels.yellow:g} / {rule.vix_levels.orange:g} / {rule.vix_levels.red:g}; "
+            f"рост VIX за день ≥ {rule.vix_jump.orange:.0%} / {rule.vix_jump.red:.0%}; падение SPY "
+            f"за день или {rule.spy_drop_window_days} дней ≥ "
+            f"{rule.spy_drop.yellow or 0:.0%} / {rule.spy_drop.orange:.0%} / "
+            f"{rule.spy_drop.red:.0%}. "
+            f"Понижение — после {rule.calm_days_to_downgrade} спокойных дней. Сделка видит уровень "
+            "на закрытии дня перед входом."
+        ),
+        "",
+        (
+            f"Дней с {days[0]:%d.%m.%Y} по {days[-1]:%d.%m.%Y}: "
+            + ", ".join(f"{level} — {counts.get(level, 0)}" for level in ORDER)
+            + "."
+        )
+        if days
+        else "Нет данных об уровне.",
+        "",
+        "Периоды красного уровня: " + (", ".join(_periods(by_day, "red")) or "нет") + ".",
+        "",
+        (
+            "Уверенности модели в бэктесте нет, поэтому условие оранжевого «только при "
+            "уверенности > 80%» проверяется как сценарий «вето красного и оранжевого»."
+        ),
+    ]
+    for name, trades in groups:
+        if not trades:
+            continue
+        lines += [
+            "",
+            f"### {name}",
+            "",
+            (
+                "| Сценарий | Сделок | Вето | Отрезано прибыльных | Спасено убыточных | "
+                "P&L, $ | Капитал | Просадка |"
+            ),
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+        for s in scenarios(trades, by_day, settings, thresholds.backtest.risk_per_trade):
+            lines.append(
+                f"| {s.name} | {s.trades} | {s.vetoed} | {s.vetoed_winners} | "
+                f"{s.vetoed_losers} | {s.net_pnl:,.0f} | {s.equity_change:+.1%} | "
+                f"{s.max_drawdown:.1%} |"
+            )
+    return lines
+
+
+def _periods(by_day: Mapping[date, Level], level: Level) -> list[str]:
+    """Непрерывные отрезки дней с уровнем level: «дд.мм.гггг–дд.мм.гггг»."""
+    out: list[str] = []
+    start: date | None = None
+    previous: date | None = None
+    for day in sorted(by_day):
+        if by_day[day] == level:
+            start = start or day
+            previous = day
+        elif start is not None and previous is not None:
+            out.append(f"{start:%d.%m.%Y}–{previous:%d.%m.%Y}")
+            start = None
+    if start is not None and previous is not None:
+        out.append(f"{start:%d.%m.%Y}–{previous:%d.%m.%Y}")
+    return out
 
 
 def _counter_line(counter: Counter[str]) -> str:

@@ -147,6 +147,7 @@ def _trade(
         costs=entry_cost.total + exit_cost.total,
         risk=shares * stop_distance + entry_cost.total,
         variant="long" if direction == 1 else "short",
+        entry_on=days.reaction,
     )
 
 
