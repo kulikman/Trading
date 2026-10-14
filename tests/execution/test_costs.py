@@ -58,7 +58,15 @@ def test_option_minimum_per_order(settings: CostSettings) -> None:
 def test_no_quote_without_assumption_is_data_error(settings: CostSettings) -> None:
     leg = CostLeg("option", quantity=1, multiplier=100, price=6.5)
     with pytest.raises(DataError, match="no option quote and no assumed spread"):
-        model(settings).leg_cost(leg, at_open=False)
+        model(settings, assumed_spread_option=None).leg_cost(leg, at_open=False)
+
+
+def test_owner_decision_option_spread_three_percent(settings: CostSettings) -> None:
+    assert settings.assumed_spread_option == 0.03
+    leg = CostLeg("option", quantity=1, multiplier=100, price=5.0)
+    cost = model(settings).leg_cost(leg, at_open=False)
+    assert cost.spread == pytest.approx(5.0 * 0.03 / 2 * 100)
+    assert cost.spread_assumed is True
 
 
 def test_no_quote_uses_configured_assumption_and_flags_it(settings: CostSettings) -> None:
