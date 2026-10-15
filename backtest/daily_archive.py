@@ -144,7 +144,7 @@ class DailyArchive:
             result.exits.append(self._exits.load(session, ticker, since=since))
         if self._min_atm_pair_volume is not None:  # ликвидность опционов и связи — по архиву
             update_options_liquid(session, sorted(self._tickers), self._min_atm_pair_volume)
-            estimate_peer_edges(session)  # связи «кто кому сигналит» по свежему архиву
+            estimate_peer_edges(session, today)  # связи «кто кому сигналит» по свежему архиву
             session.commit()
         retry_since = lookback_start(today, self._lookback)
         if self._shadows is not None:
