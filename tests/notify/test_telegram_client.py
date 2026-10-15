@@ -21,7 +21,11 @@ def test_send_returns_message_id() -> None:
 
     assert client(httpx.MockTransport(reply)).send("привет") == 7
     assert seen[0].url.path == f"/bot{TOKEN}/sendMessage"
-    assert json.loads(seen[0].content) == {"chat_id": "42", "text": "привет"}
+    assert json.loads(seen[0].content) == {
+        "chat_id": "42",
+        "text": "привет",
+        "disable_notification": False,
+    }
 
 
 def test_error_has_no_token() -> None:
@@ -47,3 +51,21 @@ def test_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert TelegramClient.from_env() is None  # бот не настроен — сообщения не отправляются
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", TOKEN)
     assert isinstance(TelegramClient.from_env(), TelegramClient)
+
+
+def test_edit_and_not_modified_is_ok() -> None:
+    seen: list[httpx.Request] = []
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if len(seen) == 1:
+            return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+        return httpx.Response(
+            400, json={"ok": False, "description": "Bad Request: message is not modified"}
+        )
+
+    bot = client(httpx.MockTransport(reply))
+    bot.edit(7, "новый текст")
+    bot.edit(7, "новый текст")  # тот же текст — не ошибка
+    assert seen[0].url.path == f"/bot{TOKEN}/editMessageText"
+    assert json.loads(seen[0].content)["message_id"] == 7
