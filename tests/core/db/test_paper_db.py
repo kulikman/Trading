@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adapters.massive.history import EventDays
-from backtest.simulate import ExitReason, Trade
+from backtest.simulate import ExitReason, LegFill, Trade
 from core.config import load_config
 from core.db import models as orm
 from core.db.store import sync_universe
@@ -51,6 +51,10 @@ def trade(reason: ExitReason = "target") -> Trade:
         costs=5,
         risk=110,
         entry_on=date(2026, 10, 19),
+        legs=(
+            LegFill("O:NFLX261023P00900000", "option", -1, 1, 100, 0.8, 0.4),
+            LegFill("O:NFLX261023P00850000", "option", 1, 1, 100, 0.2, 0.1),
+        ),
     )
 
 
@@ -103,12 +107,28 @@ def test_closed_trade_goes_planned_open_closed(session: Session, card: orm.Trade
     assert result.counts == {"CLOSED": 1}
     assert path(session) == [
         (None, "PLANNED", "сигнал"),
-        ("PLANNED", "OPEN", "вход"),
-        ("OPEN", "CLOSED", "target"),
+        ("PLANNED", "ARMED", "ордер на вход"),
+        ("ARMED", "OPEN", "вход"),
+        ("OPEN", "CLOSING", "ордер на выход"),
+        ("CLOSING", "CLOSED", "target"),
     ]
     # return on risk 0,5 × риск сделки 1% от 100 000
     assert card.pnl_total == Decimal("500.00")
-    assert card.fills == {"entry": 1.2, "exit": 0.6}
+    scale = 1000 / 110  # доля позиции бэктеста (риск 110 $ на контракт) для риска 1 000 $
+    assert card.legs[0] == {
+        "symbol": "O:NFLX261023P00900000",
+        "instrument": "option",
+        "side": "sell",
+        "quantity": pytest.approx(scale),
+        "multiplier": 100,
+    }
+    assert [(f["purpose"], f["side"], f["price"]) for f in card.fills or []] == [
+        ("entry", "sell", 0.8),
+        ("entry", "buy", 0.2),
+        ("exit", "buy", 0.4),
+        ("exit", "sell", 0.1),
+    ]
+    assert card.stop == {"rule": "убыток 2× премии", "price": None}
     calculator = Calculator(outcome)
     PaperBook(calculator, CONFIG.thresholds).run(session, date(2026, 10, 22), date(2026, 10, 14))
     assert calculator.calls == 0  # закрытая карточка не пересчитывается
@@ -122,6 +142,7 @@ def test_stop_and_open_and_waiting(session: Session, card: orm.TradeCard) -> Non
     stop = PaperBook(Calculator(Shadow("closed", trade=trade("stop"))), CONFIG.thresholds)
     stop.run(session, date(2026, 10, 22), date(2026, 10, 14))
     assert path(session)[-1] == ("OPEN", "STOPPED", "stop")
+    assert [f["purpose"] for f in card.fills or []][-1] == "stop"
 
 
 def test_no_data_waits_then_cancels(session: Session, card: orm.TradeCard) -> None:

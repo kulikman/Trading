@@ -12,7 +12,7 @@ from datetime import date, datetime, time
 
 from adapters.massive.models import Bar
 from backtest.mode_c import average_true_range
-from backtest.simulate import ExitReason, Trade
+from backtest.simulate import ExitReason, LegFill, Trade
 from core.config.thresholds import Thresholds
 from core.session_guard import ET, to_et
 from execution.costs import CostLeg, CostModel, total_cost
@@ -73,6 +73,7 @@ def mode_a_trade(
         risk=shares * distance + entry_cost.total,
         variant="long",
         entry_on=entry_day,
+        legs=(LegFill(ticker, "stock", 1, shares, 1, entry, price),),
     )
 
 

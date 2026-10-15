@@ -37,6 +37,19 @@ class Leg:
 
 
 @dataclass(frozen=True)
+class LegFill:
+    """Нога сделки с ценами входа и выхода (карточка T17, P&L по источникам)."""
+
+    symbol: str
+    instrument: Literal["stock", "option"]
+    side: Literal[1, -1]
+    quantity: int  # акции или контракты
+    multiplier: int
+    entry_price: float
+    exit_price: float
+
+
+@dataclass(frozen=True)
 class Trade:
     ticker: str
     report_date: date
@@ -50,6 +63,7 @@ class Trade:
     risk: float  # $, максимальный убыток с издержками входа
     variant: str = ""  # у кондора — толкование стопа (cost / loss)
     entry_on: date | None = None  # день входа (уровень Black Swan — на закрытии дня до него)
+    legs: tuple[LegFill, ...] = ()
 
     @property
     def net_pnl(self) -> float:
@@ -144,6 +158,18 @@ def simulate(
         risk=max_loss + entry_costs.total,
         variant=basis or "",
         entry_on=entry_on,
+        legs=tuple(
+            LegFill(
+                symbol=leg.ticker,
+                instrument="option",
+                side=leg.side,
+                quantity=1,
+                multiplier=CONTRACT_MULTIPLIER,
+                entry_price=leg.entry_price,
+                exit_price=exit_prices[leg.ticker],
+            )
+            for leg in legs
+        ),
     )
 
 
