@@ -65,6 +65,8 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_system_message_at"), "system_message", ["at"], unique=False)
     op.add_column("error_log", sa.Column("notified_at", sa.DateTime(timezone=True), nullable=True))
+    # Ошибки до появления сообщений «СИСТЕМА» уже разобраны вручную — не рассылать их задним числом.
+    op.execute("UPDATE error_log SET notified_at = at")
 
 
 def downgrade() -> None:
