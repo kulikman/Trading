@@ -117,7 +117,10 @@ def test_skip_button_cancels(session: Session) -> None:
     card = real_card(session)
     b = broker(session)
     b.place_for_card(order(card.id), card.id)
-    assert handle_callback(session, f"skip:{card.id}", b, ARMED_AT) == "Вход отменён"
+    assert (
+        handle_callback(session, f"skip:{card.id}", b, ARMED_AT)
+        == "Вход отменён — снимите ордера у брокера"
+    )
     assert card.state == "CANCELLED"
     assert session.scalars(select(orm.BrokerOrder.status)).one() == "cancelled"
 

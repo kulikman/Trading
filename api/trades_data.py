@@ -42,6 +42,7 @@ class OpenCard:
     risk_fraction: float | None = None  # доля капитала под риском (шаг решения)
     stop_price: float | None = None  # уровень трейлинг-стопа
     stop_rule: str | None = None
+    risk_usd: float | None = None  # Real: риск карточки, $ (E10) — вместо доли шага paper
 
 
 def closed_trades(session: Session, *, paper: bool) -> list[ClosedTrade]:
@@ -113,6 +114,7 @@ def open_cards(session: Session, *, paper: bool) -> list[OpenCard]:
             risk_fraction=_risk_fraction(session, card),
             stop_price=(card.trailing or {}).get("stop"),
             stop_rule=(card.stop or {}).get("rule"),
+            risk_usd=None if card.risk_usd is None else float(card.risk_usd),
         )
         for card, mode, ticker in rows
     ]

@@ -8,6 +8,8 @@
 Модели у режима C нет: edge и уверенность 0, вход — по сигналу (сезоны 1–2, сбор данных).
 """
 
+from datetime import time
+
 from sqlalchemy import select
 
 from adapters.errors import DataError
@@ -16,12 +18,16 @@ from backtest.mode_c import confirm, direction_of, entry_limit
 from backtest.mode_c_run import StockData, previous_days
 from core.config.thresholds import Thresholds
 from core.db import models as orm
+from core.domain.broker import Order, Side
+from core.domain.trading import TradePlan
 from core.registry.protocols import DecisionContext, Proposal, Skip
 from core.session_guard import reaction_day, to_et
 from decision.report import ReportSource, event_consensus, fetch_report_facts
 from execution.costs import CostModel
 from strategies.base import StrategyBase, session_of
 from strategies.common import stock_cost_fraction, stock_state
+
+ENTRY_DEADLINE = time(11, 0)  # лимит входа режима C — до 11:00 ET (SPEC §10)
 
 
 class ModeCStrategy(StrategyBase):
@@ -69,11 +75,9 @@ class ModeCStrategy(StrategyBase):
             return self.skip("DATA_MASSIVE")
         if isinstance(vwap, str):
             return self.skip("C_NOT_CONFIRMED")
-        cost = stock_cost_fraction(
-            self._costs,
-            entry_limit(direction, vwap, rules),
-            rules.trailing_atr_multiple * state.atr,
-        )
+        limit = entry_limit(direction, vwap, rules)
+        stop_distance = rules.trailing_atr_multiple * state.atr
+        cost = stock_cost_fraction(self._costs, limit, stop_distance)
         if cost is None:
             return self.skip("DATA_MASSIVE")
         return Proposal(
@@ -84,6 +88,7 @@ class ModeCStrategy(StrategyBase):
             confidence=0.0,
             probability=0.0,
             cost_fraction=cost,
+            plan=stock_plan(event.ticker, direction, limit, stop_distance, cost),
         )
 
     def _surprise(self, ctx: DecisionContext) -> float | None:
@@ -102,3 +107,41 @@ class ModeCStrategy(StrategyBase):
         )
         facts = fetch_report_facts(self._reports, event.ticker, event.report_date, consensus)
         return None if facts is None else facts.eps_surprise_pct
+
+
+def stock_plan(
+    ticker: str, direction: int, limit: float, stop_distance: float, cost_fraction: float
+) -> TradePlan:
+    """Real на одну акцию: лимит входа до 11:00 и стоп на 2 × ATR от лимита (SPEC §10)."""
+    entry_side: Side = "buy" if direction == 1 else "sell"
+    exit_side: Side = "sell" if direction == 1 else "buy"
+    stop = round(limit - direction * stop_distance, 2)
+    return TradePlan(
+        orders=(
+            Order(
+                client_order_id="plan-entry",
+                symbol=ticker,
+                instrument="stock",
+                side=entry_side,
+                quantity=1,
+                multiplier=1,
+                order_type="limit",
+                purpose="entry",
+                limit_price=round(limit, 2),
+            ),
+            Order(
+                client_order_id="plan-stop",
+                symbol=ticker,
+                instrument="stock",
+                side=exit_side,
+                quantity=1,
+                multiplier=1,
+                order_type="stop",
+                purpose="stop",
+                stop_price=stop,
+            ),
+        ),
+        unit_risk=stop_distance * (1 + cost_fraction),
+        stop_rule=f"трейлинг 2 × ATR(14), старт {stop:.2f}",
+        entry_until_et=ENTRY_DEADLINE,
+    )

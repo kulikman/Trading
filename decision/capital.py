@@ -63,6 +63,46 @@ def size(
     return Sizing(risk_fraction=risk, level=level)
 
 
+def size_real(
+    proposal: Proposal,
+    *,
+    level: Level,
+    b: float,
+    seasons_1_2: bool,
+    weight: float,
+    first_days: bool,
+    no_model: bool,
+    thresholds: Thresholds,
+) -> Sizing | Rejection:
+    """Риск Real-сделки (E10, решение заказчика 15.10.2026 — по SPEC).
+
+    Модель есть — Келли (`size`: ¼, в сезоны 1–2 ⅛) с вето и множителями Black Swan; режим без
+    модели — фиксированный риск сбора данных × множитель уровня (красный — вето). Затем × вес стадии
+    (live_small — 5%, SPEC §7) и × 0,5 в первые 30 дней Real (SPEC §14, фаза 4).
+    """
+    swan = thresholds.risk_limits.black_swan
+    if no_model:
+        if level == "red" or swan.manual_red:
+            return Rejection(["MACRO_BLOCK"])
+        settings = {"yellow": swan.yellow, "orange": swan.orange}.get(level)
+        minimum = None if settings is None else settings.min_confidence
+        if minimum is not None and proposal.confidence <= minimum:
+            return Rejection(["MACRO_BLOCK"])  # оранжевый — только уверенность > 80% (SPEC §10)
+        multiplier = settings.size_multiplier if settings is not None else 1.0
+        base: Sizing | Rejection = Sizing(
+            risk_fraction=thresholds.sizing.data_collection_risk
+            * multiplier
+            * proposal.size_multiplier,
+            level=level,
+        )
+    else:
+        base = size(proposal, level=level, b=b, seasons_1_2=seasons_1_2, thresholds=thresholds)
+    if isinstance(base, Rejection):
+        return base
+    first = thresholds.sizing.real_first_days_multiplier if first_days else 1.0
+    return Sizing(risk_fraction=base.risk_fraction * weight * first, level=level)
+
+
 def size_data_collection(
     proposal: Proposal, *, level: Level, thresholds: Thresholds
 ) -> Sizing | Rejection:
@@ -96,6 +136,7 @@ def win_loss_ratio(session: Session, construction: str, thresholds: Thresholds) 
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
         .where(
             orm.Decision.construction == construction,
+            orm.TradeCard.paper.is_(True),  # Real дублирует решение paper — не считать дважды
             orm.TradeCard.state.in_(CLOSED_STATES),
             orm.TradeCard.pnl_total.is_not(None),
         )

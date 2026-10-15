@@ -21,6 +21,10 @@ sizing:                              # SPEC §10
   # входят по своему сигналу без порога edge и θ, риск — фиксированная доля капитала, как в бэктесте.
   # Edge и уверенность всё равно пишутся в decision_step. Black Swan: красный — вето, жёлтый / оранжевый — множитель.
   data_collection_risk: 0.01
+  # Real (SPEC §14, фаза 4: «первые 30 дней × 0,5»; решение заказчика 15.10.2026 — размер Real по SPEC):
+  # отсчёт — с первого пополнения счёта Real (make cash).
+  real_first_days: 30
+  real_first_days_multiplier: 0.5
 
 risk_limits:                         # SPEC §10
   cluster_max_positions: null        # сектор × неделя; без лимита — решение заказчика 2026-10-13

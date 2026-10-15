@@ -1,13 +1,13 @@
 """Решение по событию и карточка сделки (SPEC §5, §10, §11)."""
 
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Any, Literal, Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
 from core.domain.base import DomainModel
-from core.domain.broker import Instrument, OrderPurpose, Side
+from core.domain.broker import Instrument, Order, OrderPurpose, Side
 from core.domain.types import CardState, DecisionStatus, MarketLevel, OrderStatus, SkipReason
 
 DATA_REASON_PREFIX = "DATA_"
@@ -158,3 +158,16 @@ class MarketLevelRecord(DomainModel):
     level: MarketLevel
     vix: float | None = None
     spy: float | None = None
+
+
+class TradePlan(DomainModel):
+    """План Real-сделки на одну единицу (E10): ордера с ценами и риск единицы.
+
+    orders — ордера на одну единицу позиции (1 акция, 1 стрэддл, 1 кондор); при открытии карточки
+    количество умножается на число единиц. unit_risk — максимальный убыток единицы с издержками, $.
+    """
+
+    orders: tuple[Order, ...] = Field(min_length=1)
+    unit_risk: float = Field(gt=0)
+    stop_rule: str = Field(min_length=1)
+    entry_until_et: time | None = None  # позже — Real не открывается (окно входа прошло)
