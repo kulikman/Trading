@@ -22,6 +22,7 @@ from agents.macro.agent import VIX_SERIES, observed_values
 from core.config import AppConfig, load_config
 from core.config.thresholds import Thresholds
 from core.db import models as orm
+from core.domain.trading import MarketLevelRecord
 from core.error_log import logged_job
 from core.risk.black_swan import levels
 from core.scheduler.jobs import engine
@@ -64,12 +65,13 @@ def build_sources(config: AppConfig) -> tuple[FredSource, StockHistorySource]:  
 def run_market_level(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     sources_factory: Callable[[AppConfig], tuple[FredSource, StockHistorySource]] = build_sources,
-) -> orm.MarketLevelDay | None:
-    """Задача планировщика; в неторговый день ничего не делает."""
+) -> MarketLevelRecord | None:
+    """Задача планировщика; в неторговый день ничего не делает. Итог — копия строки, не ORM."""
     today = to_et(now()).date()
     if not is_trading_day(today):
         return None
     config = load_config()
     fred, stocks = sources_factory(config)
     with Session(engine()) as session, session.begin():
-        return update_market_level(session, fred, stocks, config.thresholds, today)
+        row = update_market_level(session, fred, stocks, config.thresholds, today)
+        return None if row is None else MarketLevelRecord.model_validate(row, from_attributes=True)

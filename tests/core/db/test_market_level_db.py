@@ -1,9 +1,11 @@
 from datetime import UTC, date, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from agents.macro import daily
 from agents.macro.daily import update_market_level
 from api.app import create_app
 from core.config import load_config
@@ -61,3 +63,18 @@ def test_market_plaque_reads_daily_level(session: Session) -> None:
         "закрытие 13.10",
     )
     assert market["vix"]["value"] == 26.0
+
+
+def test_job_returns_detached_copy(session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
+    fred, stocks = sources()
+    monkeypatch.setattr(daily, "engine", session.connection)  # своя транзакция теста, без commit
+    result = daily.run_market_level(
+        now=lambda: datetime(2026, 10, 14, 10, 5, tzinfo=UTC),
+        sources_factory=lambda config: (fred, stocks),
+    )
+    assert result is not None
+    assert (result.day, result.level, result.vix) == (
+        CLOSE_DAY,
+        "red",
+        26.0,
+    )  # после закрытия сессии
