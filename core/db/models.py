@@ -397,6 +397,30 @@ class CashMovement(Timestamps, Base):
     note: Mapped[str | None]
 
 
+class SourceStatus(Timestamps, Base):
+    """Источник данных (T18, DASHBOARD §4.7): последний успех и последний сбой."""
+
+    __tablename__ = "source_status"
+
+    source: Mapped[str] = mapped_column(primary_key=True)
+    last_ok_at: Mapped[datetime | None]
+    last_error_at: Mapped[datetime | None]
+    last_error: Mapped[str | None]
+
+
+class SystemMessage(Timestamps, Base):
+    """Сообщение «СИСТЕМА» (SPEC §12): журнал для раздела «Система» и отправка в Telegram."""
+
+    __tablename__ = "system_message"
+
+    id: Mapped[int] = _pk_id()
+    at: Mapped[datetime] = mapped_column(index=True)
+    code: Mapped[str | None]
+    text: Mapped[str]
+    sent_at: Mapped[datetime | None]
+    tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
+
+
 class ShadowTrade(Timestamps, Base):
     """Теневая сделка (T16, SPEC §10): результат предложения, которое не стало входом.
 
@@ -599,6 +623,7 @@ class ErrorLog(Timestamps, Base):
     error_type: Mapped[str]
     message: Mapped[str]
     resolved_at: Mapped[datetime | None]  # та же задача потом отработала — ошибка решена
+    notified_at: Mapped[datetime | None]  # разобрана для сообщений «СИСТЕМА» (T18)
 
 
 # --- архив опционов (T10) ---

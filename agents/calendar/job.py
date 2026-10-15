@@ -13,7 +13,7 @@ from core.config import AppConfig, load_config
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, to_et
-from notify.system import LoggingNotifier
+from notify.system import DbSystemNotifier
 
 
 def build_calendar_agent(config: AppConfig) -> CalendarAgent:
@@ -24,7 +24,7 @@ def build_calendar_agent(config: AppConfig) -> CalendarAgent:
         alphavantage=AlphaVantageClient.create(
             config.sources.alphavantage, alphavantage_api_key(), cache
         ),
-        notifier=LoggingNotifier(),
+        notifier=DbSystemNotifier(lambda: Session(engine())),
         universe=config.universe,
         schedule=config.schedule,
     )

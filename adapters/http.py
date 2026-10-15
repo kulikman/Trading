@@ -13,6 +13,7 @@ import httpx
 
 from adapters.cache import Cache
 from adapters.errors import DataError
+from adapters.health import mark_error, mark_ok
 
 logger = logging.getLogger(__name__)
 
@@ -173,8 +174,13 @@ class JsonHttpClient:
             cached = self._cache.get(key)
             if cached is not None:
                 return self._parse_redacted(parse, cached, url)
-        body = self._send(request, url)
-        result = self._parse_redacted(parse, body, url)
+        try:
+            body = self._send(request, url)
+            result = self._parse_redacted(parse, body, url)
+        except DataError as exc:
+            mark_error(self._source, exc.detail)
+            raise
+        mark_ok(self._source)
         if use_cache and self._cache is not None:
             self._cache.set(key, body, ttl)
         return result

@@ -6,6 +6,7 @@ import pytest
 
 from adapters.cache import MemoryCache
 from adapters.errors import DataError
+from adapters.health import drain
 from adapters.http import JsonHttpClient, RetryPolicy
 
 SECRET = "secret-test-key"  # noqa: S105 — fake key for the log-leak test
@@ -162,3 +163,18 @@ def test_secret_params_are_sent_but_redacted_everywhere(caplog: pytest.LogCaptur
     assert secret not in str(exc_info.value)
     assert "token=***" in str(exc_info.value)
     assert all(secret not in str(record.__dict__) for record in caplog.records)
+
+
+def test_network_answers_mark_source_health() -> None:
+    drain()
+    client, _ = make_client(Recorder([ok({"v": 1}), httpx.Response(404)]), cache=MemoryCache())
+    client.get_json("/v1/x", ttl_seconds=60)
+    client.get_json("/v1/x", ttl_seconds=60)  # из кэша — не отметка «жив»
+    with pytest.raises(DataError):
+        client.get_json("/v1/y")
+    health = drain()["test"]
+    assert health.last_ok_at is not None
+    assert health.last_error_at is not None
+    assert health.last_error is not None
+    assert SECRET not in health.last_error
+    assert drain() == {}  # после переноса в базу состояние в процессе очищено

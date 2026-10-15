@@ -1,6 +1,6 @@
 """Контрактные тесты API дашборда (T19a, DASHBOARD.md §5)."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -407,6 +407,30 @@ def test_errors_newest_first(seeded: Session, client: TestClient) -> None:
     assert "Тикер: NFLX · стадия: T-7" in report
     assert "Текст: HTTP 429" in report
     assert client.get("/api/system/errors?limit=0", headers=AUTH).status_code == 422
+
+
+def test_status_sources_and_system_messages(seeded: Session, client: TestClient) -> None:
+    at = datetime(2026, 10, 14, 13, 0, tzinfo=UTC)
+    seeded.add_all(
+        [
+            orm.SourceStatus(source="massive", last_ok_at=at),
+            orm.SourceStatus(
+                source="finnhub",
+                last_ok_at=at,
+                last_error_at=at + timedelta(hours=1),
+                last_error="HTTP 503",
+            ),
+            orm.SystemMessage(at=at, code="DATA_CALENDAR", text="СИСТЕМА · сбой calendar-daily"),
+        ]
+    )
+    seeded.flush()
+    status = client.get("/api/status", headers=AUTH).json()
+    sources = {r["source"]: (r["status"], r["last_success"]) for r in status["sources"]}
+    assert sources["Massive"] == ("ОК", "14.10.2026 09:00 ET / 16:00 МСК")
+    assert sources["Finnhub"][0] == "СБОЙ"  # ошибка позже последнего успеха
+    assert sources["Alpha Vantage"] == ("нет данных", "—")
+    assert sources["брокер"][0] == "ручной брокер — без подключения"
+    assert status["messages"] == ["14.10.2026 09:00 ET / 16:00 МСК — СИСТЕМА · сбой calendar-daily"]
 
 
 def test_models_screen_lists_versions(seeded: Session, client: TestClient) -> None:
