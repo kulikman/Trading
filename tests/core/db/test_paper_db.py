@@ -134,6 +134,26 @@ def test_closed_trade_goes_planned_open_closed(session: Session, card: orm.Trade
     assert calculator.calls == 0  # закрытая карточка не пересчитывается
 
 
+class Spots:
+    def at(self, ticker: str, moment: datetime) -> float | None:
+        return 960.0
+
+    def close(self, ticker: str, day: date) -> float | None:
+        return 950.0
+
+
+def test_closed_card_gets_pnl_by_sources(session: Session, card: orm.TradeCard) -> None:
+    book = PaperBook(
+        Calculator(Shadow("closed", trade=trade())), CONFIG.thresholds, spots=Spots(), rate=0.04
+    )
+    book.run(session, date(2026, 10, 21), date(2026, 10, 14))
+    parts = (card.pnl_direction, card.pnl_vol, card.pnl_ivcrush)
+    assert all(p is not None for p in parts)
+    # валовой результат: (0,8 − 0,4 + 0,1 − 0,2) × 100 × доля 1000/110; издержки — в pnl_total
+    gross = sum(float(p or 0) for p in parts)
+    assert gross == pytest.approx(0.3 * 100 * 1000 / 110, abs=0.02)
+
+
 def test_stop_and_open_and_waiting(session: Session, card: orm.TradeCard) -> None:
     book = PaperBook(Calculator(Shadow("open", "open_at_end", trade=trade())), CONFIG.thresholds)
     assert book.run(session, REPORT, date(2026, 10, 14)).counts == {}  # реакция ещё не закрылась

@@ -34,6 +34,7 @@ from core.domain.types import ReportTime
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, previous_trading_day, to_et
+from execution.attribution import MassiveSpots
 from execution.paper import PaperBook, PaperRunResult
 from learning.shadow import ShadowCalculator, ShadowRunResult
 
@@ -203,7 +204,12 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
         builder=builder,
         exits=exits,
         shadows=shadows,
-        paper=PaperBook(shadows, config.thresholds),
+        paper=PaperBook(
+            shadows,
+            config.thresholds,
+            spots=MassiveSpots(stocks),
+            rate=sources.massive.history.risk_free_rate,
+        ),
         lookback_trading_days=config.schedule.archive.lookback_trading_days,
         tickers=set(config.universe.tickers()),
     )
