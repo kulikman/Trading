@@ -66,17 +66,15 @@ def size(
 def size_data_collection(
     proposal: Proposal, *, level: Level, thresholds: Thresholds
 ) -> Sizing | Rejection:
-    """Сезоны 1–2, сбор данных (решение заказчика 15.10.2026): фиксированный риск по сигналу.
+    """Сезоны 1–2, сбор данных (решения заказчика 15.10.2026): фиксированный риск по сигналу.
 
-    Без порога edge и Келли; Black Swan — красный (или ручной красный) вето, жёлтый и оранжевый —
-    только множитель размера (условие уверенности оранжевого — для режима с обученными моделями).
+    Без порога edge и Келли. Black Swan в paper не режет и не уменьшает вход — нужны данные и
+    по красным дням; уровень остаётся в признаке macro.regime события. Вето — только ручной
+    красный уровень заказчика.
     """
-    swan = thresholds.risk_limits.black_swan
-    if level == "red" or swan.manual_red:
+    if thresholds.risk_limits.black_swan.manual_red:
         return Rejection(["MACRO_BLOCK"])
-    settings = {"yellow": swan.yellow, "orange": swan.orange}.get(level)
-    level_multiplier = settings.size_multiplier if settings is not None else 1.0
-    risk = thresholds.sizing.data_collection_risk * level_multiplier * proposal.size_multiplier
+    risk = thresholds.sizing.data_collection_risk * proposal.size_multiplier
     return Sizing(risk_fraction=risk, level=level)
 
 

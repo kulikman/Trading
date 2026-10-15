@@ -82,15 +82,21 @@ def test_level_from_regime() -> None:
     ]
 
 
-def test_data_collection_fixed_risk_with_black_swan() -> None:
-    green = size_data_collection(proposal(0.3), level="green", thresholds=THRESHOLDS)
-    orange = size_data_collection(
-        proposal(0.3, multiplier=0.5), level="orange", thresholds=THRESHOLDS
+def test_data_collection_ignores_black_swan_in_paper() -> None:
+    red = size_data_collection(proposal(0.3, multiplier=0.5), level="red", thresholds=THRESHOLDS)
+    assert isinstance(red, Sizing)
+    assert red.risk_fraction == pytest.approx(0.01 * 0.5)  # уровень не режет, только правило B
+    manual = THRESHOLDS.model_copy(
+        update={
+            "risk_limits": THRESHOLDS.risk_limits.model_copy(
+                update={
+                    "black_swan": THRESHOLDS.risk_limits.black_swan.model_copy(
+                        update={"manual_red": True}
+                    )
+                }
+            )
+        }
     )
-    assert isinstance(green, Sizing)
-    assert isinstance(orange, Sizing)
-    assert green.risk_fraction == pytest.approx(0.01)  # без Келли и порога edge
-    assert orange.risk_fraction == pytest.approx(0.01 * 0.4 * 0.5)  # уверенность не требуется
-    assert size_data_collection(proposal(0.9), level="red", thresholds=THRESHOLDS) == Rejection(
+    assert size_data_collection(proposal(0.9), level="green", thresholds=manual) == Rejection(
         ["MACRO_BLOCK"]
-    )
+    )  # ручной красный заказчика — вето
