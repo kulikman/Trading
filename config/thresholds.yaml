@@ -48,6 +48,7 @@ risk_limits:                         # SPEC §10
 liquidity:                           # SPEC §10
   max_option_spread: 0.05            # спред опциона < 5% цены
   max_stock_spread: 0.001            # спред акции < 0.1%
+  min_atm_pair_volume: 500          # стартовое (E6): медианный объём ATM-пары накануне отчёта — «ликвидные»; только флаг профиля, не фильтр
 
 edge:                                # SPEC §9
   margin_over_costs: 0.03            # сделка при edge > costs + 0.03

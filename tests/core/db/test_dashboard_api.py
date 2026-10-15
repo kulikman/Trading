@@ -512,9 +512,12 @@ def test_dashboard_audit_fixes(seeded: Session, client: TestClient) -> None:
     seeded.flush()
     rows = client.get("/api/companies/GS/financials", headers=AUTH).json()["rows"]
     margins = {r["metric"]: r["values"][0]["display"] for r in rows if "маржа" in r["metric"]}
+    eps = next(r for r in rows if r["metric"] == "EPS (разводнённая)")
+    assert eps["values"][0]["display"] == "$11,00 (отчёт)"  # Q4 / нет XBRL — EPS из истории отчётов
     assert margins == {"Валовая маржа": "40,0%", "Чистая маржа": "15,0%"}
     overview = client.get("/api/companies/GS/overview", headers=AUTH).json()
     assert overview["sector_id"] == "banks"  # ссылка на сектор в хлебных крошках
+    assert overview["options"] == "нет данных архива"
     path = {
         c["criterion"]: c["display"]
         for c in client.get("/api/account/summary", headers=AUTH).json()["path_to_real"]

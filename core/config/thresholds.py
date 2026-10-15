@@ -84,6 +84,7 @@ class RiskLimits(StrictModel):
 class Liquidity(StrictModel):
     max_option_spread: Fraction
     max_stock_spread: Fraction
+    min_atm_pair_volume: PositiveFloat
 
 
 class Edge(StrictModel):

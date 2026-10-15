@@ -33,6 +33,11 @@ FINANCIAL_METRICS = {
     "capex": "Капзатраты",
 }
 QUARTERS = 8
+OPTIONS_WORDS = {
+    True: "ликвидные: объём ATM накануне отчёта выше порога, есть недельные экспирации",
+    False: "малоликвидные: объём ATM ниже порога или нет недельных экспираций",
+    None: "нет данных архива",
+}
 REPORTS_SHOWN = 12
 # 8-K компании в SEC до даты (EDGAR принимает тикер вместо CIK).
 EDGAR_8K = (
@@ -77,6 +82,7 @@ class Overview(BaseModel):
     about: str
     segments: list[str]
     next_report: str
+    options: str  # ликвидность опционов по архиву (E6)
 
 
 class NewsRow(BaseModel):
@@ -206,6 +212,7 @@ def company_tab(
             about=company.overview or "нет данных: профиль компании собирает «Досье» (отложено)",
             segments=[str(s) for s in company.segments or []],
             next_report=_event_text(_next_event(session, ticker, today)),
+            options=OPTIONS_WORDS[company.options_liquid],
         )
     if tab == "news":
         return _news(session, ticker, today)
@@ -281,16 +288,30 @@ def _financials(session: Session, ticker: str) -> Financials:
     )
     quarters = ends[-QUARTERS:]
     values = {(r.metric, r.period_end): r for r in rows}
+    # EPS за Q4 XBRL не даёт (неаддитивен): берётся факт отчёта из истории (Alpha Vantage).
+    reported = {
+        t.fiscal_period_end: t.eps_actual
+        for t in session.scalars(
+            select(orm.EarningsTrack).where(
+                orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.eps_actual.is_not(None)
+            )
+        )
+        if t.fiscal_period_end is not None
+    }
     table = []
     for metric, label in FINANCIAL_METRICS.items():
         cells = [values.get((metric, q)) for q in quarters]
-        if not any(cells):
+        from_reports = metric == "eps_diluted" and any(reported.get(q) for q in quarters)
+        if not any(cells) and not from_reports:
             continue
         table.append(
             FinancialRow(
                 metric=label,
                 values=[
-                    _financial_value(c.value if c else None, c.unit if c else "") for c in cells
+                    _eps_from_report(reported.get(q))
+                    if c is None and metric == "eps_diluted"
+                    else _financial_value(c.value if c else None, c.unit if c else "")
+                    for c, q in zip(cells, quarters, strict=True)
                 ],
             )
         )
@@ -385,6 +406,14 @@ def _guidance_text(guidance: object) -> str | None:
     return {1: "прогноз повышен", -1: "прогноз снижен", 0: "прогноз подтверждён"}.get(
         change if isinstance(change, int) else 99
     )
+
+
+def _eps_from_report(value: float | None) -> Num:
+    """EPS из истории отчётов (Alpha Vantage, база non-GAAP не документирована) — с пометкой."""
+    if value is None:
+        return empty("—")
+    shown = _eps(value)
+    return shown.model_copy(update={"display": f"{shown.display} (отчёт)"})
 
 
 def _margin(profit: orm.FinancialQuarter | None, revenue: orm.FinancialQuarter | None) -> Num:
