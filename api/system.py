@@ -27,9 +27,24 @@ LEVEL_TONES: dict[str, Tone] = {
     "red": "action",
 }
 REPOSITORY = "/Users/DEV/Trading"
-LIVE_CHECKOUT = "/Users/DEV/Trading-live"
-SCHEDULER_LOG = f"{LIVE_CHECKOUT}/logs/scheduler.log"
-SOURCES = ("Massive", "Finnhub", "Alpha Vantage", "брокер", "Telegram", "сторож")
+RUNS_ON = "сервер Hetzner, docker (deploy/compose.yml)"
+SCHEDULER_LOG = "docker logs trading-scheduler (на сервере)"
+# DASHBOARD §4.7: имя на экране → источник в source_status (FRED и SEC — тоже данные системы).
+SOURCES = {
+    "Massive": "massive",
+    "Finnhub": "finnhub",
+    "Alpha Vantage": "alphavantage",
+    "FRED": "fred",
+    "SEC EDGAR": "edgar",
+    "брокер": "broker",
+    "Telegram": "telegram",
+    "сторож": "watchdog",
+}
+NO_CONNECTION = {
+    "broker": "ручной брокер — без подключения",
+    "watchdog": "внешний (GitHub Actions)",
+}
+SYSTEM_MESSAGES_SHOWN = 20
 
 
 class Market(BaseModel):
@@ -112,10 +127,41 @@ def status_view(session: Session, now: datetime, thresholds: Thresholds) -> Stat
         date=day(to_et(now).date()),
         time=et_msk(now),
         market=_market(session),
-        sources=[SourceRow(source=s, status="нет данных", last_success="—") for s in SOURCES],
-        messages=[],
-        messages_note="журнал сообщений «СИСТЕМА» появится с Telegram и сторожем (T18)",
+        sources=_sources(session),
+        messages=_system_messages(session),
+        messages_note=f"последние {SYSTEM_MESSAGES_SHOWN} сообщений «СИСТЕМА»",
     )
+
+
+def _sources(session: Session) -> list[SourceRow]:
+    """ОК / СБОЙ по последней отметке источника и время последнего успеха (DASHBOARD §4.7)."""
+    rows = {r.source: r for r in session.scalars(select(orm.SourceStatus))}
+    out = []
+    for name, key in SOURCES.items():
+        row = rows.get(key)
+        if row is None:
+            status = NO_CONNECTION.get(key, "нет данных")
+            out.append(SourceRow(source=name, status=status, last_success="—"))
+            continue
+        failing = row.last_error_at is not None and (
+            row.last_ok_at is None or row.last_error_at > row.last_ok_at
+        )
+        last = row.last_ok_at
+        out.append(
+            SourceRow(
+                source=name,
+                status="СБОЙ" if failing else "ОК",
+                last_success="—" if last is None else f"{day(to_et(last).date())} {et_msk(last)}",
+            )
+        )
+    return out
+
+
+def _system_messages(session: Session) -> list[str]:
+    rows = session.scalars(
+        select(orm.SystemMessage).order_by(orm.SystemMessage.at.desc()).limit(SYSTEM_MESSAGES_SHOWN)
+    ).all()
+    return [f"{day(to_et(r.at).date())} {et_msk(r.at)} — {r.text}" for r in rows]
 
 
 def _failing_sources(session: Session, since: datetime) -> list[str]:
@@ -239,7 +285,7 @@ def _error_report(entry: orm.ErrorLog, time: str) -> str:
     """Текст для вставки в чат: что упало, где искать подробности."""
     return "\n".join(
         [
-            f"Ошибка в Earnings Engine (код: {REPOSITORY}, работает из: {LIVE_CHECKOUT})",
+            f"Ошибка в Earnings Engine (код: {REPOSITORY}, работает: {RUNS_ON})",
             f"Время: {time}",
             f"Задача: {entry.source}",
             f"Тикер: {entry.ticker or '—'} · стадия: {entry.stage or '—'}"

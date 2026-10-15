@@ -9,6 +9,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from adapters.finnhub.client import FinnhubClient, finnhub_api_key
+from adapters.health import drain
 from core.config import load_config
 from core.db.session import create_db_engine
 from core.error_log import logged_job
@@ -19,6 +20,7 @@ from decision.jobs import decision_handlers
 from decision.report import report_handlers
 from models.forecast import forecast_handlers
 from notify.signals import send_new_signals
+from notify.system import collect_error_messages, save_source_health, send_system_messages
 from notify.telegram.client import TelegramClient
 
 logger = logging.getLogger(__name__)
@@ -51,13 +53,23 @@ def run_dispatch(
     grace = timedelta(seconds=load_config().schedule.scheduler.misfire_grace_seconds)
     with Session(engine()) as session, session.begin():
         result = dispatch_due(session, now=now(), grace=grace, handlers=job_handlers())
-    try:
-        run_signal_notifications()
-    except (
-        Exception
-    ):  # уже в журнале ошибок (logged_job); диспетчер не должен падать из-за Telegram
-        logger.exception("telegram signals failed")
+    for notify in (run_signal_notifications, run_system_messages):
+        try:
+            notify()
+        except Exception:  # уже в журнале ошибок (logged_job); диспетчер не падает из-за Telegram
+            logger.exception("telegram notification failed", extra={"job": notify.__name__})
     return result
+
+
+@logged_job("system-messages", lambda: engine())
+def run_system_messages(now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> int:
+    """Состояние источников → source_status; сбои задач → «СИСТЕМА»; отправка в Telegram."""
+    with Session(engine()) as session:
+        save_source_health(session, drain())
+        collect_error_messages(session)
+        session.commit()
+        client = TelegramClient.from_env()
+        return 0 if client is None else send_system_messages(session, client, now())
 
 
 @logged_job("telegram-signals", lambda: engine())

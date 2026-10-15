@@ -8,7 +8,10 @@ import os
 
 import httpx
 
+from adapters.health import mark_error, mark_ok
+
 API = "https://api.telegram.org"
+SOURCE = "telegram"
 TIMEOUT_SECONDS = 20.0
 
 
@@ -40,9 +43,13 @@ class TelegramClient:
                     json={"chat_id": self._chat_id, "text": text},
                 )
             except httpx.HTTPError as error:
+                mark_error(SOURCE, type(error).__name__)
                 raise TelegramError(f"sendMessage: {type(error).__name__}") from None
         body = response.json() if response.content else {}
         if response.status_code != 200 or not body.get("ok"):
             description = body.get("description", "") if isinstance(body, dict) else ""
-            raise TelegramError(f"sendMessage: HTTP {response.status_code} {description}".strip())
+            detail = f"sendMessage: HTTP {response.status_code} {description}".strip()
+            mark_error(SOURCE, detail)
+            raise TelegramError(detail)
+        mark_ok(SOURCE)
         return int(body["result"]["message_id"])

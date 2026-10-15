@@ -125,3 +125,23 @@ class CashMovement(DomainModel):
         if self.amount == 0:
             raise ValueError("cash movement amount must not be zero")
         return self
+
+
+class SourceStatusRecord(DomainModel):
+    """Источник данных (таблица source_status, T18)."""
+
+    source: str = Field(min_length=1)
+    last_ok_at: AwareDatetime | None = None
+    last_error_at: AwareDatetime | None = None
+    last_error: str | None = None
+
+
+class SystemMessageRecord(DomainModel):
+    """Сообщение «СИСТЕМА» (таблица system_message, T18)."""
+
+    id: int | None = None
+    at: AwareDatetime
+    code: str | None = None
+    text: str = Field(min_length=1)
+    sent_at: AwareDatetime | None = None
+    tg_message_id: int | None = None

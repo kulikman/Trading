@@ -37,6 +37,8 @@ from core.domain.trading import (
     CardStop,
     CashMovement,
     Decision,
+    SourceStatusRecord,
+    SystemMessageRecord,
     TradeCard,
     TradeCardTransition,
 )
@@ -70,6 +72,8 @@ EXPECTED_TABLES = {
     "shadow_trade",
     "broker_order",
     "cash_movement",
+    "source_status",
+    "system_message",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -438,6 +442,22 @@ CASES: dict[str, Builder] = {
             payload={"symbol": "GS", "side": "buy", "quantity": 17},
             instruction="Купить  GS  17 шт.  лимит ≤ 897.00",
             status="pending",
+        ),
+    ),
+    "source_status": lambda s, c: (
+        orm.SourceStatus,
+        SourceStatusRecord(
+            source="finnhub", last_ok_at=AT, last_error_at=AT, last_error="HTTP 429"
+        ),
+    ),
+    "system_message": lambda s, c: (
+        orm.SystemMessage,
+        SystemMessageRecord(
+            at=AT,
+            code="DATA_CALENDAR",
+            text="Календарь: Finnhub недоступен",
+            sent_at=AT,
+            tg_message_id=9,
         ),
     ),
     "cash_movement": lambda s, c: (
