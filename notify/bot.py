@@ -19,6 +19,7 @@ from adapters.broker.factory import create_card_orders
 from adapters.errors import DataError
 from core.config import load_config
 from core.db import models as orm
+from core.db.session import create_db_engine
 from core.domain.broker import Quote
 from core.domain.trading import CardFill
 from core.session_guard import to_et
@@ -128,8 +129,6 @@ def send_reminders(session: Session, client: Sender, now: datetime, remind_after
 
 
 def main() -> int:  # pragma: no cover — процесс с сетью; логика — в функциях выше
-    from core.scheduler.jobs import engine
-
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("httpx").setLevel(logging.WARNING)  # в адресе запроса — токен бота
     client = TelegramClient.from_env()
@@ -140,10 +139,11 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
     def no_quotes(symbol: str) -> Quote:
         raise DataError("broker", f"ручной брокер: котировки {symbol} нет")
 
+    db = create_db_engine()
     broker = create_card_orders(
         quote_source=no_quotes,
         no_market_orders_first_minutes=load_config().thresholds.execution.no_market_orders_first_minutes,
-        session_factory=lambda: Session(engine()),
+        session_factory=lambda: Session(db),
     )
     offset: int | None = None
     logger.info("bot started")
@@ -164,7 +164,7 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
             if str(chat) != client.chat_id:
                 logger.warning("callback from a foreign chat ignored")
                 continue
-            with Session(engine()) as session, session.begin():
+            with Session(db) as session, session.begin():
                 reply = handle_callback(
                     session, str(query.get("data", "")), broker, datetime.now(UTC)
                 )
