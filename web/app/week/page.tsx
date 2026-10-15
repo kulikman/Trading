@@ -27,7 +27,7 @@ async function WeekContent({
   ]);
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={params} />
       <SubTabs
         tabs={[
           { href: "/week", label: "Топ", isActive: tab === "top" },

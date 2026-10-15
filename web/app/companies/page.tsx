@@ -17,11 +17,12 @@ export default function SectorsPage({ searchParams }: PageProps<"/companies">): 
 async function SectorsContent({
   searchParams,
 }: Pick<PageProps<"/companies">, "searchParams">): Promise<React.ReactElement> {
-  const mode = modeOf((await searchParams).mode);
+  const query = await searchParams;
+  const mode = modeOf(query.mode);
   const sectors = await apiGet<SectorRow[]>("/api/sectors");
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={query} />
       <h2>Сектора</h2>
       <Grid head={["Сектор", "Тренд", "Коротко", "Компаний", "Ближайший отчёт"]}>
         {sectors.map((row) => (

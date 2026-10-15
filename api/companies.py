@@ -3,7 +3,7 @@
 Без признаков модели и вероятностей — только факты о бизнесе и отчётах.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -33,6 +33,18 @@ FINANCIAL_METRICS = {
     "capex": "Капзатраты",
 }
 QUARTERS = 8
+REPORTS_SHOWN = 12
+# 8-K компании в SEC до даты (EDGAR принимает тикер вместо CIK).
+EDGAR_8K = (
+    "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={ticker}"
+    "&type=8-K&dateb={before}&owner=include&count=10"
+)
+# Маржа — доля выручки (DASHBOARD §4.5 «выручка, маржа, EPS»): строка после своей прибыли.
+MARGINS = {
+    "gross_profit": "Валовая маржа",
+    "operating_income": "Операционная маржа",
+    "net_income": "Чистая маржа",
+}
 
 
 class SectorRow(BaseModel):
@@ -61,6 +73,7 @@ class Overview(BaseModel):
     ticker: str
     name: str
     sector: str
+    sector_id: str
     about: str
     segments: list[str]
     next_report: str
@@ -189,6 +202,7 @@ def company_tab(
             ticker=company.ticker,
             name=company.name,
             sector=sector.name if sector else company.sector_id,
+            sector_id=company.sector_id,
             about=company.overview or "нет данных: профиль компании собирает «Досье» (отложено)",
             segments=[str(s) for s in company.segments or []],
             next_report=_event_text(_next_event(session, ticker, today)),
@@ -196,7 +210,7 @@ def company_tab(
     if tab == "news":
         return _news(session, ticker, today)
     if tab == "reports":
-        return _reports(session, ticker)
+        return _reports(session, ticker, today)
     if tab == "financials":
         return _financials(session, ticker)
     return _track(session, ticker)
@@ -224,7 +238,7 @@ def _news(session: Session, ticker: str, today: date) -> News:
     return News(rows=rows, message=None if rows else "нет новостей с прошлого отчёта")
 
 
-def _reports(session: Session, ticker: str) -> Reports:
+def _reports(session: Session, ticker: str, today: date) -> Reports:
     audits = session.scalars(
         select(orm.ReportAudit)
         .where(orm.ReportAudit.ticker == ticker)
@@ -234,6 +248,19 @@ def _reports(session: Session, ticker: str) -> Reports:
     for audit in audits:
         urls = by_date.setdefault(audit.report_date, [])
         urls += [u for u in audit.source_urls or [] if u not in urls]
+    # Прошлые отчёты архива со ссылкой на 8-K в SEC (аудит дашборда 14.10.2026, DASHBOARD §4.5).
+    past = session.scalars(
+        select(orm.EarningsTrack)
+        .where(orm.EarningsTrack.ticker == ticker, orm.EarningsTrack.report_date <= today)
+        .order_by(orm.EarningsTrack.report_date.desc())
+        .limit(REPORTS_SHOWN)
+    ).all()
+    for track in past:
+        filed = track.sec_filing_date or track.report_date
+        urls = by_date.setdefault(track.report_date, [])
+        link = EDGAR_8K.format(ticker=ticker, before=(filed + timedelta(days=1)).strftime("%Y%m%d"))
+        if link not in urls:
+            urls.insert(0, link)
     latest = audits[0] if audits else None
     return Reports(
         reports=[ReportLink(date=day(d), urls=u) for d, u in sorted(by_date.items(), reverse=True)],
@@ -241,7 +268,7 @@ def _reports(session: Session, ticker: str) -> Reports:
         guidance=_guidance_text(latest.guidance) if latest else None,
         summary=latest.summary if latest else None,
         risks=[str(r) for r in (latest.named_risks or [])] if latest else [],
-        message=None if audits else "разборов отчётов ещё нет",
+        message=None if by_date else "отчётов в архиве нет",
     )
 
 
@@ -267,6 +294,14 @@ def _financials(session: Session, ticker: str) -> Financials:
                 ],
             )
         )
+        if metric in MARGINS:
+            revenue = [values.get(("revenue", q)) for q in quarters]
+            table.append(
+                FinancialRow(
+                    metric=MARGINS[metric],
+                    values=[_margin(c, r) for c, r in zip(cells, revenue, strict=True)],
+                )
+            )
     return Financials(
         quarters=[day(q) for q in quarters],
         rows=table,
@@ -350,6 +385,12 @@ def _guidance_text(guidance: object) -> str | None:
     return {1: "прогноз повышен", -1: "прогноз снижен", 0: "прогноз подтверждён"}.get(
         change if isinstance(change, int) else 99
     )
+
+
+def _margin(profit: orm.FinancialQuarter | None, revenue: orm.FinancialQuarter | None) -> Num:
+    if profit is None or revenue is None or not revenue.value:
+        return empty("—")
+    return percent(profit.value / revenue.value)
 
 
 def _financial_value(value: float | None, unit: str) -> Num:

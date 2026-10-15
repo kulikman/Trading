@@ -222,7 +222,7 @@ def plugins_view(session: Session) -> list[PluginRow]:
             stage=p.stage,
             enabled="да" if p.enabled else "нет",
             contribution=empty("нет данных до отчёта сезона (T20)"),
-            flagged="нет",
+            flagged="решит отчёт сезона (T20)",
         )
         for p in plugins
     ]

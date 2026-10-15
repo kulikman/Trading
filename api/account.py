@@ -339,7 +339,12 @@ def _path_to_real(
         ("СДЕЛОК", f"{len(trades)}/{rule.min_trades}", len(trades) >= rule.min_trades),
         (
             "SHARPE",
-            f"{ratio(sharpe).display}/{ratio(rule.min_sharpe, 1).display}",
+            (
+                f"{ratio(sharpe).display}/{ratio(rule.min_sharpe, 1).display}"
+                if sharpe is not None
+                else f"считается с {thresholds.dashboard.sharpe_min_days} торговых дней"
+                f" (нужно > {ratio(rule.min_sharpe, 1).display})"
+            ),
             sharpe is not None and sharpe > rule.min_sharpe,
         ),
         (

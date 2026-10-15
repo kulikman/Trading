@@ -5,22 +5,26 @@ import { N } from "@/components/num";
 import { apiGet } from "@/lib/api";
 import type { AccountBar as AccountBarData, Num } from "@/lib/types";
 
+type Query = Record<string, string | string[] | undefined>;
+
 interface AccountBarProps {
   mode: "paper" | "real";
+  /** Параметры адреса страницы: переключатель меняет только mode, вкладка и фильтр остаются. */
+  query?: Query;
 }
 
 /** Полоса счёта на каждом экране (§3): плитки с числами с бэкенда; Paper и Real не смешиваются. */
-export async function AccountBar({ mode }: AccountBarProps): Promise<React.ReactElement> {
+export async function AccountBar({ mode, query }: AccountBarProps): Promise<React.ReactElement> {
   const bar = await apiGet<AccountBarData>(`/api/account?mode=${mode}`);
   return (
     <section>
       <AutoRefresh intervalMs={bar.refresh_ms} />
       <div className="mt-4 flex items-center gap-2">
         <div className="tabs-small !m-0">
-          <Link href="?mode=paper" className={mode === "paper" ? "tab tab-active" : "tab"}>
+          <Link href={withMode(query, "paper")} className={mode === "paper" ? "tab tab-active" : "tab"}>
             Paper
           </Link>
-          <Link href="?mode=real" className={mode === "real" ? "tab tab-active" : "tab"}>
+          <Link href={withMode(query, "real")} className={mode === "real" ? "tab tab-active" : "tab"}>
             Real
           </Link>
         </div>
@@ -75,6 +79,17 @@ function Stat({ label, value, note, limit }: StatProps): React.ReactElement {
 }
 
 /** Режим счёта из адреса страницы: ?mode=real, по умолчанию Paper. */
+/** Тот же адрес с другим режимом счёта. */
+function withMode(query: Query | undefined, mode: "paper" | "real"): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (key === "mode" || value === undefined) continue;
+    for (const item of Array.isArray(value) ? value : [value]) params.append(key, item);
+  }
+  params.set("mode", mode);
+  return `?${params.toString()}`;
+}
+
 export function modeOf(value: string | string[] | undefined): "paper" | "real" {
   return value === "real" ? "real" : "paper";
 }

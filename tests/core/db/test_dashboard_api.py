@@ -486,6 +486,69 @@ def test_models_screen_lists_versions(seeded: Session, client: TestClient) -> No
     assert row["accepted"] == "да — стартовая версия"
 
 
+def test_dashboard_audit_fixes(seeded: Session, client: TestClient) -> None:
+    reports = client.get("/api/companies/GS/reports", headers=AUTH).json()
+    assert reports["message"] is None
+    assert reports["reports"][0]["date"] == "01.10.2026"  # прошлый отчёт из архива
+    assert reports["reports"][0]["urls"][0].endswith(
+        "CIK=GS&type=8-K&dateb=20261002&owner=include&count=10"
+    )
+    for metric, value in (("revenue", 1000.0), ("gross_profit", 400.0), ("net_income", 150.0)):
+        seeded.add(
+            orm.FinancialQuarter(
+                ticker="GS",
+                metric=metric,
+                period_end=date(2026, 9, 30),
+                period_start=date(2026, 7, 1),
+                value=value,
+                unit="USD",
+                derived=False,
+                concept=metric,
+                form="10-Q",
+                accession=f"0000-{metric}",
+                filed=date(2026, 10, 14),
+            )
+        )
+    seeded.flush()
+    rows = client.get("/api/companies/GS/financials", headers=AUTH).json()["rows"]
+    margins = {r["metric"]: r["values"][0]["display"] for r in rows if "маржа" in r["metric"]}
+    assert margins == {"Валовая маржа": "40,0%", "Чистая маржа": "15,0%"}
+    overview = client.get("/api/companies/GS/overview", headers=AUTH).json()
+    assert overview["sector_id"] == "banks"  # ссылка на сектор в хлебных крошках
+    path = {
+        c["criterion"]: c["display"]
+        for c in client.get("/api/account/summary", headers=AUTH).json()["path_to_real"]
+    }
+    assert path["SHARPE"].startswith("SHARPE считается с 20 торговых дней")
+    assert all(
+        p["flagged"] == "решит отчёт сезона (T20)"
+        for p in client.get("/api/system/plugins", headers=AUTH).json()
+    )
+
+
+def test_changes_readable_and_next_report_not_passed(seeded: Session, client: TestClient) -> None:
+    event = seeded.scalars(select(orm.Event).where(orm.Event.ticker == "BAC")).first()
+    assert event is not None
+    seeded.add(
+        orm.EventChange(
+            event_id=event.id,
+            at=NOW - timedelta(hours=1),
+            field="date_check",
+            old_value=None,
+            new_value="mismatch",
+            reason="DATA_CALENDAR: finnhub 2026-10-14 vs alphavantage 2026-10-15",
+        )
+    )
+    seeded.flush()
+    rows = client.get("/api/changes", headers=AUTH).json()["rows"]
+    assert rows[0]["text"] == (
+        "BAC: сверка даты — → даты расходятся (finnhub 2026-10-14 против alphavantage 2026-10-15)"
+    )
+    now = client.get("/api/today", headers=AUTH).json()["now"]["message"]
+    assert "BAC" not in now  # отчёт BAC 14.10 BMO уже вышел (сейчас 14:00 ET)
+    assert now == "Действий нет. Ближайший отчёт: C 16.10.2026"
+
+
 def test_company_track_and_not_found(seeded: Session, client: TestClient) -> None:
     track = client.get("/api/companies/gs/track", headers=AUTH).json()
     row = track["rows"][0]

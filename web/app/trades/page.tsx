@@ -25,7 +25,7 @@ async function TradesContent({
   const trades = await apiGet<Trades>(`/api/trades?state=${state}&mode=${mode}`);
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={params} />
       <p className={toneClass(trades.trust_tone)}>{trades.trust_line}</p>
       <SubTabs
         tabs={[
