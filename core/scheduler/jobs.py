@@ -19,6 +19,7 @@ from core.scheduler.dispatch import HANDLERS, DispatchResult, Handler, dispatch_
 from decision.jobs import decision_handlers
 from decision.report import report_handlers
 from models.forecast import forecast_handlers
+from notify.digest import notify_handlers
 from notify.signals import send_new_signals, send_skips
 from notify.system import collect_error_messages, save_source_health, send_system_messages
 from notify.telegram.client import TelegramClient
@@ -42,6 +43,7 @@ def handlers() -> dict[str, Handler]:
         **decision_handlers(config, load_strategies(config)),
         # без кэша: в день T0 нужен свежий факт отчёта
         **report_handlers(FinnhubClient.create(config.sources.finnhub, finnhub_api_key())),
+        **notify_handlers(TelegramClient.from_env),
     }
 
 
