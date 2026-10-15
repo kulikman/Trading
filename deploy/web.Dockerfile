@@ -5,7 +5,7 @@ RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
-RUN pnpm build
+RUN mkdir -p public && pnpm build  # public/ пустая и в git не хранится
 
 FROM node:24-slim
 WORKDIR /web
