@@ -1,7 +1,7 @@
 """APScheduler 3.11 с хранилищем задач в Postgres (SPEC §3, §8).
 
 Постоянные задачи: агент «Календарь» (торговые дни, 06:00 ET), снимок консенсуса (06:10 ET),
-пополнение архива (18:30 ET) и диспетчер задач событий.
+трейлинг-стоп режима C (16:20 ET), пополнение архива (18:30 ET) и диспетчер задач событий.
 Сами задачи событий — строки event_job (ключ event_id, stage, job), их берёт диспетчер.
 """
 
@@ -18,10 +18,12 @@ CALENDAR_JOB_ID = "calendar-daily"
 DISPATCH_JOB_ID = "event-dispatch"
 ARCHIVE_JOB_ID = "archive-daily"
 CONSENSUS_JOB_ID = "consensus-daily"
+TRAILING_JOB_ID = "trailing-daily"
 CALENDAR_FUNC = "agents.calendar.job:run_calendar"
 DISPATCH_FUNC = "core.scheduler.jobs:run_dispatch"
 ARCHIVE_FUNC = "backtest.daily_archive:run_daily_archive"
 CONSENSUS_FUNC = "agents.consensus.job:run_consensus_snapshot"
+TRAILING_FUNC = "execution.trailing:run_trailing_update"
 JOBS_TABLE = "apscheduler_jobs"
 
 
@@ -49,6 +51,7 @@ def register_jobs(scheduler: BaseScheduler, schedule: ScheduleConfig) -> None:
     for func, job_id, at in (
         (ARCHIVE_FUNC, ARCHIVE_JOB_ID, schedule.archive.run_time_et),
         (CONSENSUS_FUNC, CONSENSUS_JOB_ID, schedule.consensus.run_time_et),
+        (TRAILING_FUNC, TRAILING_JOB_ID, schedule.trailing.run_time_et),
     ):
         scheduler.add_job(
             func,

@@ -26,6 +26,7 @@ from core.scheduler.runner import (
     CONSENSUS_JOB_ID,
     DISPATCH_JOB_ID,
     JOBS_TABLE,
+    TRAILING_JOB_ID,
     create_scheduler,
     register_jobs,
 )
@@ -110,7 +111,17 @@ def test_register_jobs_in_postgres_store_is_idempotent(
         register_jobs(scheduler, SCHEDULE)
         register_jobs(scheduler, SCHEDULE)
         jobs = {j.id: j for j in scheduler.get_jobs()}
-        assert set(jobs) == {CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, DISPATCH_JOB_ID}
+        assert set(jobs) == {
+            CALENDAR_JOB_ID,
+            ARCHIVE_JOB_ID,
+            CONSENSUS_JOB_ID,
+            TRAILING_JOB_ID,
+            DISPATCH_JOB_ID,
+        }
+        trailing = jobs[TRAILING_JOB_ID].trigger
+        assert isinstance(trailing, CronTrigger)
+        trailing_fields = {f.name: str(f) for f in trailing.fields}
+        assert (trailing_fields["hour"], trailing_fields["minute"]) == ("16", "20")
         consensus = jobs[CONSENSUS_JOB_ID].trigger
         assert isinstance(consensus, CronTrigger)
         consensus_fields = {f.name: str(f) for f in consensus.fields}
@@ -131,7 +142,7 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             stored = connection.execute(
                 select(func.count()).select_from(orm.apscheduler_jobs)
             ).scalar_one()
-        assert stored == 4
+        assert stored == 5
     finally:
         scheduler.shutdown(wait=False)
         with engine.begin() as connection:
@@ -173,7 +184,7 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
     # адреса запросов (с ключами FRED / Alpha Vantage) не пишутся в лог планировщика
     assert logging.getLogger("httpx").level == logging.WARNING
     assert (fake.ids, started) == (
-        [CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, DISPATCH_JOB_ID],
+        [CALENDAR_JOB_ID, ARCHIVE_JOB_ID, CONSENSUS_JOB_ID, TRAILING_JOB_ID, DISPATCH_JOB_ID],
         [True],
     )
 
