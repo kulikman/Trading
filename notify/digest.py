@@ -125,7 +125,7 @@ def notify_handlers(client_factory: Callable[[], Messenger | None]) -> dict[str,
 
 
 def exit_texts(session: Session, event_id: int) -> list[str]:
-    """Открытые Real-опционы события: «ВЫХОД до 11:00 ET» с ногами для закрытия."""
+    """Real-опционы события: закрыть OPEN/C_MODE/CLOSING, подтвердить или отменить ARMED."""
     rows = session.execute(
         select(orm.TradeCard, orm.Decision, orm.Event)
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
@@ -133,23 +133,31 @@ def exit_texts(session: Session, event_id: int) -> list[str]:
         .where(
             orm.Decision.event_id == event_id,
             orm.TradeCard.paper.is_(False),
-            orm.TradeCard.state.in_(OPEN_STATES),
+            orm.TradeCard.state.in_(("ARMED", *OPEN_STATES)),
             orm.Decision.construction.in_(("straddle", "iron_condor")),
         )
     ).all()
     texts = []
     for card, decision, event in rows:
         name = NAMES.get(decision.construction or "", decision.construction or "")
-        legs = [_close_line(leg) for leg in card.legs or []]
-        texts.append(
-            "\n".join(
-                [
-                    f"ВЫХОД до 11:00 ET · {event.ticker} · {name} · REAL #{card.id}",
-                    *legs,
-                    "Закрыли — нажмите «Закрыл» в карточке и ответьте ценами выхода",
-                ]
+        if card.state == "ARMED":
+            texts.append(
+                f"ПРОВЕРЬТЕ · {event.ticker} · {name} · REAL #{card.id}\n"
+                "Ордера выставлены, исполнение не подтверждено.\n"
+                "Исполнились — нажмите «Исполнено» и ответьте ценами.\n"
+                "Не прошли — нажмите «Не исполнил»."
             )
-        )
+        else:
+            legs = [_close_line(leg) for leg in card.legs or []]
+            texts.append(
+                "\n".join(
+                    [
+                        f"ВЫХОД до 11:00 ET · {event.ticker} · {name} · REAL #{card.id}",
+                        *legs,
+                        "Закрыли — нажмите «Закрыл» в карточке и ответьте ценами выхода",
+                    ]
+                )
+            )
     return texts
 
 
