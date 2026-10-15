@@ -29,6 +29,30 @@ def real_capital(session: Session) -> float | None:
     return None if total is None else float(total)
 
 
+def real_balance(session: Session) -> float | None:
+    """Счёт Real: пополнения − выводы + итог закрытых Real-сделок; движений нет — None."""
+    capital = real_capital(session)
+    if capital is None:
+        return None
+    pnl = session.scalar(
+        select(func.sum(orm.TradeCard.pnl_total)).where(
+            orm.TradeCard.paper.is_(False), orm.TradeCard.state.in_(("CLOSED", "STOPPED"))
+        )
+    )
+    return capital + float(pnl or 0)
+
+
+def reserved_cash(session: Session) -> float:
+    """Деньги под открытыми и ждущими Real-позициями (cash_usd карточек)."""
+    total = session.scalar(
+        select(func.sum(orm.TradeCard.cash_usd)).where(
+            orm.TradeCard.paper.is_(False),
+            orm.TradeCard.state.in_(("PLANNED", "ARMED", "OPEN", "C_MODE", "CLOSING")),
+        )
+    )
+    return float(total or 0)
+
+
 def record_cash(
     session: Session, kind: str, amount: Decimal, note: str | None, at: datetime
 ) -> orm.CashMovement:

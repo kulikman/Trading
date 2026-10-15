@@ -12,26 +12,31 @@ import logging
 import time as clock
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Protocol
 
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from adapters.broker.base import CardOrders
-from adapters.broker.factory import create_card_orders
+from adapters.broker.factory import create_card_orders, create_cost_model
 from adapters.errors import DataError
 from core.config import load_config
 from core.db import models as orm
 from core.db.session import create_db_engine
-from core.domain.broker import Order, OrderId, Quote
-from core.domain.trading import CardFill
+from core.domain.broker import Order, OrderId, Quote, Side
+from core.domain.trading import CardFill, CardLeg
 from core.session_guard import to_et
 from core.state_machine.card import transition
 from core.text import plural
+from execution.costs import CostLeg, CostModel
 from notify.signals import NAMES, Sender, card_buttons
 from notify.telegram.client import TelegramClient, TelegramError
 
 logger = logging.getLogger(__name__)
+
+SIDE_WORD = {"buy": "Купить", "sell": "Продать"}
+OPEN_STATES = ("OPEN", "C_MODE")  # позиция у брокера — «Закрыл» записывает выход
 
 
 class PendingOrder(Protocol):
@@ -65,6 +70,21 @@ def handle_callback(
         return details_text(session, card)
     if card.paper:
         return "Paper: исполнение считает система"
+    if action == "exit":  # «Закрыл» — Real OPEN: цены выхода по ногам ответом (E10-3)
+        if card.state not in OPEN_STATES:
+            return f"Карточка уже {card.state}"
+        legs = [CardLeg.model_validate(leg, strict=False) for leg in card.legs or []]
+        lines = [
+            f"{n}) {SIDE_WORD[_reverse(leg.side)]}  {leg.symbol}  {leg.quantity:g} шт."
+            for n, leg in enumerate(legs, start=1)
+        ]
+        card.fill_prompt_id = sender.send(
+            "Цена выхода? Ответьте на это сообщение: "
+            f"{len(legs)} {plural(len(legs), 'цена', 'цены', 'цен')} через пробел по порядку.\n"
+            + "\n".join(lines),
+            reply_to=card.tg_message_id,
+        )
+        return "Ответьте ценой выхода"
     if card.state != "ARMED":
         return f"Карточка уже {card.state}"
     tickets = broker.pending_for_card(card.id)
@@ -90,7 +110,12 @@ def handle_callback(
 
 
 def handle_reply(
-    session: Session, text: str, reply_to: int, broker: CardOrders, now: datetime
+    session: Session,
+    text: str,
+    reply_to: int,
+    broker: CardOrders,
+    now: datetime,
+    costs: CostModel | None = None,
 ) -> str | None:
     """Ответ на «Цена исполнения?» → исполнения по фактическим ценам, ARMED → OPEN.
 
@@ -102,6 +127,8 @@ def handle_reply(
     ).first()
     if card is None:
         return None
+    if card.state in OPEN_STATES:
+        return _close(session, card, text, broker, now, costs)
     if card.state != "ARMED":
         return f"Карточка уже {card.state}"
     entries = _entries(broker.pending_for_card(card.id))
@@ -131,6 +158,83 @@ def handle_reply(
     return "Исполнение записано: " + ", ".join(f"{p:.2f}" for p in prices)
 
 
+def _close(
+    session: Session,
+    card: orm.TradeCard,
+    text: str,
+    broker: CardOrders,
+    now: datetime,
+    costs: CostModel | None,
+) -> str:
+    """Цены выхода по ногам → исполнения выхода, P&L, стоп-ордер снят, карточка закрыта."""
+    legs = [CardLeg.model_validate(leg, strict=False) for leg in card.legs or []]
+    prices = _numbers(text, len(legs))
+    if isinstance(prices, str):
+        return prices
+    entries = {
+        f["symbol"]: float(f["price"]) for f in card.fills or [] if f.get("purpose") == "entry"
+    }
+    if any(leg.symbol not in entries for leg in legs):
+        return "Нет цены входа по одной из ног — проверьте карточку"
+    gross = commission = 0.0
+    exits = []
+    for leg, price in zip(legs, prices, strict=True):
+        sign = 1 if leg.side == "buy" else -1
+        gross += sign * (price - entries[leg.symbol]) * leg.quantity * leg.multiplier
+        if costs is not None:
+            for at in (entries[leg.symbol], price):
+                cost_leg = CostLeg(leg.instrument, int(leg.quantity), leg.multiplier, at)
+                commission += costs.leg_cost(cost_leg, at_open=False).commission
+        exits.append(
+            CardFill(
+                symbol=leg.symbol,
+                side=_reverse(leg.side),
+                quantity=leg.quantity,
+                price=price,
+                at=now,
+                purpose="exit",
+            ).model_dump(mode="json")
+        )
+    for ticket in broker.pending_for_card(card.id):
+        broker.cancel(ticket.order_id)  # стоп больше не нужен — позиции нет
+    card.fills = [*(card.fills or []), *exits]
+    card.costs = Decimal(str(round(commission, 4)))
+    card.pnl_total = Decimal(str(round(gross - commission, 4)))
+    card.fill_prompt_id = None
+    if _stopped(card, legs, prices):
+        transition(session, card, "STOPPED", now, "стоп (цена ответом)", check_session=False)
+    else:
+        transition(session, card, "CLOSING", now, "закрыто (цена ответом)", check_session=False)
+        transition(session, card, "CLOSED", now, "закрыто (цена ответом)", check_session=False)
+    return f"Закрыто: итог {'+' if gross - commission >= 0 else '−'}${abs(gross - commission):,.0f}"
+
+
+def _stopped(card: orm.TradeCard, legs: Sequence[CardLeg], prices: Sequence[float]) -> bool:
+    """Акция вышла по стопу: цена выхода не лучше уровня стопа (трейлинг или стартовый)."""
+    stop = (card.trailing or {}).get("stop") or (card.stop or {}).get("price")
+    if stop is None or len(legs) != 1 or legs[0].instrument != "stock":
+        return False
+    level = float(stop)
+    return prices[0] <= level if legs[0].side == "buy" else prices[0] >= level
+
+
+def _reverse(side: Side) -> Side:
+    return "sell" if side == "buy" else "buy"
+
+
+def _numbers(text: str, count: int) -> list[float] | str:
+    try:
+        prices = [float(w.replace(",", ".")) for w in text.replace(";", " ").split()]
+    except ValueError:
+        return f"Не понял цену: «{text[:40]}». Нужны числа через пробел"
+    if len(prices) != count:
+        need = f"{count} {plural(count, 'цена', 'цены', 'цен')}"
+        return f"Нужно {need}, получено {len(prices)}"
+    if any(p <= 0 for p in prices):
+        return "Цена должна быть больше нуля"
+    return prices
+
+
 def _entries[T: PendingOrder](tickets: Sequence[T]) -> list[T]:
     """Ордера входа в порядке карточки (client_order_id … -0, -1, …)."""
 
@@ -148,16 +252,10 @@ def _prices(text: str, entries: Sequence[PendingOrder]) -> list[float] | str:
         if any(p is None for p in limits):
             return "У ордера нет цены лимита — укажите цену числом"
         return [float(p or 0) for p in limits]
-    try:
-        prices = [float(w.replace(",", ".")) for w in words]
-    except ValueError:
-        return f"Не понял цену: «{text[:40]}». Нужны числа через пробел или «лимит»"
-    if len(prices) != len(entries):
-        need = f"{len(entries)} {plural(len(entries), 'цена', 'цены', 'цен')}"
-        return f"Нужно {need}, получено {len(prices)}"
-    if any(p <= 0 for p in prices):
-        return "Цена должна быть больше нуля"
-    return prices
+    found = _numbers(text, len(entries))
+    if isinstance(found, str) and found.startswith("Не понял"):
+        return found + " или «лимит»"
+    return found
 
 
 def details_text(session: Session, card: orm.TradeCard) -> str:
@@ -231,6 +329,7 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
         no_market_orders_first_minutes=load_config().thresholds.execution.no_market_orders_first_minutes,
         session_factory=lambda: Session(db),
     )
+    costs = create_cost_model(load_config().broker)
     offset: int | None = None
     logger.info("bot started")
     while True:
@@ -245,7 +344,7 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
             offset = update_id + 1 if isinstance(update_id, int) else offset
             message = update.get("message")
             if isinstance(message, dict):
-                _on_message(db, client, broker, message)
+                _on_message(db, client, broker, costs, message)
                 continue
             query = update.get("callback_query")
             if not isinstance(query, dict):
@@ -262,7 +361,11 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
 
 
 def _on_message(
-    db: Engine, client: TelegramClient, broker: CardOrders, message: dict[str, Any]
+    db: Engine,
+    client: TelegramClient,
+    broker: CardOrders,
+    costs: CostModel,
+    message: dict[str, Any],
 ) -> None:  # pragma: no cover — сеть; логика — handle_reply
     """Ответ заказчика на вопрос о цене исполнения; остальные сообщения не трогаем."""
     if str((message.get("chat") or {}).get("id")) != client.chat_id:
@@ -272,7 +375,7 @@ def _on_message(
     if not isinstance(reply_to, int) or not isinstance(text, str):
         return
     with Session(db) as session, session.begin():
-        answer = handle_reply(session, text, reply_to, broker, datetime.now(UTC))
+        answer = handle_reply(session, text, reply_to, broker, datetime.now(UTC), costs)
     if answer is not None:
         client.send(answer, reply_to=message.get("message_id"))
 

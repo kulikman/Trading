@@ -1,11 +1,12 @@
-"""Real-карточка (E10): размер по SPEC от капитала Real, ордера человеку через ручного брокера.
+"""Real-карточка (E10): размер по SPEC от счёта Real, ордера человеку через ручного брокера.
 
 Стратегия в стадии live_small / live (подъём только `promote` по метрикам — решение заказчика
-15.10.2026) при прошедшем решении получает, кроме paper-карточки, Real-карточку:
-риск = капитал Real (пополнения `make cash`) × size_real (Келли или фиксированный риск без модели,
-Black Swan, вес стадии, × 0,5 первые 30 дней); единиц = риск / риск единицы плана стратегии
-(вниз до целого). Ордера плана × единиц ставятся ManualBroker в broker_order — человек видит их
-в карточке «ДЕЙСТВИЕ» и подтверждает в боте. Карточка: PLANNED → ARMED (ордера выставлены).
+15.10.2026) при прошедшем решении получает, кроме paper-карточки, Real-карточку. Риск = счёт Real
+(пополнения `make cash` + итог закрытых Real-сделок) × size_real (Келли или фиксированный риск без
+модели, Black Swan, вес стадии, × 0,5 первые 30 дней); единиц = риск / риск единицы плана
+стратегии (вниз до целого), но не больше, чем позволяют свободные деньги счёта (cash_usd открытых
+карточек). Ордера плана × единиц ставятся ManualBroker в broker_order — человек видит их в карточке
+«ДЕЙСТВИЕ» и подтверждает в боте. Карточка: PLANNED → ARMED (ордера выставлены).
 Не открылась — причина словами (её показывает «СИСТЕМА»).
 """
 
@@ -26,7 +27,7 @@ from core.risk.black_swan import Level
 from core.session_guard import to_et
 from core.state_machine.card import start, transition
 from decision.capital import Rejection, size_real
-from execution.cash import real_capital
+from execution.cash import real_balance, reserved_cash
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,7 @@ def open_real_card(
         return RealOutcome(None, f"у конструкции {proposal.construction} нет плана ордеров")
     if plan.entry_until_et is not None and to_et(now).time() >= plan.entry_until_et:
         return RealOutcome(None, f"окно входа до {plan.entry_until_et:%H:%M} ET прошло")
-    capital = real_capital(session)
+    capital = real_balance(session)
     if capital is None or capital <= 0:
         return RealOutcome(None, "счёт Real не пополнен (make cash)")
     first = first_real_day(session)
@@ -87,6 +88,12 @@ def open_real_card(
         return RealOutcome(
             None, f"риск ${risk_usd:.2f} меньше одной единицы (${plan.unit_risk:.2f})"
         )
+    unit_cash = plan.unit_cash or plan.unit_risk
+    free = capital - reserved_cash(session)
+    affordable = math.floor(free / unit_cash) if free > 0 else 0
+    if affordable < 1:
+        return RealOutcome(None, f"свободных денег ${free:,.0f} меньше одной единицы")
+    units = min(units, affordable)  # предел позиции деньгами счёта
     card = orm.TradeCard(
         decision_id=decision.id,
         state="PLANNED",
@@ -107,6 +114,7 @@ def open_real_card(
             price=next((o.stop_price for o in plan.orders if o.purpose == "stop"), None),
         ).model_dump(mode="json"),
         risk_usd=Decimal(str(round(units * plan.unit_risk, 2))),
+        cash_usd=Decimal(str(round(units * unit_cash, 2))),
     )
     session.add(card)
     session.flush()

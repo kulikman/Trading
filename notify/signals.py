@@ -72,10 +72,12 @@ class Sender(Protocol):
 
 
 def card_buttons(card: orm.TradeCard) -> list[tuple[str, str]]:
-    """Кнопки карточки (SPEC §12): у Real, ждущей исполнения, — подтвердить / не исполнил."""
+    """Кнопки карточки (SPEC §12): Real ждёт входа — подтвердить / не исполнил; открыта — закрыл."""
     details = ("Детали", f"details:{card.id}")
     if not card.paper and card.state == "ARMED":
         return [("Исполнено", f"fill:{card.id}"), ("Не исполнил", f"skip:{card.id}"), details]
+    if not card.paper and card.state in ("OPEN", "C_MODE"):
+        return [("Закрыл", f"exit:{card.id}"), details]  # цена выхода ответом (E10-3)
     return [details]
 
 
