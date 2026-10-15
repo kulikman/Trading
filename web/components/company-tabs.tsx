@@ -91,7 +91,7 @@ function ReportsTab({ reports }: { reports: Reports }): React.ReactElement {
                 {row.urls.map((url) => (
                   <div key={url}>
                     <a href={url} target="_blank" rel="noreferrer">
-                      {url.split("/").pop()}
+                      {url.includes("browse-edgar") ? "8-K в SEC" : url.split("/").pop()}
                     </a>
                   </div>
                 ))}
