@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from api.app import create_app
@@ -431,6 +431,33 @@ def test_status_sources_and_system_messages(seeded: Session, client: TestClient)
     assert sources["Alpha Vantage"] == ("нет данных", "—")
     assert sources["брокер"][0] == "ручной брокер — без подключения"
     assert status["messages"] == ["14.10.2026 09:00 ET / 16:00 МСК — СИСТЕМА · сбой calendar-daily"]
+
+
+def test_heartbeat_for_watchdog(seeded: Session, client: TestClient) -> None:
+    skipped = client.get("/api/system/heartbeat", headers=AUTH).json()
+    assert skipped["problems"] == ["пропуски без сообщения: 2"]  # пропуски без «ПРОПУСК»
+    for decision in seeded.scalars(select(orm.Decision).where(orm.Decision.status == "SKIPPED")):
+        decision.tg_message_id = -1  # как миграция 0019 для решений до T18
+    seeded.flush()
+    assert client.get("/api/system/heartbeat", headers=AUTH).json()["ok"] is True
+    seeded.add(orm.SystemMessage(at=NOW - timedelta(minutes=10), text="СИСТЕМА · сбой x"))
+    seeded.execute(
+        text(
+            "INSERT INTO apscheduler_jobs (id, next_run_time, job_state)"
+            " VALUES ('digest-morning', :t, '')"
+        ),
+        {"t": (NOW - timedelta(minutes=30)).timestamp()},
+    )
+    seeded.flush()
+    beat = client.get("/api/system/heartbeat?watchdog=true", headers=AUTH).json()
+    assert beat["ok"] is False
+    assert beat["problems"] == [
+        "задача digest-morning не запускалась с 13:30 ET / 20:30 МСК",
+        "сообщения «СИСТЕМА» не отправлены: 1",
+    ]
+    status = client.get("/api/status", headers=AUTH).json()
+    watchdog = next(r for r in status["sources"] if r["source"] == "сторож")
+    assert watchdog["status"] == "ОК"  # проверка сторожа отмечена
 
 
 def test_models_screen_lists_versions(seeded: Session, client: TestClient) -> None:

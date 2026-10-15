@@ -1,0 +1,55 @@
+# Сторож «СИСТЕМА МОЛЧИТ» (SPEC §12, T18): другой хост, чем сервер системы (решение заказчика 15.10.2026).
+# Раз в 10 минут проверяет https://trading.aurioncode.com/api/health: 200 — всё ожидаемое ушло вовремя,
+# 503 или нет ответа — просрочки. Сообщение в Telegram — только при смене состояния: первая неудачная
+# проверка после удачной — «СИСТЕМА МОЛЧИТ», первая удачная после неудачной — «снова отвечает».
+# Секреты репозитория: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
+name: Watchdog
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check trading.aurioncode.com
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          send() {
+            curl -s --max-time 20 -o /dev/null "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=$1"
+          }
+          answer=$(curl -s --max-time 30 -w '\n%{http_code}' "https://trading.aurioncode.com/api/health?watchdog=1" || true)
+          code=$(printf '%s\n' "$answer" | tail -n1)
+          body=$(printf '%s\n' "$answer" | sed '$d')
+          previous=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow watchdog.yml --status completed \
+            --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null || echo success)
+          if [ "$code" = "200" ]; then
+            if [ "$previous" = "failure" ]; then
+              send "СИСТЕМА снова отвечает · trading.aurioncode.com"
+            fi
+            echo "ok"
+            exit 0
+          fi
+          reason=$(printf '%s' "$body" | jq -r '(.problems // []) | join("; ")' 2>/dev/null || true)
+          [ -n "$reason" ] || reason="нет ответа (HTTP ${code:-—})"
+          echo "problem: $reason"
+          if [ "$previous" != "failure" ]; then
+            send "СИСТЕМА МОЛЧИТ · ${reason}"
+          fi
+          exit 1

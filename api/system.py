@@ -7,10 +7,10 @@
 источники показываются как «нет данных», а не «ОК».
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from api.format import Num, Tone, day, empty, et_msk, ratio
@@ -296,3 +296,62 @@ def _error_report(entry: orm.ErrorLog, time: str) -> str:
             "Найди причину и предложи исправление.",
         ]
     )
+
+
+class Heartbeat(BaseModel):
+    """Проверка для сторожа (SPEC §12): всё ли ожидаемое ушло вовремя."""
+
+    ok: bool
+    problems: list[str]
+    checked_at: str
+
+
+def heartbeat_view(
+    session: Session, now: datetime, thresholds: Thresholds, *, watchdog: bool = False
+) -> Heartbeat:
+    """Просрочки дольше watchdog_grace_minutes: задачи планировщика и неотправленные сообщения.
+
+    watchdog=True — проверку сделал сторож (GitHub Actions): отметка «сторож ОК» для «Системы».
+    """
+    late = now - timedelta(minutes=thresholds.notify.watchdog_grace_minutes)
+    problems = [
+        f"задача {job_id} не запускалась с {et_msk(datetime.fromtimestamp(run, tz=UTC))}"
+        for job_id, run in session.execute(
+            text("SELECT id, next_run_time FROM apscheduler_jobs WHERE next_run_time < :late"),
+            {"late": late.timestamp()},
+        ).all()
+    ]
+    checks = (
+        (
+            "сообщения «СИСТЕМА» не отправлены",
+            select(func.count(orm.SystemMessage.id)).where(
+                orm.SystemMessage.sent_at.is_(None), orm.SystemMessage.at < late
+            ),
+        ),
+        (
+            "карточки сделок без сообщения",
+            select(func.count(orm.TradeCard.id)).where(
+                orm.TradeCard.tg_message_id.is_(None),
+                orm.TradeCard.state.in_(("PLANNED", "ARMED", "OPEN")),
+                orm.TradeCard.created_at < late,
+            ),
+        ),
+        (
+            "пропуски без сообщения",
+            select(func.count(orm.Decision.id)).where(
+                orm.Decision.status == "SKIPPED",
+                orm.Decision.tg_message_id.is_(None),
+                orm.Decision.decided_at < late,
+            ),
+        ),
+    )
+    for label, query in checks:
+        count = session.scalar(query) or 0
+        if count:
+            problems.append(f"{label}: {count}")
+    if watchdog:
+        row = session.get(orm.SourceStatus, "watchdog") or orm.SourceStatus(source="watchdog")
+        row.last_ok_at = now
+        session.add(row)
+        session.commit()
+    return Heartbeat(ok=not problems, problems=problems, checked_at=et_msk(now))
