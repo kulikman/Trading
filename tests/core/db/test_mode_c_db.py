@@ -137,6 +137,32 @@ def test_parse_report_records_facts(session: Session, event: orm.Event) -> None:
     assert session.scalars(select(orm.EarningsTrack)).one().rev_actual == 9.5e9  # не затёрто
 
 
+def test_surprise_uses_consensus_snapshot_before_reaction(
+    session: Session, event: orm.Event
+) -> None:
+    event.fiscal_period = "2026Q3"
+    session.add_all(
+        [
+            orm.ConsensusSnapshot(
+                ticker="NFLX", fiscal_period="2026Q3", as_of=date(2026, 10, 19), eps_estimate=1.2
+            ),
+            # в день реакции BMO отчёт уже мог выйти — такой снимок не берётся
+            orm.ConsensusSnapshot(
+                ticker="NFLX", fiscal_period="2026Q3", as_of=REPORT, eps_estimate=0.5
+            ),
+        ]
+    )
+    session.flush()
+    job = EventJob(
+        event_id=event.id, stage="T0", job="parse_report", kind="analysis", run_at=DECISION
+    )
+    facts = parse_report(session, job, source=Reports([earning()]))  # в календаре оценка 1,0
+    assert facts is not None
+    assert facts.eps_consensus == 1.2
+    assert facts.eps_surprise_pct == pytest.approx((1.10 - 1.2) / 1.2 * 100)
+    assert facts.rev_consensus == 1.0e10  # выручки в снимке нет — оценка из календаря
+
+
 def test_mode_c_enters_on_confirmed_surprise(session: Session, event: orm.Event) -> None:
     save_report_facts(session, "NFLX", REPORT, "BMO", {"eps_surprise_pct": 10.0})
     reports = Reports([])

@@ -113,6 +113,29 @@ def save_reported_earnings(session: Session, reports: Iterable[ReportedEarnings]
     return len(rows)
 
 
+def pre_report_consensus(
+    session: Session, ticker: str, fiscal_period: str | None, before: date
+) -> tuple[float | None, float | None] | None:
+    """Консенсус EPS и выручки из последнего снимка строго до дня before (день реакции).
+
+    Finnhub пересматривает консенсус в календаре уже после отчёта (замечено 15.10.2026: BAC
+    1,16 → 1,11), поэтому сюрприз считается от снимка до отчёта. Снимка нет — None.
+    """
+    if fiscal_period is None:
+        return None
+    row = session.scalars(
+        select(orm.ConsensusSnapshot)
+        .where(
+            orm.ConsensusSnapshot.ticker == ticker,
+            orm.ConsensusSnapshot.fiscal_period == fiscal_period,
+            orm.ConsensusSnapshot.as_of < before,
+        )
+        .order_by(orm.ConsensusSnapshot.as_of.desc())
+        .limit(1)
+    ).first()
+    return None if row is None else (row.eps_estimate, row.rev_estimate)
+
+
 REPORT_FACT_FIELDS = frozenset(
     {
         "eps_consensus",
