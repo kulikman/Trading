@@ -16,4 +16,5 @@ def create_plugin(config: AppConfig) -> OptionsAgentPlugin:  # pragma: no cover
         FredClient.create(sources.fred, fred_api_key(), cache),
         sources.massive.history,
         config.thresholds.agents.options,
+        max_plausible_iv=sources.massive.implied_move.max_plausible_iv,
     )

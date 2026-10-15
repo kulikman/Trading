@@ -23,6 +23,7 @@ from core.session_guard import ET, previous_trading_day
 CONFIG = load_config()
 SETTINGS = CONFIG.thresholds.agents.options
 HISTORY = CONFIG.sources.massive.history
+MAX_IV = CONFIG.sources.massive.implied_move.max_plausible_iv
 RUN_AT = datetime(2026, 10, 14, 19, 0, tzinfo=UTC)  # 15:00 ET, задача T−7
 CLOSE_DAY = date(2026, 10, 13)
 REPORT = date(2026, 10, 20)  # AMC → реакция 21.10
@@ -188,7 +189,9 @@ def test_features_by_hand_and_bars_archived(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     archive_past(session, PAST)
     source = Source()
-    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS).run(ctx(session))
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+        ctx(session)
+    )
     years = years_to_expiration(CLOSE_DAY, FRONT)
     straddle = price("call", SPOT, SPOT, years, RATE, 0.60) + price(
         "put", SPOT, SPOT, years, RATE, 0.60
@@ -218,14 +221,18 @@ def test_iv_rank_needs_enough_reports_and_skips_mismatch(session: Session) -> No
     sync_universe(session, CONFIG.universe)
     archive_past(session, PAST)
     set_date_check(session, "NFLX", PAST[0][0], None, "mismatch")
-    features = OptionsAgentPlugin(Source(), Fred(), HISTORY, SETTINGS).run(ctx(session))
+    features = OptionsAgentPlugin(Source(), Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+        ctx(session)
+    )
     assert (features.iv_rank, features.iv_rank_reports) == (None, 3)  # меньше 4 — не считается
 
 
 def test_untraded_atm_moves_to_next_strike(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     untraded = frozenset({"O:NFLX261023C00100000"})
-    features = OptionsAgentPlugin(Source(untraded), Fred(), HISTORY, SETTINGS).run(ctx(session))
+    features = OptionsAgentPlugin(
+        Source(untraded), Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV
+    ).run(ctx(session))
     # следующая пара — 97,5 (при равном расстоянии с 102,5 — меньший страйк): колл 56%, пут 66%
     assert features.atm_iv == pytest.approx((0.56 + 0.66) / 2, abs=1e-3)
     assert features.iv_rank is None
@@ -235,11 +242,13 @@ def test_no_traded_pair_is_data_error(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     calls = frozenset(contract("call", k, FRONT).ticker for k in STRIKES)
     with pytest.raises(DataError, match="no ATM pair traded"):
-        OptionsAgentPlugin(Source(calls), Fred(), HISTORY, SETTINGS).run(ctx(session))
+        OptionsAgentPlugin(Source(calls), Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+            ctx(session)
+        )
 
 
 def test_needs_archive_session() -> None:
-    agent = OptionsAgentPlugin(Source(), Fred(), HISTORY, SETTINGS)
+    agent = OptionsAgentPlugin(Source(), Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV)
     no_session = EventContext(
         event_id=1, ticker="NFLX", report_date=REPORT, report_time="AMC", stage="T-7", as_of=RUN_AT
     )
@@ -251,8 +260,15 @@ TODAY = date(2026, 10, 14)
 
 
 def snapshot(
-    kind: OptionType, strike: float, expiration: date, close: float | None, iv: float, delta: float
+    kind: OptionType,
+    strike: float,
+    expiration: date,
+    close: float | None,
+    iv: float,
+    delta: float,
+    traded_on: date = TODAY,
 ) -> OptionSnapshot:
+    traded = int(datetime.combine(traded_on, time(14, 30), tzinfo=ET).timestamp() * 1e9)
     return OptionSnapshot.model_validate(
         {
             "details": {
@@ -263,7 +279,7 @@ def snapshot(
                 "strike_price": strike,
                 "ticker": contract(kind, strike, expiration).ticker,
             },
-            "day": {"close": close, "volume": 10},
+            "day": {"close": close, "volume": 10, "last_updated": traded},
             "greeks": {"delta": delta},
             "implied_volatility": iv,
             "open_interest": 100,
@@ -318,7 +334,9 @@ class ChainSource(Source):
 def test_chain_features_by_hand(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     source = ChainSource(CHAIN)
-    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS).run(ctx(session))
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+        ctx(session)
+    )
     assert features.implied_move == pytest.approx((4.0 + 3.0) / 101.0)  # цена — минута 14:44
     assert features.atm_iv == pytest.approx(0.60)
     assert features.skew_25d == pytest.approx(0.66 - 0.56)  # дельты −0,24 и 0,26
@@ -331,6 +349,51 @@ def test_chain_without_atm_pair_falls_back_to_closes(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     calls_only = [s for s in CHAIN if s.details.contract_type == "call"]
     source = ChainSource(calls_only)
-    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS).run(ctx(session))
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+        ctx(session)
+    )
     assert features.atm_iv == pytest.approx(0.60, abs=1e-4)  # IV по закрытиям накануне
     assert "O:NFLX261023C00100000" in source.requests
+
+
+def test_chain_skips_stale_and_implausible_contracts(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    stale = [  # ближе к цене, но сделка была вчера — цена прошлой сессии
+        snapshot("call", 101, FRONT, 9.0, 0.30, 0.50, traded_on=CLOSE_DAY),
+        snapshot("put", 101, FRONT, 9.0, 0.30, -0.50, traded_on=CLOSE_DAY),
+        snapshot("put", 95, FRONT, 1.0, MAX_IV + 1, -0.25),  # IV в процентах, а не в долях
+    ]
+    source = ChainSource([*CHAIN, *stale])
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+        ctx(session)
+    )
+    assert features.implied_move == pytest.approx((4.0 + 3.0) / 101.0)
+    assert features.skew_25d == pytest.approx(0.66 - 0.56)
+
+
+def test_chain_skew_needs_delta_near_25(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    far = [s for s in CHAIN if not (s.greeks and s.greeks.delta in (-0.24, 0.26))]
+    source = ChainSource(far)  # остались дельты −0,10 и 0,08 — дальше допуска 0,10 от ±0,25
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV).run(
+        ctx(session)
+    )
+    assert features.atm_iv == pytest.approx(0.60)
+    assert features.skew_25d is None
+
+
+class NoFred:
+    def observations(
+        self, series_id: str, start: date | None = None, end: date | None = None
+    ) -> list[FredObservation]:
+        raise DataError("fred", "HTTP 503")
+
+
+def test_chain_survives_fred_outage_without_iv_rank(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    agent = OptionsAgentPlugin(
+        ChainSource(CHAIN), NoFred(), HISTORY, SETTINGS, max_plausible_iv=MAX_IV
+    )
+    features = agent.run(ctx(session))
+    assert features.atm_iv == pytest.approx(0.60)
+    assert (features.iv_rank, features.iv_rank_reports) == (None, 0)

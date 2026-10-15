@@ -22,7 +22,7 @@ import logging
 import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from math import exp, isfinite, sqrt
 from statistics import NormalDist
 from typing import Literal, Protocol
@@ -106,11 +106,15 @@ class ChainOption:
     delta: float | None
 
     @classmethod
-    def of(cls, row: OptionSnapshot) -> "ChainOption | None":
-        """None — контракт без сделки или без IV (по нему нельзя посчитать признаки)."""
-        close = row.day.close if row.day is not None else None
-        iv = row.implied_volatility
-        if close is None or close <= 0 or iv is None or not isfinite(iv) or iv <= 0:
+    def of(cls, row: OptionSnapshot, day: date, max_iv: float) -> "ChainOption | None":
+        """None — нет сделки в день запуска (цена прошлой сессии устарела) или IV вне разумного."""
+        session = row.day
+        if session is None or session.close is None or session.close <= 0:
+            return None
+        if session.last_updated is None or _et_day(session.last_updated) != day:
+            return None
+        close, iv = session.close, row.implied_volatility
+        if iv is None or not isfinite(iv) or not 0 < iv <= max_iv:
             return None
         return cls(
             "call" if row.details.contract_type == "call" else "put",
@@ -151,11 +155,14 @@ class OptionsAgentPlugin:
         fred: FredSource,
         history: MassiveHistory,
         settings: OptionsAgent,
+        *,
+        max_plausible_iv: float,
     ) -> None:
         self._source = source
         self._fred = fred
         self._history = history
         self._settings = settings
+        self._max_iv = max_plausible_iv
 
     def run(self, ctx: EventContext) -> OptionsFeatures:
         if ctx.session is None:
@@ -168,8 +175,16 @@ class OptionsAgentPlugin:
             raise DataError(SOURCE, f"{ctx.ticker}: close {day} is not before reaction {reaction}")
         close_day = previous_trading_day(today)
         start = close_day - timedelta(days=self._settings.history_days)
-        closes = stock_closes(daily_bars(self._source, ctx.ticker, start, close_day))
-        rates = _rates(self._fred, start, close_day)
+        try:  # по цепочке закрытия и ставка нужны только для iv_rank
+            closes = stock_closes(daily_bars(self._source, ctx.ticker, start, close_day))
+            rates = _rates(self._fred, start, close_day)
+        except DataError as exc:
+            if chain is None:
+                raise
+            logger.warning(
+                "no closes or rate for iv_rank", extra={"ticker": ctx.ticker, "detail": exc.detail}
+            )
+            return chain
         if chain is not None:
             features = chain
         else:
@@ -211,7 +226,7 @@ class OptionsAgentPlugin:
                 extra={"ticker": ticker, "detail": exc.detail},
             )
             return None
-        options = [o for o in map(ChainOption.of, rows) if o is not None]
+        options = [o for r in rows if (o := ChainOption.of(r, day, self._max_iv)) is not None]
         near = [
             o
             for o in options
@@ -229,7 +244,7 @@ class OptionsAgentPlugin:
         call, put = pair
         atm_iv = (call.iv + put.iv) / 2
         features = OptionsFeatures(implied_move=(call.close + put.close) / spot, atm_iv=atm_iv)
-        features.skew_25d = _chain_skew(front, s.skew_delta)
+        features.skew_25d = _chain_skew(front, s.skew_delta, s.skew_delta_tolerance)
         back_from = call.expiration + timedelta(days=s.term_back_min_days)
         back_expiration = min(
             (o.expiration for o in options if o.expiration >= back_from), default=None
@@ -423,6 +438,10 @@ def _rates(fred: FredSource, start: date, end: date) -> dict[date, float]:
     }
 
 
+def _et_day(nanoseconds: int) -> date:
+    return to_et(datetime.fromtimestamp(nanoseconds / 1e9, tz=UTC)).date()
+
+
 def _intraday_spot(source: OptionsSource, ticker: str, day: date, as_of: datetime) -> float:
     """Цена акции — закрытие последней минутной свечи дня не позже запуска."""
     bars = [
@@ -445,11 +464,15 @@ def _chain_atm(
     return (calls[strikes[0]], puts[strikes[0]]) if strikes else None
 
 
-def _chain_skew(options: Sequence[ChainOption], delta: float) -> float | None:
+def _chain_skew(options: Sequence[ChainOption], delta: float, tolerance: float) -> float | None:
     """IV пута с дельтой ближе всего к −delta минус IV колла с дельтой ближе всего к +delta."""
 
     def nearest(kind: OptionType, target: float) -> ChainOption | None:
-        found = [o for o in options if o.kind == kind and o.delta is not None]
+        found = [
+            o
+            for o in options
+            if o.kind == kind and o.delta is not None and abs(o.delta - target) <= tolerance
+        ]
         return min(found, key=lambda o: abs((o.delta or 0) - target), default=None)
 
     put, call = nearest("put", -delta), nearest("call", delta)

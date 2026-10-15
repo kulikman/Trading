@@ -16,6 +16,7 @@ class MassivePageLimit(StrictModel):
 
 class MassiveCacheTtl(StrictModel):
     aggregates: int = Field(ge=0)
+    intraday_aggregates: int = Field(ge=0)  # минутные и часовые свечи: день ещё идёт
     last_quote: int = Field(ge=0)
     snapshot: int = Field(ge=0)
     option_contracts: int = Field(ge=0)

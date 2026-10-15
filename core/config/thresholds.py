@@ -326,9 +326,10 @@ class MacroAgent(StrictModel):
 
 
 class OptionsAgent(StrictModel):
-    """«Опционы» по дневным ценам контрактов (снимка цепочки нет на тарифе — 403, 14.10.2026)."""
+    """«Опционы»: снимок цепочки (Options Starter), запасной путь — дневные цены контрактов."""
 
     skew_delta: Fraction  # skew_25d — путы и коллы с |Δ| = 0.25
+    skew_delta_tolerance: Fraction  # по цепочке: дельта контракта дальше от ±skew_delta — skew нет
     term_back_min_days: PositiveInt  # дальняя экспирация term_slope — не раньше ближней + N дней
     term_back_window_days: PositiveInt  # и не позже ближней + min + window
     iv_rank_reports: PositiveInt  # прошлых отчётов для iv_rank
