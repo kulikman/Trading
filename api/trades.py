@@ -1,6 +1,6 @@
 """«Сделки»: открытые и закрытые, карточка с историей переходов (DASHBOARD.md §4.3).
 
-Цены, стопы и текст карточки как в Telegram появятся с исполнителем и ботом (T17, T18).
+Открытая сделка: стоимость входа и стоп из карточки (T17); котировок у ручного брокера нет.
 """
 
 from collections.abc import Sequence
@@ -10,11 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.format import Num, count, day, empty, et_msk, money, percent
+from api.format import price as price_num
 from api.trades_data import ClosedTrade, OpenCard
 from core.db import models as orm
 from core.session_guard import to_et
 
-AFTER_EXECUTOR = "нет данных до исполнителя (T17)"
+NO_QUOTES = "котировок нет: ручной брокер"
 TRUST_LINE = (
     "Калибровка: нет данных до моделей (T15) · "
     "Издержки Paper против реальности: нет данных до реальных исполнений"
@@ -68,6 +69,13 @@ class Card(BaseModel):
     transitions: list[Transition]
 
 
+def stop_view(card: OpenCard) -> Num:
+    """Стоп открытой сделки: уровень трейлинга, иначе правило стопа словами."""
+    if card.stop_price is not None:
+        return price_num(card.stop_price)
+    return empty(card.stop_rule or "—")
+
+
 def trades_view(
     state: str,
     open_cards: Sequence[OpenCard],
@@ -82,10 +90,12 @@ def trades_view(
                 ticker=c.ticker,
                 mode=c.mode or "—",
                 state=c.state,
-                entry=empty(AFTER_EXECUTOR),
-                price=empty(AFTER_EXECUTOR),
-                pnl=empty(AFTER_EXECUTOR),
-                stop=empty(AFTER_EXECUTOR),
+                entry=money(c.entry_value) if c.entry_value is not None else empty("нет входа"),
+                price=empty(NO_QUOTES),
+                pnl=empty(NO_QUOTES),
+                stop=price_num(c.stop_price)
+                if c.stop_price is not None
+                else empty(c.stop_rule or "—"),
                 next_step="—",
             )
             for c in open_cards

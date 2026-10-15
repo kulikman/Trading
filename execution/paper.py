@@ -151,6 +151,7 @@ class PaperBook:
         if status != "closed":
             return card.state
         card.pnl_total = Decimal(str(round(trade.return_on_risk * risk_usd, 2)))
+        card.costs = Decimal(str(round(trade.costs * scale, 4)))
         card.fills = [
             *(card.fills or []),
             *(f.model_dump(mode="json") for f in exit_fills(trade, scale)),

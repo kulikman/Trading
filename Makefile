@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash
 
 -include .env
 
@@ -79,6 +79,9 @@ promote:  ## поднять плагин на ступень: make promote ARGS=
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1
+
+cash:  ## счёт Real: make cash ARGS="deposit 10000 комментарий" / ARGS="withdraw 2000"
+	uv run python -m execution.cash $(ARGS)
 
 run-api:  ## API дашборда на http://127.0.0.1:8000 (нужен DASHBOARD_API_TOKEN в .env)
 	uv run python -m api
