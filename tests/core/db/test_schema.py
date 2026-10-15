@@ -37,6 +37,7 @@ from core.domain.trading import (
     CardStop,
     CashMovement,
     Decision,
+    MarketLevelRecord,
     SourceStatusRecord,
     SystemMessageRecord,
     TradeCard,
@@ -74,6 +75,7 @@ EXPECTED_TABLES = {
     "cash_movement",
     "source_status",
     "system_message",
+    "market_level",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -449,6 +451,10 @@ CASES: dict[str, Builder] = {
         SourceStatusRecord(
             source="finnhub", last_ok_at=AT, last_error_at=AT, last_error="HTTP 429"
         ),
+    ),
+    "market_level": lambda s, c: (
+        orm.MarketLevelDay,
+        MarketLevelRecord(day=REPORT_DAY, level="orange", vix=26.5, spy=501.2),
     ),
     "system_message": lambda s, c: (
         orm.SystemMessage,

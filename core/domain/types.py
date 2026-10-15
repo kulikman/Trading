@@ -7,6 +7,7 @@ DateStatus = Literal["projected", "confirmed"]
 QueueStatus = Literal["planned", "profiling", "signals", "decided", "done"]
 FeatureStage = Literal["T-14", "T-10", "T-7", "T-3", "T-1", "T0"]
 CalibrationStatus = Literal["active", "quarantine"]
+MarketLevel = Literal["green", "yellow", "orange", "red"]  # уровень Black Swan
 Direction = Literal[-1, 0, 1]
 
 DecisionStatus = Literal["ENTERED", "SKIPPED", "CANCELLED", "DATA_FAIL"]

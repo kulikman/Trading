@@ -51,8 +51,8 @@ class MacroAgentPlugin:
         """Значения на закрытии торгового дня перед моментом запуска."""
         close_day = previous_trading_day(to_et(ctx.as_of).date())
         start = close_day - timedelta(days=self._settings.lookback_days)
-        vix = _values(self._fred.observations(VIX_SERIES, start, close_day))
-        rates = _values(self._fred.observations(US10Y_SERIES, start, close_day))
+        vix = observed_values(self._fred.observations(VIX_SERIES, start, close_day))
+        rates = observed_values(self._fred.observations(US10Y_SERIES, start, close_day))
         spy = stock_closes(daily_bars(self._stocks, "SPY", start, close_day))
         by_day = levels(vix, spy, self._black_swan)
         level = by_day.get(close_day)
@@ -63,7 +63,7 @@ class MacroAgentPlugin:
         )
 
 
-def _values(rows: list[FredObservation]) -> dict[date, float]:
+def observed_values(rows: list[FredObservation]) -> dict[date, float]:
     return {o.date: o.value for o in rows if o.value is not None}
 
 

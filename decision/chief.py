@@ -28,6 +28,8 @@ from core.domain.types import FeatureStage, SkipReason
 from core.registry.agent_jobs import REPORT_TIMES, STAGES, feature_stage
 from core.registry.protocols import DecisionContext, EventContext, Proposal, Skip, Strategy
 from core.registry.state import influences_decision, plugin_state
+from core.risk.market import market_level_before
+from core.session_guard import to_et
 from decision.capital import (
     Rejection,
     Sizing,
@@ -96,7 +98,10 @@ def run_decision(
     ctx = decision_context(session, event, stage, config, job.run_at)
     company = session.get(orm.Company, event.ticker)
     is_quarantined = company is not None and company.calibration_status == "quarantine"
-    level = level_from_regime(ctx.features.get("macro", {}).get("regime"))
+    # Уровень закрытия накануне из ежедневной задачи (E2d); нет — уровень агента «Макро» события.
+    level = market_level_before(session, to_et(job.run_at).date()) or level_from_regime(
+        ctx.features.get("macro", {}).get("regime")
+    )
     seasons_1_2 = in_seasons_1_2(session)
     steps: list[DecisionStepRecord] = []
     accepted: list[Accepted] = []

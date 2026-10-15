@@ -1,9 +1,8 @@
 """APScheduler 3.11 с хранилищем задач в Postgres (SPEC §3, §8).
 
-Постоянные задачи: агент «Календарь» (торговые дни, 06:00 ET), снимок консенсуса (06:10 ET),
-новости компаний (07:45 ET), трейлинг-стоп режима C (16:20 ET), дайджесты (08:30 и 16:30 ET),
-пополнение архива
-(18:30 ET) и диспетчер задач событий.
+Постоянные задачи: агент «Календарь» (торговые дни, 06:00 ET), уровень Black Swan (06:05 ET),
+снимок консенсуса (06:10 ET), новости компаний (07:45 ET), трейлинг-стоп режима C (16:20 ET),
+дайджесты (08:30 и 16:30 ET), пополнение архива (18:30 ET) и диспетчер задач событий.
 Сами задачи событий — строки event_job (ключ event_id, stage, job), их берёт диспетчер.
 """
 
@@ -24,6 +23,7 @@ TRAILING_JOB_ID = "trailing-daily"
 MORNING_DIGEST_JOB_ID = "digest-morning"
 EVENING_DIGEST_JOB_ID = "digest-evening"
 NEWS_JOB_ID = "news-daily"
+MARKET_JOB_ID = "market-daily"
 CALENDAR_FUNC = "agents.calendar.job:run_calendar"
 DISPATCH_FUNC = "core.scheduler.jobs:run_dispatch"
 ARCHIVE_FUNC = "backtest.daily_archive:run_daily_archive"
@@ -32,6 +32,7 @@ TRAILING_FUNC = "execution.trailing:run_trailing_update"
 MORNING_DIGEST_FUNC = "notify.digest_jobs:run_morning_digest"
 EVENING_DIGEST_FUNC = "notify.digest_jobs:run_evening_digest"
 NEWS_FUNC = "agents.news.job:run_news"
+MARKET_FUNC = "agents.macro.daily:run_market_level"
 JOBS_TABLE = "apscheduler_jobs"
 
 
@@ -63,6 +64,7 @@ def register_jobs(scheduler: BaseScheduler, schedule: ScheduleConfig) -> None:
         (MORNING_DIGEST_FUNC, MORNING_DIGEST_JOB_ID, schedule.digest.morning_et),
         (EVENING_DIGEST_FUNC, EVENING_DIGEST_JOB_ID, schedule.digest.evening_et),
         (NEWS_FUNC, NEWS_JOB_ID, schedule.news.run_time_et),
+        (MARKET_FUNC, MARKET_JOB_ID, schedule.market.run_time_et),
     ):
         scheduler.add_job(
             func,

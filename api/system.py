@@ -242,6 +242,18 @@ def plugins_view(session: Session) -> list[PluginRow]:
 
 
 def _market(session: Session) -> Market:
+    """Уровень последнего закрытия из market_level (E2d); нет — последний снимок агента «Макро»."""
+    day = session.scalars(
+        select(orm.MarketLevelDay).order_by(orm.MarketLevelDay.day.desc()).limit(1)
+    ).first()
+    if day is not None:
+        known = next((name for name in ORDER if name == day.level), "green")
+        return Market(
+            level=LEVEL_LABELS[known],
+            vix=ratio(day.vix, 1) if day.vix is not None else empty(),
+            tone=LEVEL_TONES[known],
+            as_of=f"закрытие {day.day:%d.%m}",
+        )
     snapshot = session.scalars(
         select(orm.FeatureSnapshot)
         .where(orm.FeatureSnapshot.agent_id == "macro")

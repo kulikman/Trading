@@ -27,6 +27,7 @@ from core.scheduler.runner import (
     DISPATCH_JOB_ID,
     EVENING_DIGEST_JOB_ID,
     JOBS_TABLE,
+    MARKET_JOB_ID,
     MORNING_DIGEST_JOB_ID,
     NEWS_JOB_ID,
     TRAILING_JOB_ID,
@@ -122,6 +123,7 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             MORNING_DIGEST_JOB_ID,
             EVENING_DIGEST_JOB_ID,
             NEWS_JOB_ID,
+            MARKET_JOB_ID,
             DISPATCH_JOB_ID,
         }
         trailing = jobs[TRAILING_JOB_ID].trigger
@@ -148,7 +150,7 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             stored = connection.execute(
                 select(func.count()).select_from(orm.apscheduler_jobs)
             ).scalar_one()
-        assert stored == 8
+        assert stored == 9
     finally:
         scheduler.shutdown(wait=False)
         with engine.begin() as connection:
@@ -198,6 +200,7 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
             MORNING_DIGEST_JOB_ID,
             EVENING_DIGEST_JOB_ID,
             NEWS_JOB_ID,
+            MARKET_JOB_ID,
             DISPATCH_JOB_ID,
         ],
         [True],
