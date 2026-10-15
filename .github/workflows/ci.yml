@@ -64,6 +64,7 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm exec next typegen  # глобальные PageProps / LayoutProps — без них tsc в чистом CI падает
       - run: pnpm exec tsc --noEmit
       - run: pnpm build
 
