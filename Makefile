@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash learn-season server-learn-season
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash learn-season server-learn-season server-promote
 
 -include .env
 
@@ -85,6 +85,9 @@ learn-season:  ## обучение сезона (SPEC §9): версия мод�
 
 server-learn-season:  ## обучение сезона на сервере (контейнер планировщика); отчёт — ~/trading-reports на сервере
 	ssh $(DEPLOY_HOST) 'docker exec trading-scheduler python -m learning.season'
+
+server-promote:  ## promote на сервере: make server-promote ARGS="mode_c"
+	ssh $(DEPLOY_HOST) 'docker exec trading-scheduler python -m core.registry promote $(ARGS)'
 
 cash:  ## счёт Real: make cash ARGS="deposit 10000 комментарий" / ARGS="withdraw 2000"
 	uv run python -m execution.cash $(ARGS)
