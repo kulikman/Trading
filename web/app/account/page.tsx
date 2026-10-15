@@ -97,7 +97,7 @@ function Summary({ summary }: { summary: AccountSummary }): React.ReactElement {
       {summary.curve_path !== null ? (
         <div className="card">
           <svg viewBox={CURVE_VIEWBOX} width="100%" role="img" aria-label="Кривая баланса по дням">
-            <path d={summary.curve_path} fill="none" stroke="#5aa2ff" strokeWidth="1.5" />
+            <path d={summary.curve_path} fill="none" stroke="#2563eb" strokeWidth="1.5" />
           </svg>
         </div>
       ) : (
