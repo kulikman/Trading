@@ -24,6 +24,7 @@ class Decision(DomainModel):
     construction: str | None = None
     shadow: dict[str, Any] | None = None
     decided_at: AwareDatetime
+    tg_message_id: int | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
@@ -83,6 +84,7 @@ class TradeCard(DomainModel):
     trailing: CardTrailing | None = None
     fills: list[CardFill] | None = None
     tg_message_id: int | None = None
+    tg_state: CardState | None = None
     pnl_total: Decimal | None = None
     pnl_direction: Decimal | None = None
     pnl_vol: Decimal | None = None

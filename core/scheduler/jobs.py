@@ -19,7 +19,7 @@ from core.scheduler.dispatch import HANDLERS, DispatchResult, Handler, dispatch_
 from decision.jobs import decision_handlers
 from decision.report import report_handlers
 from models.forecast import forecast_handlers
-from notify.signals import send_new_signals
+from notify.signals import send_new_signals, send_skips
 from notify.system import collect_error_messages, save_source_health, send_system_messages
 from notify.telegram.client import TelegramClient
 
@@ -74,9 +74,10 @@ def run_system_messages(now: Callable[[], datetime] = lambda: datetime.now(UTC))
 
 @logged_job("telegram-signals", lambda: engine())
 def run_signal_notifications() -> int:
-    """Сообщения о новых paper-входах (SPEC §12); бот не настроен — ничего не делает."""
+    """ДЕЙСТВИЕ (новые входы и правки карточек) и ПРОПУСК (SPEC §12); бот не настроен — ничего."""
     client = TelegramClient.from_env()
     if client is None:
         return 0
     with Session(engine()) as session:
-        return send_new_signals(session, client, load_config().thresholds)
+        cards = send_new_signals(session, client, load_config().thresholds)
+        return cards + send_skips(session, client)

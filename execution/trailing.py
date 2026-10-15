@@ -1,4 +1,5 @@
-"""Трейлинг-стоп открытых сделок режима C (SPEC §10, T17): пересчёт после закрытия, 16:20 ET.
+"""Трейлинг-стоп открытых сделок режима C (SPEC §10, T17): пересчёт после закрытия, 16:20 ET;
+затем «СОПРОВОЖДЕНИЕ» в Telegram — открытые позиции и стопы (SPEC §12).
 
 Стоп = закрытие ∓ 2 × ATR(14), только в сторону сделки — те же правила, что в бэктесте
 (`backtest.mode_c.trailing_now`). Пишется в карточку (`trailing`); выход по стопу ведёт вечерний
@@ -23,6 +24,8 @@ from core.domain.trading import CardFill, CardTrailing
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, to_et
+from notify.signals import escort_text
+from notify.telegram.client import TelegramClient
 
 logger = logging.getLogger(__name__)
 
@@ -87,4 +90,9 @@ def run_trailing_update(
     config = load_config()
     stocks = stocks_factory(config)
     with Session(engine()) as session, session.begin():
-        return update_trailing(session, stocks, config.thresholds, moment)
+        updated = update_trailing(session, stocks, config.thresholds, moment)
+        text = escort_text(session, moment)
+    client = TelegramClient.from_env()
+    if client is not None and text is not None:
+        client.send(text, silent=True)  # СОПРОВОЖДЕНИЕ (SPEC §12) — после пересчёта стопов
+    return updated

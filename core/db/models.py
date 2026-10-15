@@ -330,6 +330,7 @@ class Decision(Timestamps, Base):
     construction: Mapped[str | None]
     shadow: Mapped[Any | None] = mapped_column(JSONB)
     decided_at: Mapped[datetime]
+    tg_message_id: Mapped[int | None] = mapped_column(BigInteger)  # «ПРОПУСК»; −1 — до T18
 
 
 class DecisionStep(Timestamps, Base):
@@ -462,6 +463,7 @@ class TradeCard(Timestamps, Base):
     trailing: Mapped[Any | None] = mapped_column(JSONB)
     fills: Mapped[Any | None] = mapped_column(JSONB)
     tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    tg_state: Mapped[str | None]  # состояние, показанное в сообщении (правка при смене, T18)
     pnl_total: Mapped[Decimal | None]
     pnl_direction: Mapped[Decimal | None]
     pnl_vol: Mapped[Decimal | None]
