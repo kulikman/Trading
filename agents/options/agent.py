@@ -69,7 +69,8 @@ class OptionsSource(OptionHistorySource, StockHistorySource, Protocol):
         expiration_lte: date | None = None,
         strike_gte: float | None = None,
         strike_lte: float | None = None,
-    ) -> list[OptionSnapshot]: ...
+    ) -> list[OptionSnapshot]:
+        """Снимок цепочки: IV, греки, цена последней сделки."""
 
     def aggregates(
         self,
@@ -80,7 +81,8 @@ class OptionsSource(OptionHistorySource, StockHistorySource, Protocol):
         end: date,
         *,
         adjusted: bool = True,
-    ) -> list[Bar]: ...
+    ) -> list[Bar]:
+        """Свечи: дневные — акции и контракты, минутные — цена акции на момент запуска."""
 
 
 class OptionsFeatures(BaseModel):
