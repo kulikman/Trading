@@ -7,7 +7,13 @@ Edge = P(|движение| > implied move) модели − эталон рын
 from core.registry.protocols import DecisionContext, Proposal, Skip
 from core.session_guard import to_et
 from strategies.base import StrategyBase, session_of
-from strategies.common import history_ratio, stock_state, straddle_cost_fraction
+from strategies.common import (
+    front_expiration,
+    history_ratio,
+    stock_state,
+    straddle_cost_fraction,
+)
+from strategies.options_plan import STRIKE_BAND, straddle_plan
 
 
 class StraddleStrategy(StrategyBase):
@@ -35,10 +41,16 @@ class StraddleStrategy(StrategyBase):
         state = stock_state(
             self._stocks, ctx.event.ticker, day, self._thresholds.modes.C.atr_period
         )
-        cost = None if state is None else straddle_cost_fraction(self._costs, state.spot, implied)
+        if state is None:
+            return self.skip("DATA_MASSIVE")
+        cost = straddle_cost_fraction(self._costs, state.spot, implied)
         if cost is None:
             return self.skip("DATA_MASSIVE")
         p = forecasts["move_ratio"]
+        expiration = front_expiration(ctx.event.report_date, ctx.event.report_time)
+        contracts = self.options_contracts(
+            ctx.event.ticker, expiration, day, state.spot, STRIKE_BAND
+        )
         return Proposal(
             strategy_id=self.id,
             mode=self.mode,
@@ -47,4 +59,11 @@ class StraddleStrategy(StrategyBase):
             confidence=p,
             probability=p,
             cost_fraction=cost,
+            plan=straddle_plan(
+                ctx.event.ticker,
+                contracts,
+                state.spot,
+                self._thresholds.constructions.straddle,
+                self._costs,
+            ),
         )
