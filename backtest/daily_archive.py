@@ -27,7 +27,9 @@ from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.history import EventDays
 from backtest.build_archive import ArchiveBuilder, TickerArchive
 from backtest.exit_data import ExitDataLoader, ExitDataReport
+from backtest.liquidity import update_options_liquid
 from backtest.option_history import OptionHistoryLoader
+from backtest.peer_edges import estimate_peer_edges
 from core.config import AppConfig, load_config
 from core.db import models as orm
 from core.domain.types import ReportTime
@@ -119,11 +121,13 @@ class DailyArchive:
         tickers: set[str],
         shadows: ShadowStep | None = None,
         paper: PaperStep | None = None,
+        min_atm_pair_volume: float | None = None,
     ) -> None:
         self._builder = builder
         self._exits = exits
         self._shadows = shadows
         self._paper = paper
+        self._min_atm_pair_volume = min_atm_pair_volume
         self._lookback = lookback_trading_days
         self._tickers = tickers
 
@@ -138,6 +142,10 @@ class DailyArchive:
             result.archives.append(self._builder.build(session, ticker, refresh_dates=refresh))
             since = min(i.report_date for i in items)
             result.exits.append(self._exits.load(session, ticker, since=since))
+        if self._min_atm_pair_volume is not None:  # ликвидность опционов и связи — по архиву
+            update_options_liquid(session, sorted(self._tickers), self._min_atm_pair_volume)
+            estimate_peer_edges(session)  # связи «кто кому сигналит» по свежему архиву
+            session.commit()
         retry_since = lookback_start(today, self._lookback)
         if self._shadows is not None:
             result.shadows = self._shadows.run(session, today, retry_since)
@@ -210,6 +218,7 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
             spots=MassiveSpots(stocks),
             rate=sources.massive.history.risk_free_rate,
         ),
+        min_atm_pair_volume=config.thresholds.liquidity.min_atm_pair_volume,
         lookback_trading_days=config.schedule.archive.lookback_trading_days,
         tickers=set(config.universe.tickers()),
     )

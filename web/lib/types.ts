@@ -149,6 +149,7 @@ export interface Overview {
   name: string;
   sector: string;
   sector_id: string;
+  options: string;
   about: string;
   segments: string[];
   next_report: string;

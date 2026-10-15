@@ -61,6 +61,7 @@ export async function CompanyTab({
       <p>Сектор: {overview.sector}</p>
       {overview.segments.length > 0 ? <p>Сегменты: {overview.segments.join(", ")}</p> : null}
       <p>Следующий отчёт: {overview.next_report}</p>
+      <p>Опционы: {overview.options}</p>
     </>
   );
 }
