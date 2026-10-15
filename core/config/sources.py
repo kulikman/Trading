@@ -134,6 +134,17 @@ class FredSettings(HttpSourceSettings):
     cache_ttl_seconds: FredCacheTtl
 
 
+class CboeCacheTtl(StrictModel):
+    vix_history: int = Field(ge=0)
+
+
+class CboeSettings(HttpSourceSettings):
+    """CBOE: дневная история VIX (E2d) — без ключа."""
+
+    user_agent: str = Field(min_length=1)
+    cache_ttl_seconds: CboeCacheTtl
+
+
 class LlmSettings(StrictModel):
     model: str = Field(min_length=1)
     effort: Literal["low", "medium", "high", "xhigh", "max"]
@@ -152,4 +163,5 @@ class Sources(StrictModel):
     alphavantage: AlphaVantageSettings
     edgar: EdgarSettings
     fred: FredSettings
+    cboe: CboeSettings
     llm: LlmSettings

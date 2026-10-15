@@ -14,11 +14,12 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from adapters.cache import RedisCache
+from adapters.cboe.client import CboeClient, VixSource
 from adapters.fred.client import FredClient, FredSource, fred_api_key
 from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.history import stock_closes
 from adapters.massive.symbols import StockHistorySource, daily_bars
-from agents.macro.agent import VIX_SERIES, observed_values
+from agents.macro.agent import vix_closes
 from core.config import AppConfig, load_config
 from core.config.thresholds import Thresholds
 from core.db import models as orm
@@ -35,11 +36,12 @@ def update_market_level(
     stocks: StockHistorySource,
     thresholds: Thresholds,
     today: date,
+    vix_source: VixSource | None = None,
 ) -> orm.MarketLevelDay | None:
     """Уровни дней окна до закрытия накануне; возвращает строку последнего дня (нет SPY — None)."""
     close_day = previous_trading_day(today)
     start = close_day - timedelta(days=thresholds.agents.macro.lookback_days)
-    vix = observed_values(fred.observations(VIX_SERIES, start, close_day))
+    vix = vix_closes(fred, vix_source, start, close_day)
     spy = stock_closes(daily_bars(stocks, "SPY", start, close_day))
     by_day = levels(vix, spy, thresholds.risk_limits.black_swan)
     for day, level in by_day.items():
@@ -53,25 +55,29 @@ def update_market_level(
     return session.get(orm.MarketLevelDay, close_day) if close_day in by_day else None
 
 
-def build_sources(config: AppConfig) -> tuple[FredSource, StockHistorySource]:  # pragma: no cover
+Sources = tuple[FredSource, StockHistorySource, VixSource | None]
+
+
+def build_sources(config: AppConfig) -> Sources:  # pragma: no cover
     cache = RedisCache.from_env(config.sources.redis.timeout_seconds)
     return (
         FredClient.create(config.sources.fred, fred_api_key(), cache),
         MassiveClient.create(config.sources.massive, massive_api_key(), cache),
+        CboeClient.create(config.sources.cboe, cache),
     )
 
 
 @logged_job("market-daily", lambda: engine())
 def run_market_level(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
-    sources_factory: Callable[[AppConfig], tuple[FredSource, StockHistorySource]] = build_sources,
+    sources_factory: Callable[[AppConfig], Sources] = build_sources,
 ) -> MarketLevelRecord | None:
     """Задача планировщика; в неторговый день ничего не делает. Итог — копия строки, не ORM."""
     today = to_et(now()).date()
     if not is_trading_day(today):
         return None
     config = load_config()
-    fred, stocks = sources_factory(config)
+    fred, stocks, vix = sources_factory(config)
     with Session(engine()) as session, session.begin():
-        row = update_market_level(session, fred, stocks, config.thresholds, today)
+        row = update_market_level(session, fred, stocks, config.thresholds, today, vix)
         return None if row is None else MarketLevelRecord.model_validate(row, from_attributes=True)

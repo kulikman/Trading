@@ -35,6 +35,7 @@ SOURCES = {
     "Finnhub": "finnhub",
     "Alpha Vantage": "alphavantage",
     "FRED": "fred",
+    "CBOE (VIX)": "cboe",
     "SEC EDGAR": "edgar",
     "брокер": "broker",
     "Telegram": "telegram",
