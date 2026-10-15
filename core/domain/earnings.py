@@ -16,6 +16,7 @@ from core.domain.types import (
     ModelName,
     QueueStatus,
     ReportTime,
+    ShadowStatus,
     SkipReason,
     StepOutcome,
 )
@@ -166,3 +167,21 @@ class DecisionStepRecord(DomainModel):
     cost_fraction: float | None = None
     risk_fraction: float | None = None
     at: AwareDatetime
+
+
+class ShadowTradeRecord(DomainModel):
+    """Теневая сделка (таблица shadow_trade, T16)."""
+
+    id: int | None = None
+    event_id: int
+    strategy_id: str
+    step_id: int
+    construction: str
+    status: ShadowStatus
+    note: str | None = None
+    entry_on: date | None = None
+    exit_at: AwareDatetime | None = None
+    exit_reason: str | None = None
+    return_on_risk: float | None = None
+    pnl: float | None = None
+    brier: float | None = None

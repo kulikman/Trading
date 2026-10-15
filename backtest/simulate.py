@@ -25,7 +25,7 @@ from execution.costs import CostLeg, CostModel, total_cost
 CONTRACT_MULTIPLIER = 100
 # stop / target / time — опционы (выход до 11:00); trail_stop / sma / max_hold — акция в режиме C.
 ExitReason = Literal["stop", "target", "time", "trail_stop", "sma", "max_hold"]
-TradeKind = Literal["straddle", "iron_condor", "mode_c"]
+TradeKind = Literal["straddle", "iron_condor", "mode_c", "mode_a"]
 SkipReason = Literal["no_exit_price", "no_credit"]
 
 

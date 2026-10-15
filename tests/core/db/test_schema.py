@@ -23,6 +23,7 @@ from core.domain.earnings import (
     Forecast,
     ModelVersionRecord,
     ReportAudit,
+    ShadowTradeRecord,
 )
 from core.domain.financials import FinancialQuarter
 from core.domain.market import Company, PeerEdge, Sector, SectorSummary
@@ -58,6 +59,7 @@ EXPECTED_TABLES = {
     "error_log",
     "model_version",
     "decision_step",
+    "shadow_trade",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -155,6 +157,36 @@ def _decision_on_new_event(
         reasons=["PRE_RUN", "IV_EXPENSIVE"],
         shadow={"construction": "stock_collar", "pnl": -41.5},
         decided_at=AT,
+    )
+
+
+def _shadow_trade(session: Session, ctx: dict[str, int]) -> tuple[type[orm.Base], DomainModel]:
+    step = _save(
+        session,
+        orm.DecisionStep,
+        DecisionStepRecord(
+            event_id=ctx["event"],
+            stage="T-7",
+            job="mode_a_decision",
+            strategy_id="mode_a",
+            is_shadow=True,
+            outcome="proposal",
+            mode="A",
+            construction="stock",
+            at=AT,
+        ),
+    )
+    return orm.ShadowTrade, ShadowTradeRecord(
+        event_id=ctx["event"],
+        strategy_id="mode_a",
+        step_id=step.id,
+        construction="stock",
+        status="closed",
+        entry_on=date(2026, 10, 7),
+        exit_at=AT,
+        exit_reason="time",
+        return_on_risk=0.4,
+        pnl=400.0,
     )
 
 
@@ -386,6 +418,7 @@ CASES: dict[str, Builder] = {
             at=AT,
         ),
     ),
+    "shadow_trade": _shadow_trade,
     "model_version": lambda s, c: (
         orm.ModelVersion,
         ModelVersionRecord(

@@ -6,7 +6,8 @@ archive.lookback_trading_days торговых дней — пропущенны
 1. история отчётов Alpha Vantage перезапрашивается, только если нового отчёта в архиве ещё нет
    (лимит 25 запросов в день);
 2. сборка архива: цены опционов и implied move, фактическое движение, выручка SEC, сверка с 8-K;
-3. данные выхода для бэктеста (минутные цены, ноги кондора) — только по свежим отчётам.
+3. данные выхода для бэктеста (минутные цены, ноги кондора) — только по свежим отчётам;
+4. теневые сделки (T16) — когда цены выхода уже скачаны.
 """
 
 import logging
@@ -19,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adapters.alphavantage.client import AlphaVantageClient, alphavantage_api_key
+from adapters.broker.factory import create_cost_model
 from adapters.cache import RedisCache
 from adapters.edgar.client import EdgarClient, sec_user_agent
 from adapters.massive.client import MassiveClient, massive_api_key
@@ -32,6 +34,7 @@ from core.domain.types import ReportTime
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, previous_trading_day, to_et
+from learning.shadow import ShadowCalculator, ShadowRunResult
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,11 @@ DATE_MATCH_DAYS = (
 class ArchiveStep(Protocol):
     def build(self, session: Session, ticker: str, *, refresh_dates: bool = False) -> TickerArchive:
         """Сборка архива по компании."""
+
+
+class ShadowStep(Protocol):
+    def run(self, session: Session, today: date, retry_since: date) -> ShadowRunResult:
+        """Теневые сделки закрывшихся событий."""
 
 
 class ExitStep(Protocol):
@@ -62,15 +70,14 @@ class DailyArchiveResult:
     due: list[DueReport] = field(default_factory=list)
     archives: list[TickerArchive] = field(default_factory=list)
     exits: list[ExitDataReport] = field(default_factory=list)
+    shadows: ShadowRunResult | None = None
 
 
 def due_reports(
     session: Session, today: date, lookback_trading_days: int, tickers: set[str]
 ) -> list[DueReport]:
     """Отчёты календаря с днём реакции в последних lookback торговых днях (не позже вчера)."""
-    oldest = today
-    for _ in range(lookback_trading_days):
-        oldest = previous_trading_day(oldest)
+    oldest = lookback_start(today, lookback_trading_days)
     events = session.execute(
         select(orm.Event.ticker, orm.Event.report_date, orm.Event.report_time).where(
             orm.Event.report_date >= oldest - timedelta(days=DATE_MATCH_DAYS),
@@ -86,6 +93,14 @@ def due_reports(
     return due
 
 
+def lookback_start(today: date, lookback_trading_days: int) -> date:
+    """Первый день окна: lookback торговых дней назад."""
+    oldest = today
+    for _ in range(lookback_trading_days):
+        oldest = previous_trading_day(oldest)
+    return oldest
+
+
 class DailyArchive:
     def __init__(
         self,
@@ -94,9 +109,11 @@ class DailyArchive:
         exits: ExitStep,
         lookback_trading_days: int,
         tickers: set[str],
+        shadows: ShadowStep | None = None,
     ) -> None:
         self._builder = builder
         self._exits = exits
+        self._shadows = shadows
         self._lookback = lookback_trading_days
         self._tickers = tickers
 
@@ -111,6 +128,9 @@ class DailyArchive:
             result.archives.append(self._builder.build(session, ticker, refresh_dates=refresh))
             since = min(i.report_date for i in items)
             result.exits.append(self._exits.load(session, ticker, since=since))
+        if self._shadows is not None:
+            retry_since = lookback_start(today, self._lookback)
+            result.shadows = self._shadows.run(session, today, retry_since)
         logger.info(
             "daily archive",
             extra={"reports": len(result.due), "tickers": len(by_ticker)},
@@ -162,9 +182,16 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
         thresholds=config.thresholds,
         today=today,
     )
+    shadows = ShadowCalculator(
+        stocks=stocks,
+        thresholds=config.thresholds,
+        history=sources.massive.history,
+        costs=create_cost_model(config.broker),
+    )
     return DailyArchive(
         builder=builder,
         exits=exits,
+        shadows=shadows,
         lookback_trading_days=config.schedule.archive.lookback_trading_days,
         tickers=set(config.universe.tickers()),
     )
