@@ -1,5 +1,6 @@
 """Решение по событию и карточка сделки (SPEC §5, §10, §11)."""
 
+from datetime import date
 from decimal import Decimal
 from typing import Any, Literal, Self
 
@@ -7,7 +8,7 @@ from pydantic import AwareDatetime, Field, model_validator
 
 from core.domain.base import DomainModel
 from core.domain.broker import Instrument, OrderPurpose, Side
-from core.domain.types import CardState, DecisionStatus, OrderStatus, SkipReason
+from core.domain.types import CardState, DecisionStatus, MarketLevel, OrderStatus, SkipReason
 
 DATA_REASON_PREFIX = "DATA_"
 
@@ -148,3 +149,12 @@ class SystemMessageRecord(DomainModel):
     text: str = Field(min_length=1)
     sent_at: AwareDatetime | None = None
     tg_message_id: int | None = None
+
+
+class MarketLevelRecord(DomainModel):
+    """Уровень Black Swan на закрытии дня (таблица market_level, E2d)."""
+
+    day: date
+    level: MarketLevel
+    vix: float | None = None
+    spy: float | None = None

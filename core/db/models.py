@@ -42,6 +42,7 @@ from core.domain.types import (
     EventJobStatus,
     FeatureStage,
     JobKind,
+    MarketLevel,
     ModelName,
     OptionType,
     OrderStatus,
@@ -396,6 +397,18 @@ class CashMovement(Timestamps, Base):
     at: Mapped[datetime]
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     note: Mapped[str | None]
+
+
+class MarketLevelDay(Timestamps, Base):
+    """Уровень Black Swan на закрытии торгового дня (E2d): ежедневная задача market-daily."""
+
+    __tablename__ = "market_level"
+    __table_args__ = (CheckConstraint(_one_of("level", MarketLevel), name="level"),)
+
+    day: Mapped[date] = mapped_column(primary_key=True)  # день закрытия, по которому посчитан
+    level: Mapped[str]
+    vix: Mapped[float | None]
+    spy: Mapped[float | None]
 
 
 class SourceStatus(Timestamps, Base):

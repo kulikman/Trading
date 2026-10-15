@@ -72,6 +72,14 @@ class DigestSettings(StrictModel):
     _times = field_validator("morning_et", "evening_et", mode="before")(_parse_time)
 
 
+class MarketSettings(StrictModel):
+    """Уровень Black Swan на закрытии каждого торгового дня (E2d)."""
+
+    run_time_et: time
+
+    _time = field_validator("run_time_et", mode="before")(_parse_time)
+
+
 class NewsSettings(StrictModel):
     """Ежедневный сбор новостей компаний и тегов (E6)."""
 
@@ -105,6 +113,7 @@ class ScheduleConfig(StrictModel):
     trailing: TrailingSettings
     digest: DigestSettings
     news: NewsSettings
+    market: MarketSettings
     event_jobs: list[EventJobSpec] = Field(min_length=1)
 
     @model_validator(mode="after")

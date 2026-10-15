@@ -8,12 +8,12 @@
 
 from collections.abc import Mapping, Sequence
 from datetime import date
-from typing import Literal
 
 from core.config.thresholds import BlackSwan, LevelThresholds
+from core.domain.types import MarketLevel
 from core.session_guard import previous_trading_day
 
-Level = Literal["green", "yellow", "orange", "red"]
+Level = MarketLevel
 ORDER: tuple[Level, ...] = ("green", "yellow", "orange", "red")
 
 
