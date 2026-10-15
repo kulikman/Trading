@@ -39,6 +39,9 @@ class OrderStore(Protocol):
     def all(self) -> list[Ticket]:
         """Все ордера."""
 
+    def for_card(self, card_id: int) -> list[Ticket]:
+        """Ордера карточки сделки."""
+
 
 class MemoryOrderStore:
     def __init__(self) -> None:
@@ -57,6 +60,9 @@ class MemoryOrderStore:
 
     def all(self) -> list[Ticket]:
         return list(self._tickets.values())
+
+    def for_card(self, card_id: int) -> list[Ticket]:
+        return [t for t in self._tickets.values() if t.card_id == card_id]
 
 
 class DbOrderStore:
@@ -92,6 +98,15 @@ class DbOrderStore:
     def all(self) -> list[Ticket]:
         with self._session() as session:
             return [_ticket(r) for r in session.scalars(select(orm.BrokerOrder))]
+
+    def for_card(self, card_id: int) -> list[Ticket]:
+        with self._session() as session:
+            rows = session.scalars(
+                select(orm.BrokerOrder)
+                .where(orm.BrokerOrder.card_id == card_id)
+                .order_by(orm.BrokerOrder.order_id)
+            )
+            return [_ticket(r) for r in rows]
 
 
 def _ticket(row: orm.BrokerOrder) -> Ticket:

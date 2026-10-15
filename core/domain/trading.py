@@ -85,6 +85,7 @@ class TradeCard(DomainModel):
     fills: list[CardFill] | None = None
     tg_message_id: int | None = None
     tg_state: CardState | None = None
+    reminded_at: AwareDatetime | None = None
     pnl_total: Decimal | None = None
     pnl_direction: Decimal | None = None
     pnl_vol: Decimal | None = None

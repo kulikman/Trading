@@ -51,6 +51,19 @@ class ManualBroker(GuardedBroker):
         self._quote_source = quote_source
         self._store: OrderStore = store if store is not None else MemoryOrderStore()
 
+    def place_for_card(self, order: Order, card_id: int) -> OrderId:
+        """Ордер карточки сделки (Real): та же проверка сессии и идемпотентность."""
+        order_id = self.place(order)
+        ticket = self._ticket(order_id)
+        if ticket.card_id != card_id:
+            ticket.card_id = card_id
+            self._store.save(ticket)
+        return order_id
+
+    def pending_for_card(self, card_id: int) -> list[Ticket]:
+        """Ордера карточки, ждущие подтверждения исполнения."""
+        return [t for t in self._store.for_card(card_id) if t.status == "pending"]
+
     def _submit(self, order: Order) -> OrderId:
         existing = self._store.by_client_id(order.client_order_id)
         if existing is not None:
