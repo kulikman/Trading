@@ -112,7 +112,7 @@ def _trade(
     pre_close = closes.get(days.pre)
     if pre_close is None:
         return "no_price"
-    volume_days = _previous_days(days.reaction, thresholds.backtest.mode_c.volume_lookback_days)
+    volume_days = previous_days(days.reaction, thresholds.backtest.mode_c.volume_lookback_days)
     minutes = stocks.aggregates(
         symbol_on(periods, days.reaction),
         1,
@@ -151,7 +151,8 @@ def _trade(
     )
 
 
-def _previous_days(day: date, count: int) -> list[date]:
+def previous_days(day: date, count: int) -> list[date]:
+    """count торговых дней строго до day, от ближнего к дальнему."""
     out = []
     for _ in range(count):
         day = previous_trading_day(day)
