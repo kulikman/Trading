@@ -137,6 +137,18 @@ def test_paper_proposal_enters_shadow_only_records(session: Session, event: orm.
     assert ctx.features["macro"] == {"regime": 0.0}
 
 
+def test_entry_opens_planned_paper_card_once(session: Session, event: orm.Event) -> None:
+    strategies: dict[str, Strategy] = {
+        "iron_condor": FakeStrategy("iron_condor", proposal("iron_condor"))
+    }
+    for _ in range(2):
+        run_decision(session, job(event.id), ["iron_condor"], strategies, config=CONFIG, now=NOW)
+    card = session.scalars(select(orm.TradeCard)).one()  # повтор задачи — вторая карточка не нужна
+    assert (card.state, card.paper) == ("PLANNED", True)
+    transition = session.scalars(select(orm.TradeCardTransition)).one()
+    assert (transition.from_state, transition.to_state, transition.at) == (None, "PLANNED", NOW)
+
+
 def learned_models(session: Session) -> None:
     """Две версии сверх стартовой — сезоны 1–2 закончились, ворота edge и θ действуют."""
     for version in ("0.2.0", "0.3.0"):

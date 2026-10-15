@@ -36,6 +36,7 @@ from decision.capital import (
     size_data_collection,
     win_loss_ratio,
 )
+from execution.cards import open_card
 from models.features import stage_features
 
 NO_DECISION_RUN: list[SkipReason] = ["DATA_CALENDAR"]  # задачи решения не выполнялись
@@ -127,7 +128,7 @@ def run_decision(
             .on_conflict_do_nothing(index_elements=["event_id", "stage", "job", "strategy_id"])
         )
     for item in accepted:
-        session.execute(
+        decision_id = session.execute(
             insert(orm.Decision)
             .values(
                 event_id=event.id,
@@ -139,7 +140,12 @@ def run_decision(
                 decided_at=now,
             )
             .on_conflict_do_nothing(constraint="uq_decision_event_id_strategy_id")
-        )
+            .returning(orm.Decision.id)
+        ).scalar_one_or_none()
+        if decision_id is not None:  # новый вход — карточка paper-сделки
+            decision = session.get(orm.Decision, decision_id)
+            if decision is not None:
+                open_card(session, decision)
     session.flush()
     return steps
 

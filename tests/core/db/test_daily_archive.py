@@ -11,6 +11,7 @@ from core.config import load_config
 from core.db import models as orm
 from core.db.store import save_reported_earnings, sync_universe
 from core.domain.earnings import ReportedEarnings
+from execution.paper import PaperRunResult
 from learning.shadow import ShadowRunResult
 
 CONFIG = load_config()
@@ -96,13 +97,29 @@ class Shadows:
         return ShadowRunResult({"closed": 1})
 
 
+class Paper:
+    def __init__(self) -> None:
+        self.calls: list[tuple[date, date]] = []
+
+    def run(self, session: Session, today: date, retry_since: date) -> PaperRunResult:
+        self.calls.append((today, retry_since))
+        return PaperRunResult({"CLOSED": 1})
+
+
 def test_run_computes_shadows_after_exit_data(calendar: Session) -> None:
-    shadows = Shadows()
+    shadows, paper = Shadows(), Paper()
     result = DailyArchive(
-        builder=Builder(), exits=Exits(), lookback_trading_days=5, tickers=UNIVERSE, shadows=shadows
+        builder=Builder(),
+        exits=Exits(),
+        lookback_trading_days=5,
+        tickers=UNIVERSE,
+        shadows=shadows,
+        paper=paper,
     ).run(calendar, TODAY)
     assert shadows.calls == [(TODAY, date(2026, 10, 7))]  # no_data повторяется 5 торговых дней
+    assert paper.calls == [(TODAY, date(2026, 10, 7))]
     assert result.shadows == ShadowRunResult({"closed": 1})
+    assert result.paper == PaperRunResult({"CLOSED": 1})
 
 
 def test_run_refreshes_dates_only_for_new_reports(calendar: Session) -> None:
