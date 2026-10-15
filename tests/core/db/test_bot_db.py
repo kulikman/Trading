@@ -10,7 +10,7 @@ from core.db import models as orm
 from core.db.store import sync_universe
 from core.domain.broker import Order, Quote
 from core.state_machine.card import start, transition
-from notify.bot import details_text, handle_callback, send_reminders
+from notify.bot import details_text, handle_callback, handle_reply, send_reminders
 
 CONFIG = load_config()
 ARMED_AT = datetime(2026, 10, 20, 19, 30, tzinfo=UTC)  # 15:30 ET
@@ -102,15 +102,43 @@ def order(card_id: int) -> Order:
     )
 
 
-def test_fill_button_confirms_orders_and_opens_card(session: Session) -> None:
+def test_fill_asks_price_and_reply_records_it(session: Session) -> None:
     card = real_card(session)
-    b = broker(session)
+    card.tg_message_id = 77
+    b, bot = broker(session), Bot()
     b.place_for_card(order(card.id), card.id)
-    assert handle_callback(session, f"fill:{card.id}", b, ARMED_AT) == "Исполнение подтверждено"
+    assert (
+        handle_callback(session, f"fill:{card.id}", b, ARMED_AT, bot) == "Ответьте ценой исполнения"
+    )
+    text, _, reply_to = bot.sent[0]
+    assert reply_to == 77  # вопрос — ответом на карточку
+    assert text.startswith("Цена исполнения? Ответьте на это сообщение: 1 цена через пробел")
+    assert "1) Купить  NFLX  10 шт.  лимит ≤ 101.50" in text
+    assert card.state == "ARMED"  # пока цены нет — не исполнено
+    prompt = card.fill_prompt_id
+    assert prompt == 1
+    assert handle_reply(session, "101,40", 999, b, ARMED_AT) is None  # не ответ на вопрос
+    bad = handle_reply(session, "abc", prompt, b, ARMED_AT)
+    assert bad is not None
+    assert bad.startswith("Не понял цену")
+    assert handle_reply(session, "101 102", prompt, b, ARMED_AT) == "Нужно 1 цена, получено 2"
+    assert handle_reply(session, "101,40", prompt, b, ARMED_AT) == "Исполнение записано: 101.40"
     assert card.state == "OPEN"
-    assert [(f["purpose"], f["price"]) for f in card.fills or []] == [("entry", 101.5)]
+    assert [(f["purpose"], f["price"]) for f in card.fills or []] == [("entry", 101.4)]
     assert session.scalars(select(orm.BrokerOrder.status)).one() == "filled"
-    assert handle_callback(session, f"fill:{card.id}", b, ARMED_AT) == "Карточка уже OPEN"  # повтор
+    assert handle_callback(session, f"fill:{card.id}", b, ARMED_AT, bot) == "Карточка уже OPEN"
+
+
+def test_reply_limit_uses_limit_prices(session: Session) -> None:
+    card = real_card(session)
+    b, bot = broker(session), Bot()
+    b.place_for_card(order(card.id), card.id)
+    handle_callback(session, f"fill:{card.id}", b, ARMED_AT, bot)
+    assert card.fill_prompt_id is not None
+    assert (
+        handle_reply(session, "лимит", card.fill_prompt_id, b, ARMED_AT)
+        == "Исполнение записано: 101.50"
+    )
 
 
 def test_skip_button_cancels(session: Session) -> None:
@@ -118,7 +146,7 @@ def test_skip_button_cancels(session: Session) -> None:
     b = broker(session)
     b.place_for_card(order(card.id), card.id)
     assert (
-        handle_callback(session, f"skip:{card.id}", b, ARMED_AT)
+        handle_callback(session, f"skip:{card.id}", b, ARMED_AT, Bot())
         == "Вход отменён — снимите ордера у брокера"
     )
     assert card.state == "CANCELLED"
@@ -129,13 +157,13 @@ def test_paper_details_and_unknown(session: Session) -> None:
     card = real_card(session, paper=True)
     b = broker(session)
     assert (
-        handle_callback(session, f"fill:{card.id}", b, ARMED_AT)
+        handle_callback(session, f"fill:{card.id}", b, ARMED_AT, Bot())
         == "Paper: исполнение считает система"
     )
     assert details_text(session, card) == f"#{card.id} акция: buy NFLX ×10. PLANNED → ARMED"
-    assert handle_callback(session, "fill:999999", b, ARMED_AT) == "Карточка не найдена"
+    assert handle_callback(session, "fill:999999", b, ARMED_AT, Bot()) == "Карточка не найдена"
     real = real_card(session, ticker="TSLA")
-    assert handle_callback(session, f"fill:{real.id}", b, ARMED_AT).startswith(
+    assert handle_callback(session, f"fill:{real.id}", b, ARMED_AT, Bot()).startswith(
         "Нет ордеров"
     )  # ордеров нет
 

@@ -478,6 +478,7 @@ class TradeCard(Timestamps, Base):
     tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
     tg_state: Mapped[str | None]  # состояние, показанное в сообщении (правка при смене, T18)
     reminded_at: Mapped[datetime | None]  # напоминание: Real-вход не подтверждён 15 минут
+    fill_prompt_id: Mapped[int | None] = mapped_column(BigInteger)  # «цена исполнения?» (E10-3)
     pnl_total: Mapped[Decimal | None]
     pnl_direction: Mapped[Decimal | None]
     pnl_vol: Mapped[Decimal | None]
