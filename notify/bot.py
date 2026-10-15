@@ -9,6 +9,7 @@ ARMED → OPEN (E10-3). «Не исполнил» — ордера отменя�
 """
 
 import logging
+import math
 import time as clock
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
@@ -224,7 +225,7 @@ def _reverse(side: Side) -> Side:
 
 def _numbers(text: str, count: int) -> list[float] | str:
     try:
-        prices = [float(w.replace(",", ".")) for w in text.replace(";", " ").split()]
+        prices = [_parse_price(w) for w in text.replace(";", " ").split()]
     except ValueError:
         return f"Не понял цену: «{text[:40]}». Нужны числа через пробел"
     if len(prices) != count:
@@ -232,7 +233,25 @@ def _numbers(text: str, count: int) -> list[float] | str:
         return f"Нужно {need}, получено {len(prices)}"
     if any(p <= 0 for p in prices):
         return "Цена должна быть больше нуля"
+    if any(not math.isfinite(p) for p in prices):
+        return "Цена должна быть конечным числом"
     return prices
+
+
+def _parse_price(word: str) -> float:
+    """Число с поддержкой запятой: «1,23» → 1.23 (евро), «1,234.56» → 1234.56 (тысячи)."""
+    if "." in word:
+        # Есть точка → запятые разделители тысяч
+        value = float(word.replace(",", ""))
+    elif word.count(",") == 1:
+        # Одна запятая, нет точки → десятичная запятая (европейский стиль)
+        value = float(word.replace(",", "."))
+    else:
+        # Несколько запятых → разделители тысяч
+        value = float(word.replace(",", ""))
+    if not math.isfinite(value):
+        raise ValueError(f"не конечное число: {word}")
+    return value
 
 
 def _entries[T: PendingOrder](tickets: Sequence[T]) -> list[T]:
@@ -342,22 +361,25 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
         for update in updates:
             update_id = update.get("update_id")
             offset = update_id + 1 if isinstance(update_id, int) else offset
-            message = update.get("message")
-            if isinstance(message, dict):
-                _on_message(db, client, broker, costs, message)
-                continue
-            query = update.get("callback_query")
-            if not isinstance(query, dict):
-                continue
-            chat = (query.get("message") or {}).get("chat", {}).get("id")
-            if str(chat) != client.chat_id:
-                logger.warning("callback from a foreign chat ignored")
-                continue
-            with Session(db) as session, session.begin():
-                reply = handle_callback(
-                    session, str(query.get("data", "")), broker, datetime.now(UTC), client
-                )
-            client.answer(str(query.get("id")), reply)
+            try:
+                message = update.get("message")
+                if isinstance(message, dict):
+                    _on_message(db, client, broker, costs, message)
+                    continue
+                query = update.get("callback_query")
+                if not isinstance(query, dict):
+                    continue
+                chat = (query.get("message") or {}).get("chat", {}).get("id")
+                if str(chat) != client.chat_id:
+                    logger.warning("callback from a foreign chat ignored")
+                    continue
+                with Session(db) as session, session.begin():
+                    reply = handle_callback(
+                        session, str(query.get("data", "")), broker, datetime.now(UTC), client
+                    )
+                client.answer(str(query.get("id")), reply)
+            except Exception:
+                logger.exception("error processing update %s", update_id)
 
 
 def _on_message(
