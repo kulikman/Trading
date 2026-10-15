@@ -228,6 +228,31 @@ def test_finalize_without_steps_is_data_calendar(session: Session, event: orm.Ev
     assert finalize(session, event.id, NOW)[0].reasons == ["DATA_CALENDAR"]
 
 
+def test_finalize_adds_unresolved_source_failures(session: Session, event: orm.Event) -> None:
+    for source, resolved in (("finnhub", None), ("alphavantage", None), ("massive", NOW)):
+        session.add(
+            orm.ErrorLog(
+                at=NOW,
+                source="consensus",
+                event_id=event.id,
+                ticker="NFLX",
+                stage="T-3",
+                error_type="DataError",
+                message=f"{source}: HTTP 503",
+                resolved_at=resolved,
+            )
+        )
+    session.add(
+        orm.ErrorLog(
+            at=NOW, source="options", event_id=event.id, error_type="ValueError", message="x"
+        )
+    )
+    session.flush()
+    [decision] = finalize(session, event.id, NOW)
+    # massive восстановился повтором задачи; ValueError — не сбой источника
+    assert decision.reasons == ["DATA_ALPHAVANTAGE", "DATA_FINNHUB"]
+
+
 def test_rerun_does_not_duplicate_steps_or_decisions(session: Session, event: orm.Event) -> None:
     strategies: dict[str, Strategy] = {
         "iron_condor": FakeStrategy("iron_condor", proposal("iron_condor"))

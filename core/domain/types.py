@@ -24,6 +24,8 @@ SkipReason = Literal[
     "MACRO_BLOCK",
     "C_NOT_CONFIRMED",
     "DATA_MASSIVE",
+    "DATA_FINNHUB",
+    "DATA_ALPHAVANTAGE",
     "DATA_BROKER",
     "DATA_CALENDAR",
     "DATA_MISMATCH",
