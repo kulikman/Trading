@@ -10,9 +10,10 @@
    версии — параметры действующей. Версия принята, если улучшилась хоть одна модель. Отклонённая
    версия тоже сохраняется (с причиной) — её веса использует исследование 20% событий.
 5. Правило 30: модель обучается от `min_segment_obs` наблюдений; θ и Келли — от 30 сделок.
-6. θ и доля Келли — рекомендация по paper-сделкам и теням (пороги в конфиге решает заказчик).
+6. θ и множитель Келли — рекомендация по paper-сделкам и теням (пороги в конфиге решает заказчик).
 7. Вклад агента — насколько хуже Brier без его признаков; признаки, без которых лучше, — к
-   отключению. Карантин — Brier прогноза p_up компании > 0,30 на ≥ 6 отчётах.
+   отключению. Карантин — Brier прогноза p_up компании выше `models.quarantine.max_brier` на
+   `models.quarantine.min_reports` и более отчётах.
 Отчёт — `reports/season_<версия>.md`.
 """
 
@@ -29,7 +30,9 @@ from sqlalchemy.orm import Session
 
 from core.config import AppConfig
 from core.db import models as orm
-from core.domain.types import ModelName
+from core.domain.types import CalibrationStatus, ModelName
+from core.text import plural
+from execution.paper import entry_step
 from learning.fit import brier, fit_logistic, fit_platt, robust_scale
 from models.features import stage_features
 from models.logistic import ModelParams
@@ -37,10 +40,8 @@ from models.versions import MODEL_NAMES, PRIOR_VERSION, active_models
 
 logger = logging.getLogger(__name__)
 
-QUARANTINE_BRIER = 0.30
-QUARANTINE_MIN_REPORTS = 6
 THETAS = (0.50, 0.55, 0.60, 0.65, 0.70)
-KELLY_FRACTIONS = (0.125, 0.25, 0.5)
+KELLY_MULTIPLIERS = (0.125, 0.25, 0.5)  # варианты sizing.kelly_multiplier
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,9 @@ class ModelOutcome:
     brier_old: float | None = None
     improved: bool = False
     reason: str = ""
+    fitted: ModelParams | None = (
+        None  # обученные веса, даже если не лучше: их пробует «исследование»
+    )
 
 
 @dataclass
@@ -74,6 +78,7 @@ class SeasonResult:
     disable: list[str] = field(default_factory=list)
     theta: str = ""
     quarantine: dict[str, str] = field(default_factory=dict)
+    samples: int = 0
     report: Path | None = None
 
 
@@ -86,6 +91,7 @@ def build_samples(session: Session, config: AppConfig) -> list[Sample]:
             (orm.EarningsTrack.ticker == orm.Event.ticker)
             & (orm.EarningsTrack.report_date == orm.Event.report_date),
         )
+        .where(orm.EarningsTrack.date_check.is_distinct_from("mismatch"))
         .order_by(orm.Event.report_date, orm.Event.id)
     ).all()
     out = []
@@ -113,10 +119,8 @@ def build_samples(session: Session, config: AppConfig) -> list[Sample]:
     return out
 
 
-def learn_season(
-    session: Session, config: AppConfig, now: datetime, report_dir: Path | None = None
-) -> SeasonResult:
-    """Обучить, решить о версии, записать model_version, карантин и отчёт."""
+def learn_season(session: Session, config: AppConfig, now: datetime) -> SeasonResult:
+    """Обучить, решить о версии, записать model_version и карантин (отчёт — write_report)."""
     settings = config.thresholds.models
     samples = build_samples(session, config)
     current = active_models(session)
@@ -130,18 +134,21 @@ def learn_season(
         if accepted
         else "отклонена: " + "; ".join(f"{o.model} — {o.reason}" for o in outcomes)
     )
-    result = SeasonResult(version=version, accepted=accepted, reason=reason, models=outcomes)
+    result = SeasonResult(
+        version=version, accepted=accepted, reason=reason, models=outcomes, samples=len(samples)
+    )
     result.contributions, result.disable = _contributions(samples, names, config)
     result.theta = _theta_kelly(session, config)
-    result.quarantine = _quarantine(session, samples)
+    result.quarantine = _quarantine(session, samples, config)
     if not any(o.brier_new is not None for o in outcomes):
         # Ни одна модель не обучалась — версии нет (иначе «исследование» шло бы на старых весах).
         result.reason = "мало данных — версия не создана: " + "; ".join(
             f"{o.model} — {o.reason}" for o in outcomes
         )
-        result.report = _write_report(result, len(samples), report_dir)
         return result
     for outcome in outcomes:
+        # Отклонённая версия хранит новые веса — их пробуют 20% событий (исследование, SPEC §9).
+        params = outcome.params if accepted else (outcome.fitted or outcome.params)
         metrics: dict[str, object] = {"n": outcome.observations}
         if outcome.brier_new is not None:
             metrics |= {"brier": outcome.brier_new, "brier_old": outcome.brier_old}
@@ -152,7 +159,7 @@ def learn_season(
             orm.ModelVersion(
                 model=outcome.model,
                 version=version,
-                params=outcome.params.model_dump(),
+                params=params.model_dump(),
                 metrics=metrics,
                 trained_at=now,
                 accepted=accepted,
@@ -160,7 +167,6 @@ def learn_season(
             )
         )
     session.flush()
-    result.report = _write_report(result, len(samples), report_dir)
     logger.info("learn season", extra={"version": version, "accepted": accepted})
     return result
 
@@ -184,6 +190,7 @@ def _learn_model(
     outcome.brier_new = brier(params, [s.features for s in test], [s.labels[model] for s in test])
     outcome.brier_old = brier(current, [s.features for s in test], [s.labels[model] for s in test])
     outcome.improved = outcome.brier_new < outcome.brier_old
+    outcome.fitted = params
     outcome.params = params if outcome.improved else current
     outcome.reason = (
         f"Brier {outcome.brier_new:.4f} против {outcome.brier_old:.4f} "
@@ -230,68 +237,86 @@ def _contributions(
 
 
 def _theta_kelly(session: Session, config: AppConfig) -> str:
-    """Рекомендация θ (максимум Sharpe отобранных сделок) и доли Келли (максимум роста)."""
+    """Рекомендация θ (максимум Sharpe отобранных сделок) и множителя Келли (максимум роста).
+
+    Множитель — тот же, что `sizing.kelly_multiplier`: риск сделки = множитель · (p·b − (1−p)) / b,
+    p — вероятность модели в шаге решения, b — средний выигрыш / средний проигрыш на риск сделок.
+    """
     minimum = config.thresholds.models.min_segment_obs
-    trades: list[tuple[float, float]] = []  # (уверенность, доходность на риск)
+    trades: list[tuple[float, float | None, float]] = []  # (уверенность, p, доходность на риск)
     capital = config.thresholds.capital.module_usd
-    for card, step in session.execute(
-        select(orm.TradeCard, orm.DecisionStep)
+    for card, decision in session.execute(
+        select(orm.TradeCard, orm.Decision)
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
-        .join(
-            orm.DecisionStep,
-            (orm.DecisionStep.event_id == orm.Decision.event_id)
-            & (orm.DecisionStep.strategy_id == orm.Decision.strategy_id),
-        )
         .where(orm.TradeCard.state.in_(("CLOSED", "STOPPED")), orm.TradeCard.pnl_total.is_not(None))
     ).all():
-        risk = capital * (step.risk_fraction or 0.0)
-        if risk > 0 and step.confidence is not None:
-            trades.append((step.confidence, float(card.pnl_total or 0) / risk))
+        step = entry_step(session, decision)  # одна сделка — один шаг (у режима B их два)
+        risk = capital * (step.risk_fraction or 0.0) if step is not None else 0.0
+        if step is not None and risk > 0 and step.confidence is not None:
+            trades.append((step.confidence, step.probability, float(card.pnl_total or 0) / risk))
     for shadow, step in session.execute(
         select(orm.ShadowTrade, orm.DecisionStep)
         .join(orm.DecisionStep, orm.DecisionStep.id == orm.ShadowTrade.step_id)
         .where(orm.ShadowTrade.status == "closed", orm.ShadowTrade.return_on_risk.is_not(None))
     ).all():
         if step.confidence is not None and shadow.return_on_risk is not None:
-            trades.append((step.confidence, shadow.return_on_risk))
+            trades.append((step.confidence, step.probability, shadow.return_on_risk))
+    count = f"по {len(trades)} {plural(len(trades), 'сделке', 'сделкам', 'сделкам')}"
     if len(trades) < minimum:
         return f"мало сделок для θ и Келли: {len(trades)} из {minimum} — пороги не меняются"
     best_theta, best_sharpe = None, float("-inf")
     for theta in THETAS:
-        chosen = [r for c, r in trades if c >= theta]
+        chosen = [r for c, _, r in trades if c >= theta]
         if len(chosen) >= minimum and statistics.pstdev(chosen) > 0:
             sharpe = statistics.fmean(chosen) / statistics.pstdev(chosen)
             if sharpe > best_sharpe:
                 best_theta, best_sharpe = theta, sharpe
-    returns = [r for _, r in trades]
-    growth = {k: statistics.fmean(_log_growth(k * r) for r in returns) for k in KELLY_FRACTIONS}
-    kelly = max(growth, key=lambda k: growth[k])
     theta_text = (
         f"θ = {best_theta:.2f} (Sharpe {best_sharpe:.2f})"
         if best_theta is not None
         else "θ — не хватает сделок выше порогов"
     )
-    return f"{theta_text}; доля Келли = {kelly:g} (по {len(trades)} сделкам) — рекомендация"
+    return f"{theta_text}; {_kelly_text(trades, best_theta or 0.0)} ({count}) — рекомендация"
 
 
-def _quarantine(session: Session, samples: Sequence[Sample]) -> dict[str, str]:
-    """Brier прогноза p_up компании > 0,30 на ≥ 6 отчётах — карантин; исправилась — снова ok."""
+def _kelly_text(trades: Sequence[tuple[float, float | None, float]], theta: float) -> str:
+    """Множитель Келли с максимальным средним log-ростом на сделках выше θ с вероятностью модели."""
+    chosen = [(p, r) for c, p, r in trades if c >= theta and p is not None]
+    wins = [r for _, r in chosen if r > 0]
+    losses = [-r for _, r in chosen if r < 0]
+    if not wins or not losses:
+        return "множитель Келли — нужны и выигрыши, и проигрыши с вероятностью модели"
+    b = statistics.fmean(wins) / statistics.fmean(losses)
+
+    def growth(multiplier: float) -> float:
+        risks = [(max(multiplier * (p * b - (1 - p)) / b, 0.0), r) for p, r in chosen]
+        return statistics.fmean(_log_growth(f * r) for f, r in risks)
+
+    best = max(KELLY_MULTIPLIERS, key=growth)
+    return f"множитель Келли = {best:g} (b = {b:.2f}, сделок с p: {len(chosen)})"
+
+
+def _quarantine(session: Session, samples: Sequence[Sample], config: AppConfig) -> dict[str, str]:
+    """Brier прогноза p_up компании выше порога на достаточном числе отчётов — карантин."""
+    limits = config.thresholds.models.quarantine
     by_ticker: dict[str, list[tuple[float, int]]] = {}
     for s in samples:
         if s.forecast_p_up is not None and "p_up" in s.labels:
             by_ticker.setdefault(s.ticker, []).append((s.forecast_p_up, s.labels["p_up"]))
     changes = {}
     for ticker, pairs in by_ticker.items():
-        if len(pairs) < QUARANTINE_MIN_REPORTS:
+        if len(pairs) < limits.min_reports:
             continue
         score = statistics.fmean((p - y) ** 2 for p, y in pairs)
         company = session.get(orm.Company, ticker)
         if company is None:
             continue
-        status = "quarantine" if score > QUARANTINE_BRIER else "ok"
+        status: CalibrationStatus = "quarantine" if score > limits.max_brier else "active"
         if company.calibration_status != status:
             company.calibration_status = status
-            changes[ticker] = f"{status} (Brier {score:.3f} на {len(pairs)} отчётах)"
+            word = "в карантин" if status == "quarantine" else "из карантина"
+            reports = plural(len(pairs), "отчёте", "отчётах", "отчётах")
+            changes[ticker] = f"{word} (Brier {score:.3f} на {len(pairs)} {reports})"
     session.flush()
     return changes
 
@@ -305,9 +330,9 @@ def _log_growth(x: float) -> float:
     return math.log(max(1.0 + x, 1e-9))
 
 
-def _write_report(result: SeasonResult, samples: int, report_dir: Path | None) -> Path | None:
-    if report_dir is None:
-        return None
+def write_report(result: SeasonResult, report_dir: Path) -> Path:
+    """Отчёт сезона reports/season_<версия>.md — после commit, чтобы не было отчёта без версии."""
+    samples = result.samples
     report_dir.mkdir(parents=True, exist_ok=True)
     path = report_dir / f"season_{result.version}.md"
     lines = [
@@ -326,7 +351,7 @@ def _write_report(result: SeasonResult, samples: int, report_dir: Path | None) -
         lines.append(f"| {o.model} | {o.observations} | {new} | {old} | {o.reason} |")
     lines += [
         "",
-        "## θ и доля Келли",
+        "## θ и множитель Келли",
         "",
         result.theta,
         "",
@@ -351,7 +376,8 @@ def main() -> int:  # pragma: no cover
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     with Session(create_db_engine()) as session, session.begin():
-        result = learn_season(session, load_config(), datetime.now(UTC), Path("reports"))
+        result = learn_season(session, load_config(), datetime.now(UTC))
+    result.report = write_report(result, Path("reports"))
     logger.info("Версия %s: %s. Отчёт: %s", result.version, result.reason, result.report)
     return 0
 

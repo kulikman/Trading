@@ -75,7 +75,7 @@ def brier(params: ModelParams, rows: Sequence[Mapping[str, float]], labels: Sequ
 
 
 def robust_scale(values: Sequence[float]) -> float:
-    """Типичный размах признака без масштаба в конфиге: медиана |значения| (не ноль)."""
+    """Типичный размах признака без масштаба в конфиге: 2 × медиана |значения| (не ноль)."""
     sizes = sorted(abs(v) for v in values if math.isfinite(v) and v != 0)
     if not sizes:
         return 1.0

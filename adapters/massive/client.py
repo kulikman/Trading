@@ -27,6 +27,7 @@ from core.config.sources import MassiveSettings
 
 SOURCE = "massive"
 Timespan = Literal["second", "minute", "hour", "day", "week", "month", "quarter", "year"]
+INTRADAY = frozenset({"second", "minute", "hour"})
 
 
 def massive_api_key() -> str:
@@ -101,7 +102,10 @@ class MassiveClient:
             "sort": "asc",
             "limit": self._settings.page_limit.aggregates,
         }
-        rows = self._paginate(path, params, self._settings.cache_ttl_seconds.aggregates)
+        ttl = self._settings.cache_ttl_seconds
+        rows = self._paginate(
+            path, params, ttl.intraday_aggregates if timespan in INTRADAY else ttl.aggregates
+        )
         return [_parse(Bar, row) for row in rows]
 
     def last_quote(self, ticker: str) -> StockQuote:

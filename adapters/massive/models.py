@@ -131,6 +131,7 @@ class OptionDay(ApiModel):
 
     close: float | None = None
     volume: float | None = None
+    last_updated: int | None = None  # наносекунды Unix — время последней сделки
 
 
 class OptionSnapshot(ApiModel):

@@ -15,9 +15,10 @@ class HalfSpread:
 
 
 def execution(
-    n: int, *, side: str = "buy", limit: float | None = 100.0, price: float = 100.1
+    n: int, *, side: str = "buy", kind: str = "stop", at: float = 100.0, price: float = 100.1
 ) -> RealExecution:
-    kind = {"order_type": "limit", "limit_price": limit} if limit else {"order_type": "market"}
+    """Стоп по 100, исполненный хуже на 0,10 — проскальзывание; лимит исполняется не хуже лимита."""
+    prices = {"stop": {"stop_price": at}, "limit": {"limit_price": at}, "market": {}}[kind]
     order = Order.model_validate(
         {
             "client_order_id": f"c{n}",
@@ -27,7 +28,8 @@ def execution(
             "quantity": 10,
             "multiplier": 1,
             "purpose": "entry",
-            **kind,
+            "order_type": kind,
+            **prices,
         }
     )
     fill = Fill(
@@ -53,7 +55,7 @@ def test_real_costs_twice_the_model_is_drift() -> None:
     assert result.divergence is not None
     assert round(result.divergence, 6) == 1.0
     assert result.drift
-    assert result.text == "расхождение 100% (2 исполнений)"
+    assert result.text == "реальные выше модели на 100% (2 исполнения)"
 
 
 def test_within_alert_is_not_drift() -> None:
@@ -67,11 +69,20 @@ def test_within_alert_is_not_drift() -> None:
 def test_too_few_fills_shows_divergence_without_conclusion() -> None:
     result = compare_costs([execution(1)], HalfSpread(), alert=0.2, min_fills=20)
     assert not result.drift
-    assert result.text == "расхождение 100% (1 исполнений), вывод — от 20"
+    assert result.text == "реальные выше модели на 100% (1 исполнение), вывод — от 20"
 
 
 def test_market_orders_and_no_fills_give_no_data() -> None:
-    result = compare_costs([execution(1, limit=None)], HalfSpread(), alert=0.2, min_fills=1)
+    result = compare_costs([execution(1, kind="market")], HalfSpread(), alert=0.2, min_fills=1)
     assert result.fills == 0
     assert result.divergence is None
     assert result.text == NO_FILLS
+
+
+def test_limit_filled_better_means_costs_below_model() -> None:
+    fills = [execution(n, kind="limit", price=99.95) for n in range(5)]
+    result = compare_costs(fills, HalfSpread(), alert=0.2, min_fills=5)
+    assert result.divergence is not None
+    assert round(result.divergence, 6) == -2.0  # заплатили −$0,05 вместо +$0,05 на акцию
+    assert result.drift
+    assert result.text == "реальные ниже модели на 200% (5 исполнений)"

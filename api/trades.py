@@ -68,9 +68,9 @@ class Card(BaseModel):
 
 
 def trust_view(costs: CostCalibration, cost_divergence: float) -> Trades:
-    """Строка доверия (DASHBOARD §4.3): красная, если издержки расходятся больше порога."""
+    """Строка доверия (DASHBOARD §4.3): красная, если вывод возможен и расхождение выше порога."""
     line = f"{CALIBRATION} · Издержки Paper против реальности: {costs.text}"
-    over = costs.divergence is not None and abs(costs.divergence) > cost_divergence
+    over = costs.enough and costs.divergence is not None and abs(costs.divergence) > cost_divergence
     return Trades(trust_line=line, trust_tone="negative" if over else "neutral")
 
 

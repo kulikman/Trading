@@ -40,16 +40,16 @@ def place(manual: ManualBroker, n: int, price: float) -> None:
         side="buy",
         quantity=10,
         multiplier=1,
-        order_type="limit",
+        order_type="stop",
         purpose="entry",
-        limit_price=100.0,
+        stop_price=100.0,
     )
     manual.confirm_fill(manual.place(order), price=price, at=MIDDAY)
 
 
 def test_button_confirmation_at_limit_is_not_a_measurement(session: Session) -> None:
     manual = broker(session)
-    place(manual, 1, 100.0)  # «Исполнено» кнопкой — по цене лимита
+    place(manual, 1, 100.0)  # «Исполнено» кнопкой — по цене стопа
     place(manual, 2, 100.1)
     assert [e.fill.price for e in real_executions(session)] == [100.1]
 
@@ -66,8 +66,9 @@ def test_drift_writes_one_system_message(session: Session) -> None:
         select(orm.SystemMessage.text).where(orm.SystemMessage.code == DRIFT_CODE)
     ).all()
     assert texts == [
-        "СИСТЕМА · издержки Paper против реальности — расхождение 100% (2 исполнений), "
-        "порог 20%. Пересчитать CostModel: допущение спреда × 2.00 (config/broker.yaml)"
+        "СИСТЕМА · издержки Paper против реальности: реальные выше модели на 100% "
+        "(2 исполнения), порог 20%. Пересчитать CostModel (config/broker.yaml): "
+        "допущение спреда × 2.00"
     ]
 
 

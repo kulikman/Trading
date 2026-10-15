@@ -201,6 +201,7 @@ agents:                              # T14: параметры агентов д
     lookback_days: 60                # история VIX и SPY для уровня Black Swan (regime 0–3)
   options:                           # T14b; снимок цепочки (Options Starter с 15.10.2026), запасной путь — дневные цены накануне
     skew_delta: 0.25                 # skew_25d = IV пута 25Δ − IV колла 25Δ ближней экспирации
+    skew_delta_tolerance: 0.10       # стартовое: по цепочке берём контракты с |Δ| в 0,15…0,35, иначе skew нет
     term_back_min_days: 28           # term_slope = ATM IV ближней − ATM IV дальней (≥ ближней + 28 дней)
     term_back_window_days: 21        # дальняя ищется в окне ближняя + 28 … + 49 дней
     iv_rank_reports: 8               # iv_rank — по 8 прошлым отчётам (решение заказчика 14.10.2026)
