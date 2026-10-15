@@ -286,6 +286,9 @@ def _track(session: Session, ticker: str) -> Track:
         .where(orm.EarningsTrack.ticker == ticker)
         .order_by(orm.EarningsTrack.report_date.desc())
     ).all()
+    unique: dict[int, tuple[orm.EarningsTrack, str | None]] = {}
+    for t, status in rows:
+        unique.setdefault(t.id, (t, status))  # входов у события бывает несколько — строка одна
     out = [
         TrackRow(
             date=day(t.report_date),
@@ -299,7 +302,7 @@ def _track(session: Session, ticker: str) -> Track:
             reaction_cause=t.reaction_cause or "—",
             decision=status or "—",
         )
-        for t, status in rows
+        for t, status in unique.values()
     ]
     return Track(rows=out, message=None if out else "нет отчётов в архиве")
 

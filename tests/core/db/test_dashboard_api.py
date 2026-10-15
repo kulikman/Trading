@@ -243,6 +243,36 @@ def test_today_week_and_journal(seeded: Session, client: TestClient) -> None:
     }
 
 
+def test_several_entries_per_event(seeded: Session, client: TestClient) -> None:
+    event = add_event(
+        seeded,
+        "MS",
+        date(2026, 10, 14),
+        "ENTERED",
+        mode="move",
+        strategy_id="straddle",
+        construction="straddle",
+    )
+    seeded.add(
+        orm.Decision(
+            event_id=event.id,
+            status="ENTERED",
+            mode="C",
+            strategy_id="mode_c",
+            construction="stock",
+            decided_at=datetime(2026, 10, 14, tzinfo=UTC),
+        )
+    )
+    seeded.flush()
+    today = client.get("/api/today", headers=AUTH).json()
+    assert [(r["ticker"], r["mode"]) for r in today["reports"] if r["ticker"] == "MS"] == [
+        ("MS", "move"),
+        ("MS", "C"),
+    ]  # «Сегодня» — строка на каждый вход
+    week = client.get("/api/week", headers=AUTH).json()
+    assert [e["ticker"] for e in week["events"]].count("MS") == 1  # неделя — строка на событие
+
+
 def test_errors_newest_first(seeded: Session, client: TestClient) -> None:
     seeded.add_all(
         [

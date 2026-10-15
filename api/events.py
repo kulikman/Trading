@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from api.format import Num, count, day, empty, et_msk, money
@@ -192,7 +192,7 @@ def week_view(session: Session, now: datetime) -> Week:
             ),
             reason=(", ".join(d.reasons) if d and d.reasons else "—"),
         )
-        for e, d in _events(session, monday, friday)
+        for e, d in _one_per_event(_events(session, monday, friday))
     ]
     return Week(
         top=[],
@@ -306,9 +306,19 @@ def _events(
         select(orm.Event, orm.Decision)
         .outerjoin(orm.Decision, orm.Decision.event_id == orm.Event.id)
         .where(orm.Event.report_date >= first, orm.Event.report_date <= last)
-        .order_by(orm.Event.report_date, orm.Event.report_time, orm.Event.ticker)
+        .order_by(orm.Event.report_date, orm.Event.report_time, orm.Event.ticker, orm.Decision.id)
     ).all()
     return [(e, d) for e, d in rows]
+
+
+def _one_per_event(
+    rows: list[tuple[orm.Event, orm.Decision | None]],
+) -> list[tuple[orm.Event, orm.Decision | None]]:
+    """Одна строка на событие. У события либо один SKIPPED, либо только входы — берётся первый."""
+    out: dict[int, tuple[orm.Event, orm.Decision | None]] = {}
+    for event, decision in rows:
+        out.setdefault(event.id, (event, decision))
+    return list(out.values())
 
 
 def _human_jobs(
@@ -322,8 +332,8 @@ def _human_jobs(
         .order_by(orm.EventJob.run_at)
     )
     if entered_only:
-        query = query.join(orm.Decision, orm.Decision.event_id == orm.Event.id).where(
-            orm.Decision.status == "ENTERED"
+        query = query.where(
+            exists().where(orm.Decision.event_id == orm.Event.id, orm.Decision.status == "ENTERED")
         )
     return [
         (job, ticker)

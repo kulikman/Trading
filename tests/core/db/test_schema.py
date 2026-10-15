@@ -470,12 +470,32 @@ def test_entity_roundtrip(session: Session, ctx: dict[str, int], name: str) -> N
 # --- ограничения ---
 
 
-def test_second_decision_for_same_event_rejected(session: Session, ctx: dict[str, int]) -> None:
-    duplicate = Decision(
-        event_id=ctx["event"], status="SKIPPED", reasons=["EDGE_LOW"], decided_at=AT
+def test_second_decision_for_same_strategy_rejected(session: Session, ctx: dict[str, int]) -> None:
+    other = Decision(
+        event_id=ctx["event"],
+        status="ENTERED",
+        strategy_id="straddle",
+        construction="straddle",
+        decided_at=AT,
     )
-    with pytest.raises(IntegrityError, match="uq_decision_event_id"):
+    _save(session, orm.Decision, other)  # вход другой стратегии по тому же событию — можно
+    duplicate = Decision(
+        event_id=ctx["event"],
+        status="ENTERED",
+        strategy_id="mode_b",
+        construction="put_spread",
+        decided_at=AT,
+    )
+    with pytest.raises(IntegrityError, match="uq_decision_event_id_strategy_id"):
         _save(session, orm.Decision, duplicate)
+
+
+def test_second_skip_for_same_event_rejected(session: Session, ctx: dict[str, int]) -> None:
+    skip = Decision(event_id=ctx["event"], status="SKIPPED", reasons=["EDGE_LOW"], decided_at=AT)
+    _save(session, orm.Decision, skip)
+    again = Decision(event_id=ctx["event"], status="SKIPPED", reasons=["PRE_RUN"], decided_at=AT)
+    with pytest.raises(IntegrityError, match="uq_decision_event_id_strategy_id"):
+        _save(session, orm.Decision, again)  # NULLS NOT DISTINCT: итог без входа — один
 
 
 def test_second_event_for_same_report_rejected(session: Session, ctx: dict[str, int]) -> None:

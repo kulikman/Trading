@@ -4,10 +4,11 @@
 edge > costs + 0,03 (EDGE_LOW), уверенность ≥ θ режима (CONF_LOW), компания не в карантине для
 режимов, кроме C (CALIBRATION), затем Capital Manager (Келли).
 Сезоны 1–2 — сбор данных (решение заказчика 15.10.2026): ворота edge и θ не применяются, риск —
-фиксированный (sizing.data_collection_risk); edge и уверенность всё равно пишутся в шаг.
+фиксированный (sizing.data_collection_risk); edge и уверенность всё равно пишутся в шаг. Режимы
+без модели (C) так и считаются после сезонов 1–2, пока T20 не даст им оценку.
 Все шаги пишутся в decision_step; shadow-стратегии считают, но в решение не идут (SPEC §7).
-Decision у события один: ENTERED — при первом прошедшем предложении (лучшее по edge × риск);
-иначе после T0 — SKIPPED с кодами всех отказов (`finalize`).
+Входов у события может быть несколько — ENTERED на каждую прошедшую paper-стратегию (сбор
+данных, решение заказчика 15.10.2026); без входов после T0 — один SKIPPED с кодами всех отказов.
 """
 
 from collections.abc import Mapping, Sequence
@@ -38,6 +39,7 @@ from decision.capital import (
 from models.features import stage_features
 
 NO_DECISION_RUN: list[SkipReason] = ["DATA_CALENDAR"]  # задачи решения не выполнялись
+NO_MODEL_MODES = ("C",)  # у режима нет модели: вход по сигналу, фиксированный риск (до оценки T20)
 
 
 @dataclass(frozen=True)
@@ -100,11 +102,12 @@ def run_decision(
         if isinstance(result, Skip):
             steps.append(_step(job, strategy.id, is_shadow, now, reasons=list(result.reasons)))
             continue
-        reasons = _gates(result, is_quarantined, config, collecting=seasons_1_2)
+        collecting = seasons_1_2 or result.mode in NO_MODEL_MODES
+        reasons = _gates(result, is_quarantined, config, collecting=collecting)
         outcome: Sizing | Rejection
         if reasons:
             outcome = Rejection(reasons)
-        elif seasons_1_2:
+        elif collecting:
             outcome = size_data_collection(result, level=level, thresholds=config.thresholds)
         else:
             outcome = size(
@@ -123,33 +126,32 @@ def run_decision(
             .values(record.model_dump(exclude={"id"}))
             .on_conflict_do_nothing(index_elements=["event_id", "stage", "job", "strategy_id"])
         )
-    if (
-        accepted
-        and session.scalars(select(orm.Decision).where(orm.Decision.event_id == event.id)).first()
-        is None
-    ):
-        best = max(accepted, key=lambda a: a.proposal.edge * a.sizing.risk_fraction)
-        session.add(
-            orm.Decision(
+    for item in accepted:
+        session.execute(
+            insert(orm.Decision)
+            .values(
                 event_id=event.id,
                 status="ENTERED",
                 reasons=[],
-                mode=best.proposal.mode,
-                strategy_id=best.proposal.strategy_id,
-                construction=best.proposal.construction,
+                mode=item.proposal.mode,
+                strategy_id=item.proposal.strategy_id,
+                construction=item.proposal.construction,
                 decided_at=now,
             )
+            .on_conflict_do_nothing(constraint="uq_decision_event_id_strategy_id")
         )
     session.flush()
     return steps
 
 
-def finalize(session: Session, event_id: int, now: datetime) -> orm.Decision:
-    """Итог события после T0: если входа не было — SKIPPED с кодами всех отказов."""
-    existing = session.scalars(
-        select(orm.Decision).where(orm.Decision.event_id == event_id)
-    ).first()
-    if existing is not None:
+def finalize(session: Session, event_id: int, now: datetime) -> list[orm.Decision]:
+    """Итог события после T0: входы, а если их не было — один SKIPPED с кодами всех отказов."""
+    existing = list(
+        session.scalars(
+            select(orm.Decision).where(orm.Decision.event_id == event_id).order_by(orm.Decision.id)
+        )
+    )
+    if existing:
         return existing
     steps = session.scalars(
         select(orm.DecisionStep).where(
@@ -160,7 +162,7 @@ def finalize(session: Session, event_id: int, now: datetime) -> orm.Decision:
     decision = orm.Decision(event_id=event_id, status="SKIPPED", reasons=reasons, decided_at=now)
     session.add(decision)
     session.flush()
-    return decision
+    return [decision]
 
 
 def _gates(
