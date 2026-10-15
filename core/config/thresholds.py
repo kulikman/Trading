@@ -254,6 +254,7 @@ class Execution(StrictModel):
 
 class Costs(StrictModel):
     paper_vs_real_alert: Fraction
+    min_real_fills: PositiveInt  # T21: меньше исполнений — расхождение показывается, вывода нет
 
 
 class Notify(StrictModel):

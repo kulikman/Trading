@@ -13,6 +13,7 @@ from api.app import create_app
 from core.config import load_config
 from core.db import models as orm
 from core.db.store import save_reported_earnings, sync_universe, update_earnings
+from core.domain.broker import Fill, Order
 from core.domain.earnings import ReportedEarnings
 from execution.cash import record_cash
 
@@ -560,3 +561,47 @@ def test_company_track_and_not_found(seeded: Session, client: TestClient) -> Non
     assert client.get("/api/companies/XXX/track", headers=AUTH).status_code == 404
     assert client.get("/api/trades/999999", headers=AUTH).status_code == 404
     assert client.get("/api/sectors/none", headers=AUTH).status_code == 404
+
+
+def test_trust_line_costs_paper_vs_real(client: TestClient, session: Session) -> None:
+    before = client.get("/api/trades", headers=AUTH).json()
+    assert before["trust_line"].endswith(
+        "Издержки Paper против реальности: нет данных до реальных исполнений"
+    )
+    assert before["trust_tone"] == "neutral"
+    order = Order(
+        client_order_id="card-1-leg-1",
+        symbol="GS",
+        instrument="stock",
+        side="buy",
+        quantity=10,
+        multiplier=1,
+        order_type="limit",
+        purpose="entry",
+        limit_price=100.0,
+    )
+    fill = Fill(
+        order_id="m-1",
+        client_order_id=order.client_order_id,
+        symbol="GS",
+        instrument="stock",
+        side="buy",
+        quantity=10,
+        multiplier=1,
+        price=101.0,  # на доллар хуже лимита — далеко за порогом модели
+        at=NOW,
+    )
+    session.add(
+        orm.BrokerOrder(
+            order_id="m-1",
+            client_order_id=order.client_order_id,
+            payload=order.model_dump(mode="json"),
+            instruction="—",
+            status="filled",
+            fill=fill.model_dump(mode="json"),
+        )
+    )
+    session.flush()
+    after = client.get("/api/trades", headers=AUTH).json()
+    assert "(1 исполнений), вывод — от 20" in after["trust_line"]
+    assert after["trust_tone"] == "negative"
