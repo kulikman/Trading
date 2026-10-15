@@ -126,10 +126,18 @@ class UnderlyingAsset(ApiModel):
     timeframe: str | None = None
 
 
+class OptionDay(ApiModel):
+    """Сессия контракта в снимке: close — последняя сделка (Options Starter — задержка 15 минут)."""
+
+    close: float | None = None
+    volume: float | None = None
+
+
 class OptionSnapshot(ApiModel):
     """Элемент /v3/snapshot/options/{underlyingAsset}."""
 
     details: OptionDetails
+    day: OptionDay | None = None
     break_even_price: float | None = None
     greeks: Greeks | None = None
     implied_volatility: float | None = None
