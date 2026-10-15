@@ -1,12 +1,17 @@
-"""`make run-api`: API дашборда только на localhost (решение заказчика 14.10.2026)."""
+"""`make run-api`: API дашборда только на localhost (решение заказчика 14.10.2026).
+
+В контейнере на сервере (E9) API_HOST=0.0.0.0: порт открыт только во внутренней сети docker,
+наружу — только сайт через Traefik.
+"""
 
 import logging
+import os
 
 import uvicorn
 
 from api.app import create_app
 
-HOST = "127.0.0.1"
+HOST = os.environ.get("API_HOST", "127.0.0.1")
 PORT = 8000
 
 

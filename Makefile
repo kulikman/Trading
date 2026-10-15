@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status
 
 -include .env
 
@@ -85,3 +85,16 @@ run-api:  ## API дашборда на http://127.0.0.1:8000 (нужен DASHBOA
 
 run-web:  ## сайт дашборда на http://127.0.0.1:3000 (сначала make run-api)
 	cd web && pnpm install --frozen-lockfile && pnpm dev --hostname 127.0.0.1  # не в локальную сеть: на экране баланс
+
+# --- Сервер (E9): Hetzner рядом с signals.aurioncode.com, сайт — trading.aurioncode.com ---
+DEPLOY_HOST ?= brain-hetzner
+DEPLOY_PATH ?= trading
+DEPLOY_COMPOSE = docker compose --env-file $$HOME/.config/trading/env -f deploy/compose.yml
+
+deploy:  ## выкатить закоммиченный код на сервер и пересобрать контейнеры (данные и секреты не едут)
+	@test -z "$$(git status --porcelain)" || (echo "есть незакоммиченные изменения — сначала commit"; exit 1)
+	git ls-files -z | rsync -a --from0 --files-from=- ./ $(DEPLOY_HOST):$(DEPLOY_PATH)/
+	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_PATH) && $(DEPLOY_COMPOSE) up -d --build --remove-orphans'
+
+deploy-status:  ## контейнеры на сервере и последние строки планировщика
+	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_PATH) && $(DEPLOY_COMPOSE) ps && docker logs --tail 20 trading-scheduler'
