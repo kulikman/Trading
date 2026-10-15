@@ -46,6 +46,7 @@ class DecisionContext:
     event: EventContext
     features: Mapping[str, Mapping[str, float]]  # agent_id → признаки
     forecasts: Mapping[str, float] = field(default_factory=dict)  # p_beat, p_up, move_ratio…
+    wants_plan: bool = False  # стратегия в live_small / live — нужен план ордеров Real (E10)
 
 
 @dataclass(frozen=True)

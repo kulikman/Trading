@@ -14,7 +14,7 @@ edge > costs + 0,03 (EDGE_LOW), уверенность ≥ θ режима (CONF
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from sqlalchemy import select
@@ -124,7 +124,8 @@ def run_decision(
             continue  # стратегия выключена в registry.yaml
         state = plugin_state(session, strategy.id, strategy.version)
         is_shadow = state is None or not influences_decision(state.stage)
-        result = strategy.evaluate(ctx)
+        wants_plan = state is not None and state.stage in REAL_STAGES
+        result = strategy.evaluate(replace(ctx, wants_plan=wants_plan))
         if isinstance(result, Skip):
             steps.append(_step(job, strategy.id, is_shadow, now, reasons=list(result.reasons)))
             continue

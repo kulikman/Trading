@@ -15,6 +15,7 @@ from strategies.common import (
     stock_state,
     years_to,
 )
+from strategies.options_plan import STRIKE_BAND, condor_plan
 
 
 class IronCondorStrategy(StrategyBase):
@@ -60,6 +61,11 @@ class IronCondorStrategy(StrategyBase):
         if cost is None:
             return self.skip("DATA_MASSIVE")
         p = 1 - forecasts["move_ratio"]
+        contracts = (  # цепочка — только для Real (стадия live), paper не тратит запросы
+            self.options_contracts(ctx.event.ticker, expiration, day, state.spot, STRIKE_BAND)
+            if ctx.wants_plan
+            else []
+        )
         return Proposal(
             strategy_id=self.id,
             mode=self.mode,
@@ -68,4 +74,5 @@ class IronCondorStrategy(StrategyBase):
             confidence=p,
             probability=p,
             cost_fraction=cost,
+            plan=condor_plan(ctx.event.ticker, contracts, state.spot, implied, condor, self._costs),
         )

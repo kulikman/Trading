@@ -11,4 +11,5 @@ def create_plugin(config: AppConfig) -> IronCondorStrategy:  # pragma: no cover
     costs, rate = dependencies(config)
     cache = RedisCache.from_env(config.sources.redis.timeout_seconds)
     stocks = MassiveClient.create(config.sources.massive, massive_api_key(), cache)
-    return IronCondorStrategy(stocks, costs, config.thresholds, rate)
+    chain = MassiveClient.create_history(config.sources.massive, massive_api_key(), cache)
+    return IronCondorStrategy(stocks, costs, config.thresholds, rate, chain)
