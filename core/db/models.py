@@ -44,6 +44,7 @@ from core.domain.types import (
     JobKind,
     ModelName,
     OptionType,
+    OrderStatus,
     PluginKind,
     PluginStage,
     PromotionMetric,
@@ -362,6 +363,40 @@ class DecisionStep(Timestamps, Base):
     at: Mapped[datetime]
 
 
+class BrokerOrder(Timestamps, Base):
+    """Ордер ManualBroker (T17): инструкция человеку и подтверждённое исполнение.
+
+    client_order_id — ключ идемпотентности: повтор события не создаёт второй ордер (SPEC §11).
+    """
+
+    __tablename__ = "broker_order"
+    __table_args__ = (CheckConstraint(_one_of("status", OrderStatus), name="status"),)
+
+    order_id: Mapped[str] = mapped_column(primary_key=True)
+    client_order_id: Mapped[str] = mapped_column(unique=True)
+    card_id: Mapped[int | None] = mapped_column(ForeignKey("trade_card.id"))
+    payload: Mapped[Any] = mapped_column(JSONB)
+    instruction: Mapped[str]
+    status: Mapped[str]
+    fill: Mapped[Any | None] = mapped_column(JSONB)
+
+
+class CashMovement(Timestamps, Base):
+    """Пополнение (+) или вывод (−) счёта Real (T17, DASHBOARD §3); у Paper — капитал из конфига."""
+
+    __tablename__ = "cash_movement"
+    __table_args__ = (
+        CheckConstraint("account IN ('real')", name="account"),
+        CheckConstraint("amount <> 0", name="nonzero"),
+    )
+
+    id: Mapped[int] = _pk_id()
+    account: Mapped[str]
+    at: Mapped[datetime]
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    note: Mapped[str | None]
+
+
 class ShadowTrade(Timestamps, Base):
     """Теневая сделка (T16, SPEC §10): результат предложения, которое не стало входом.
 
@@ -407,6 +442,7 @@ class TradeCard(Timestamps, Base):
     pnl_direction: Mapped[Decimal | None]
     pnl_vol: Mapped[Decimal | None]
     pnl_ivcrush: Mapped[Decimal | None]
+    costs: Mapped[Decimal | None]  # издержки входа и выхода, $ (T17)
 
 
 class TradeCardTransition(Timestamps, Base):

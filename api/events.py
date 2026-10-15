@@ -12,6 +12,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from api.format import Num, count, day, empty, et_msk, money
+from api.trades import stop_view
 from api.trades_data import OpenCard
 from core.db import models as orm
 from core.session_guard import to_et
@@ -164,8 +165,8 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
             card_id=c.card_id,
             ticker=c.ticker,
             mode=c.mode or "—",
-            pnl=empty("нет данных до исполнителя (T17)"),
-            stop=empty("нет данных до исполнителя (T17)"),
+            pnl=empty("котировок нет: ручной брокер"),
+            stop=stop_view(c),
             next_step=STATE_STEPS.get(c.state, c.state),
         )
         for c in cards

@@ -14,6 +14,7 @@ from core.config import load_config
 from core.db import models as orm
 from core.db.store import save_reported_earnings, sync_universe, update_earnings
 from core.domain.earnings import ReportedEarnings
+from execution.cash import record_cash
 
 CONFIG = load_config()
 TOKEN = "test-token-for-contract-tests"  # noqa: S105 — тестовое значение
@@ -204,6 +205,90 @@ def test_account_bar_paper_by_hand_and_real_not_mixed(seeded: Session, client: T
     closed = client.get("/api/trades?state=closed", headers=AUTH).json()
     assert [r["ticker"] for r in closed["closed"]] == ["MS", "JPM", "GS"]
     assert closed["total"] == "Сделок 3 · прибыльных 2 · итог +$600"
+
+
+def test_real_from_cash_and_open_position_on_bar(seeded: Session, client: TestClient) -> None:
+    at = datetime(2026, 10, 1, tzinfo=UTC)
+    record_cash(seeded, "deposit", Decimal("50000"), "старт", at)
+    record_cash(seeded, "withdraw", Decimal("1000"), None, at)
+    real = client.get("/api/account?mode=real", headers=AUTH).json()
+    assert real["is_available"] is True
+    assert real["balance"]["value"] == 50000 - 1000 + 9999  # пополнения − вывод + Real-сделка
+    event = add_event(
+        seeded,
+        "NFLX",
+        date(2026, 10, 13),
+        "ENTERED",
+        mode="C",
+        strategy_id="mode_c",
+        construction="stock",
+    )
+    seeded.add(
+        orm.DecisionStep(
+            event_id=event.id,
+            stage="T0",
+            job="mode_c_decision",
+            strategy_id="mode_c",
+            is_shadow=False,
+            outcome="proposal",
+            mode="C",
+            construction="stock",
+            risk_fraction=0.01,
+            at=at,
+        )
+    )
+    decision_id = seeded.query(orm.Decision.id).filter_by(event_id=event.id).scalar()
+    seeded.add(
+        orm.TradeCard(
+            decision_id=decision_id,
+            state="OPEN",
+            paper=True,
+            legs=[
+                {
+                    "symbol": "NFLX",
+                    "instrument": "stock",
+                    "side": "buy",
+                    "quantity": 10,
+                    "multiplier": 1,
+                }
+            ],
+            fills=[
+                {
+                    "symbol": "NFLX",
+                    "side": "buy",
+                    "quantity": 10,
+                    "price": 105.0,
+                    "at": "2026-10-13T14:45:00+00:00",
+                    "purpose": "entry",
+                }
+            ],
+            stop={"rule": "трейлинг 2 × ATR(14)", "price": None},
+            trailing={
+                "atr": 2.0,
+                "multiple": 2.0,
+                "stop": 101.29,
+                "updated_at": "2026-10-14T20:20:00+00:00",
+            },
+        )
+    )
+    seeded.flush()
+    paper = client.get("/api/account", headers=AUTH).json()
+    assert paper["in_trades"]["value"] == 1050  # 10 × 105
+    assert paper["free"]["value"] == 100600 - 1050
+    assert paper["risk"]["value"] == pytest.approx(1000 / 100600)  # 1% от 100 000
+    assert paper["worst_drawdown"]["value"] == pytest.approx(1000 / 100600)  # пик 100 600
+    row = client.get("/api/trades?state=open", headers=AUTH).json()["open"][0]
+    assert (row["ticker"], row["entry"]["value"], row["stop"]["value"]) == ("NFLX", 1050, 101.29)
+    assert row["pnl"]["display"] != "+$0"  # котировок нет — не ноль
+    card = seeded.query(orm.TradeCard).filter(orm.TradeCard.state == "CLOSED").first()
+    assert card is not None
+    card.costs = Decimal("12.5")
+    seeded.flush()
+    metrics = {
+        m["metric"]: m["all_time"]
+        for m in client.get("/api/account/summary", headers=AUTH).json()["metrics"]
+    }
+    assert metrics["Издержки"]["value"] == 12.5
 
 
 def test_account_summary_metrics_by_hand(seeded: Session, client: TestClient) -> None:

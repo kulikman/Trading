@@ -1,18 +1,16 @@
 """ManualBroker (MVP, SPEC §6): ничего не отправляет — формирует инструкцию для карточки.
 
 Человек ставит ордер у брокера сам и жмёт «Исполнено» в Telegram → confirm_fill().
-Состояние в памяти процесса; хранение в БД — вместе с машиной состояний (T17).
+Ордера — в OrderStore: в системе — таблица broker_order (T17), в тестах — память.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
 
 from adapters.broker.base import GuardedBroker, utc_now
+from adapters.broker.order_store import MemoryOrderStore, OrderStore, Ticket
 from core.domain.broker import Fill, Order, OrderId, Position, Quote
 
-PendingStatus = Literal["pending", "filled", "cancelled"]
 SIDE_WORD = {"buy": "Купить", "sell": "Продать"}
 LIMIT_SIGN = {"buy": "≤", "sell": "≥"}
 
@@ -23,15 +21,6 @@ class UnknownOrderError(KeyError):
 
 class OrderNotPendingError(Exception):
     """Ордер уже отменён (подтвердить исполнение нельзя)."""
-
-
-@dataclass
-class _Ticket:
-    order_id: OrderId
-    order: Order
-    instruction: str
-    status: PendingStatus = "pending"
-    fill: Fill | None = None
 
 
 def instruction_line(order: Order) -> str:
@@ -56,19 +45,18 @@ class ManualBroker(GuardedBroker):
         quote_source: Callable[[str], Quote],
         no_market_orders_first_minutes: int,
         clock: Callable[[], datetime] = utc_now,
+        store: OrderStore | None = None,
     ) -> None:
         super().__init__(no_market_orders_first_minutes=no_market_orders_first_minutes, clock=clock)
         self._quote_source = quote_source
-        self._tickets: dict[OrderId, _Ticket] = {}
-        self._by_client_id: dict[str, OrderId] = {}
+        self._store: OrderStore = store if store is not None else MemoryOrderStore()
 
     def _submit(self, order: Order) -> OrderId:
-        existing = self._by_client_id.get(order.client_order_id)
+        existing = self._store.by_client_id(order.client_order_id)
         if existing is not None:
-            return existing  # идемпотентность: повтор события не создаёт второй ордер
+            return existing.order_id  # идемпотентность: повтор события не создаёт второй ордер
         order_id = OrderId(f"manual-{order.client_order_id}")
-        self._tickets[order_id] = _Ticket(order_id, order, instruction_line(order))
-        self._by_client_id[order.client_order_id] = order_id
+        self._store.save(Ticket(order_id, order, instruction_line(order)))
         return order_id
 
     def instruction(self, order_id: OrderId) -> str:
@@ -83,6 +71,7 @@ class ManualBroker(GuardedBroker):
         ticket = self._ticket(order_id)
         if ticket.status == "pending":
             ticket.status = "cancelled"
+            self._store.save(ticket)
 
     def confirm_fill(self, order_id: OrderId, *, price: float, at: datetime) -> Fill:
         """Кнопка «Исполнено». Повторное нажатие возвращает то же исполнение."""
@@ -104,11 +93,12 @@ class ManualBroker(GuardedBroker):
             at=at,
         )
         ticket.status = "filled"
+        self._store.save(ticket)
         return ticket.fill
 
     def fills(self, since: datetime) -> list[Fill]:
         return sorted(
-            (t.fill for t in self._tickets.values() if t.fill is not None and t.fill.at >= since),
+            (t.fill for t in self._store.all() if t.fill is not None and t.fill.at >= since),
             key=lambda fill: fill.at,
         )
 
@@ -117,7 +107,7 @@ class ManualBroker(GuardedBroker):
         book: dict[
             str, tuple[Fill, int, float]
         ] = {}  # символ → (пример, кол-во, стоимость открытия)
-        for fill in sorted((t.fill for t in self._tickets.values() if t.fill), key=lambda f: f.at):
+        for fill in sorted((t.fill for t in self._store.all() if t.fill), key=lambda f: f.at):
             signed = fill.quantity if fill.side == "buy" else -fill.quantity
             sample, quantity, cost = book.get(fill.symbol, (fill, 0, 0.0))
             if quantity == 0 or (quantity > 0) == (signed > 0):
@@ -137,8 +127,8 @@ class ManualBroker(GuardedBroker):
             if quantity != 0
         ]
 
-    def _ticket(self, order_id: OrderId) -> _Ticket:
-        try:
-            return self._tickets[order_id]
-        except KeyError as exc:
-            raise UnknownOrderError(order_id) from exc
+    def _ticket(self, order_id: OrderId) -> Ticket:
+        ticket = self._store.get(order_id)
+        if ticket is None:
+            raise UnknownOrderError(order_id)
+        return ticket

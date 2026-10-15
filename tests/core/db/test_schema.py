@@ -31,7 +31,15 @@ from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar, OptionMinuteBar
 from core.domain.plugin import Plugin, PluginStageChange
 from core.domain.schedule import ErrorLogEntry, EventChange, EventJob
-from core.domain.trading import CardLeg, CardStop, Decision, TradeCard, TradeCardTransition
+from core.domain.trading import (
+    BrokerOrderRecord,
+    CardLeg,
+    CardStop,
+    CashMovement,
+    Decision,
+    TradeCard,
+    TradeCardTransition,
+)
 
 EXPECTED_TABLES = {
     "sector",
@@ -60,6 +68,8 @@ EXPECTED_TABLES = {
     "model_version",
     "decision_step",
     "shadow_trade",
+    "broker_order",
+    "cash_movement",
 }
 AT = datetime(2026, 10, 12, 19, 30, tzinfo=UTC)
 REPORT_DAY = date(2026, 10, 14)
@@ -419,6 +429,21 @@ CASES: dict[str, Builder] = {
         ),
     ),
     "shadow_trade": _shadow_trade,
+    "broker_order": lambda s, c: (
+        orm.BrokerOrder,
+        BrokerOrderRecord(
+            order_id="manual-card-1-leg-1",
+            client_order_id="card-1-leg-1",
+            card_id=c["card"],
+            payload={"symbol": "GS", "side": "buy", "quantity": 17},
+            instruction="Купить  GS  17 шт.  лимит ≤ 897.00",
+            status="pending",
+        ),
+    ),
+    "cash_movement": lambda s, c: (
+        orm.CashMovement,
+        CashMovement(at=AT, amount=Decimal("10000.00"), note="первое пополнение"),
+    ),
     "model_version": lambda s, c: (
         orm.ModelVersion,
         ModelVersionRecord(

@@ -8,6 +8,7 @@ from datetime import datetime
 
 from adapters.broker.base import BrokerAdapter, GuardedBroker, utc_now
 from adapters.broker.manual import ManualBroker
+from adapters.broker.order_store import OrderStore
 from adapters.broker.stubs import FreedomBroker, IbBroker
 from core.config.broker import BrokerConfig
 from core.domain.broker import Quote
@@ -20,14 +21,16 @@ def create_broker(
     quote_source: Callable[[str], Quote],
     no_market_orders_first_minutes: int,
     clock: Callable[[], datetime] = utc_now,
+    order_store: OrderStore | None = None,
 ) -> BrokerAdapter:
-    """Брокер из config.broker."""
+    """Брокер из config.broker; ManualBroker хранит ордера в order_store (в системе — БД)."""
     broker: GuardedBroker
     if config.broker == "manual":
         broker = ManualBroker(
             quote_source=quote_source,
             no_market_orders_first_minutes=no_market_orders_first_minutes,
             clock=clock,
+            store=order_store,
         )
     elif config.broker == "ib":
         broker = IbBroker(

@@ -1,13 +1,13 @@
 """Решение по событию и карточка сделки (SPEC §5, §10, §11)."""
 
 from decimal import Decimal
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
 from core.domain.base import DomainModel
 from core.domain.broker import Instrument, OrderPurpose, Side
-from core.domain.types import CardState, DecisionStatus, SkipReason
+from core.domain.types import CardState, DecisionStatus, OrderStatus, SkipReason
 
 DATA_REASON_PREFIX = "DATA_"
 
@@ -97,3 +97,31 @@ class TradeCardTransition(DomainModel):
     to_state: CardState
     reason: str | None = None
     payload: dict[str, Any] | None = None
+
+
+class BrokerOrderRecord(DomainModel):
+    """Ордер ManualBroker (таблица broker_order, T17)."""
+
+    order_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    card_id: int | None = None
+    payload: dict[str, Any]
+    instruction: str
+    status: OrderStatus
+    fill: dict[str, Any] | None = None
+
+
+class CashMovement(DomainModel):
+    """Пополнение (+) или вывод (−) счёта Real (таблица cash_movement, T17)."""
+
+    id: int | None = None
+    account: Literal["real"] = "real"
+    at: AwareDatetime
+    amount: Decimal
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def _nonzero(self) -> Self:
+        if self.amount == 0:
+            raise ValueError("cash movement amount must not be zero")
+        return self

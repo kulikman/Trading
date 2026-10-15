@@ -50,6 +50,8 @@ StepOutcome = Literal["proposal", "skip"]
 # Теневая сделка (T16): closed — посчитана; open — позиция ещё не закрылась бы; no_data — нет цен;
 # scored — без P&L, только Brier прогноза направления (режим B, решение заказчика 15.10.2026).
 ShadowStatus = Literal["closed", "open", "no_data", "scored"]
+# Ордер ManualBroker (T17): ждёт исполнения / исполнен / отменён.
+OrderStatus = Literal["pending", "filled", "cancelled"]
 # Три модели SPEC §9.
 ModelName = Literal["p_beat", "p_up", "move_ratio"]
 # Журнал «Настройки → Логи»: ошибка задачи или её восстановление после ошибки.

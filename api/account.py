@@ -1,8 +1,10 @@
 """Полоса счёта и раздел «Счёт» (DASHBOARD.md §3, §4.6): все расчёты здесь, не на фронте.
 
-Источник баланса в MVP (ручной брокер, §5): стартовый капитал из thresholds.yaml + итоги
-закрытых сделок. Нереализованный P&L, стоимость открытых позиций и их риск до стопов появятся
-с исполнителем (T17): пока есть открытые карточки, эти поля — «нет данных», а не ноль.
+Источник баланса в MVP (ручной брокер, §5): Paper — стартовый капитал из thresholds.yaml, Real —
+пополнения и выводы (cash_movement), плюс итоги закрытых сделок. Открытые позиции (T17):
+«в сделках» — стоимость входа, «риск» — сумма рисков сделок до стопа, худшая просадка — если все
+стопы сработают.
+Котировок у ручного брокера нет, поэтому нереализованного P&L нет.
 «Сезон» — текущий календарный квартал по ET (отчёты идут поквартально).
 """
 
@@ -21,7 +23,6 @@ from core.session_guard import is_regular_session, is_trading_day, previous_trad
 TRADING_DAYS_PER_YEAR = 252
 CURVE_WIDTH, CURVE_HEIGHT, CURVE_MARGIN = 600, 160, 4  # размер SVG кривой баланса, px
 NO_TRADES = "нет сделок"
-AFTER_EXECUTOR = "нет данных до исполнителя (T17)"
 
 type Metric = Callable[[Sequence[ClosedTrade]], Num]
 
@@ -101,15 +102,13 @@ def account_bar(
     pnl_today = _pnl_since(trades, today)
     pnl_month = _pnl_since(trades, today.replace(day=1))
     limit = thresholds.risk_limits.drawdown.manual_review
-    if open_cards:
-        in_trades, share, risk, worst = (empty(AFTER_EXECUTOR) for _ in range(4))
-        free = empty(AFTER_EXECUTOR)
-    else:
-        in_trades, share = money(0), percent(0)
-        free, risk = money(balance), percent(0)
-        worst = percent(current_drawdown(trades, capital))
-        if worst.value is not None and worst.value >= limit:
-            worst = worst.model_copy(update={"tone": "action"})
+    value = sum(c.entry_value or 0.0 for c in open_cards)
+    at_risk = sum((c.risk_fraction or 0.0) * capital for c in open_cards)
+    in_trades, share = money(value), percent(value / balance if balance else 0.0)
+    free, risk = money(balance - value), percent(at_risk / balance if balance else 0.0)
+    worst = percent(stopped_drawdown(trades, capital, at_risk))
+    if worst.value is not None and worst.value >= limit:
+        worst = worst.model_copy(update={"tone": "action"})
     return AccountBar(
         mode=mode,
         is_available=True,
@@ -212,6 +211,13 @@ def current_drawdown(trades: Sequence[ClosedTrade], capital: float) -> float:
     return (peak - balance) / peak
 
 
+def stopped_drawdown(trades: Sequence[ClosedTrade], capital: float, at_risk: float) -> float:
+    """Просадка от пика баланса, если все открытые позиции закроются по стопам (DASHBOARD §3)."""
+    balance = capital + sum(t.pnl for t in trades) - at_risk
+    peak = max([capital, *(b for _, b in equity_curve(trades, capital))])
+    return max(peak - balance, 0.0) / peak
+
+
 def daily_sharpe(
     trades: Sequence[ClosedTrade], capital: float, today: date, min_days: int
 ) -> float | None:
@@ -284,10 +290,14 @@ def _metrics(
         MetricRow(metric=name, season=_guard(f, season), all_time=_guard(f, everything))
         for name, f in named
     ]
-    rows.append(
-        MetricRow(metric="Издержки", season=empty(AFTER_EXECUTOR), all_time=empty(AFTER_EXECUTOR))
-    )
+    rows.append(MetricRow(metric="Издержки", season=_costs(season), all_time=_costs(everything)))
     return rows
+
+
+def _costs(trades: Sequence[ClosedTrade]) -> Num:
+    """Издержки закрытых сделок, $ (у сделок до T17 их нет — не считаются)."""
+    known = [t.costs for t in trades if t.costs is not None]
+    return money(sum(known)) if known else empty(NO_TRADES)
 
 
 def _guard(compute: Metric, trades: Sequence[ClosedTrade]) -> Num:

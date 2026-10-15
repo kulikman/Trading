@@ -1,6 +1,8 @@
-"""Сделки из БД для дашборда: закрытые (с итогом) и открытые карточки.
+"""Сделки из БД для дашборда: закрытые (с итогом) и открытые карточки (T17).
 
-Карточки создаёт исполнитель (T17). До него таблицы пусты, и экраны показывают «нет сделок».
+Открытая карточка: стоимость входа (Σ исполнений входа), риск — доля капитала из шага решения,
+стоп — уровень трейлинга, если он есть, иначе правило. Котировок у ручного брокера нет — текущей
+цены и P&L открытой позиции тоже нет.
 """
 
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ class ClosedTrade:
     pnl_vol: float | None
     pnl_ivcrush: float | None
     exit_reason: str | None
+    costs: float | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,10 @@ class OpenCard:
     ticker: str
     mode: str | None
     state: str
+    entry_value: float | None = None  # $, Σ |количество × цена × множитель| исполнений входа
+    risk_fraction: float | None = None  # доля капитала под риском (шаг решения)
+    stop_price: float | None = None  # уровень трейлинг-стопа
+    stop_rule: str | None = None
 
 
 def closed_trades(session: Session, *, paper: bool) -> list[ClosedTrade]:
@@ -82,6 +89,7 @@ def closed_trades(session: Session, *, paper: bool) -> list[ClosedTrade]:
                 pnl_vol=_float(card.pnl_vol),
                 pnl_ivcrush=_float(card.pnl_ivcrush),
                 exit_reason=reason,
+                costs=_float(card.costs),
             )
         )
     return trades
@@ -95,7 +103,46 @@ def open_cards(session: Session, *, paper: bool) -> list[OpenCard]:
         .where(orm.TradeCard.paper.is_(paper), orm.TradeCard.state.in_(OPEN_STATES))
         .order_by(orm.TradeCard.id)
     ).all()
-    return [OpenCard(card.id, ticker, mode, card.state) for card, mode, ticker in rows]
+    return [
+        OpenCard(
+            card.id,
+            ticker,
+            mode,
+            card.state,
+            entry_value=entry_value(card),
+            risk_fraction=_risk_fraction(session, card),
+            stop_price=(card.trailing or {}).get("stop"),
+            stop_rule=(card.stop or {}).get("rule"),
+        )
+        for card, mode, ticker in rows
+    ]
+
+
+def entry_value(card: orm.TradeCard) -> float | None:
+    """Стоимость входа позиции, $: исполнения входа × множитель ноги."""
+    multipliers = {leg["symbol"]: leg["multiplier"] for leg in card.legs or []}
+    fills = [f for f in card.fills or [] if f.get("purpose") == "entry"]
+    if not fills:
+        return None
+    return float(
+        sum(abs(f["quantity"] * f["price"] * multipliers.get(f["symbol"], 1)) for f in fills)
+    )
+
+
+def _risk_fraction(session: Session, card: orm.TradeCard) -> float | None:
+    decision = session.get(orm.Decision, card.decision_id)
+    if decision is None:
+        return None
+    return session.scalars(
+        select(orm.DecisionStep.risk_fraction)
+        .where(
+            orm.DecisionStep.event_id == decision.event_id,
+            orm.DecisionStep.strategy_id == decision.strategy_id,
+            orm.DecisionStep.outcome == "proposal",
+        )
+        .order_by(orm.DecisionStep.id.desc())
+        .limit(1)
+    ).first()
 
 
 def has_cards(session: Session, *, paper: bool) -> bool:

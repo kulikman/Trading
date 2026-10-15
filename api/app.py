@@ -20,6 +20,7 @@ from api.trades_data import closed_trades, first_card_at, open_cards
 from core.config import load_config
 from core.config.thresholds import Thresholds
 from core.db.session import create_db_engine
+from execution.cash import real_capital
 
 TOKEN_ENV = "DASHBOARD_API_TOKEN"  # noqa: S105 — имя переменной окружения, не секрет
 CHANGES_DEFAULT_DAYS = 7
@@ -52,9 +53,9 @@ def create_app(
     app = FastAPI(title="Earnings Engine dashboard API", dependencies=[Depends(authorize)])
     Db = Annotated[Session, Depends(session)]
 
-    def capital(mode: Mode) -> float | None:
-        # Real-счёт подключается в фазе 5 (брокер); до него у Real нет ни капитала, ни сделок.
-        return limits.capital.module_usd if mode == "paper" else None
+    def capital(mode: Mode, db: Session) -> float | None:
+        # Paper — капитал из thresholds.yaml; Real — пополнения и выводы (нет — счёт не подключён).
+        return limits.capital.module_usd if mode == "paper" else real_capital(db)
 
     @app.get("/api/status")
     def status(db: Db) -> system.Status:
@@ -67,7 +68,7 @@ def create_app(
             mode,
             closed_trades(db, paper=is_paper),
             open_cards(db, paper=is_paper),
-            capital=capital(mode),
+            capital=capital(mode, db),
             thresholds=limits,
             now=clock(),
         )
@@ -78,7 +79,7 @@ def create_app(
         return account.account_summary(
             mode,
             closed_trades(db, paper=is_paper),
-            capital=capital(mode),
+            capital=capital(mode, db),
             thresholds=limits,
             now=clock(),
             first_card_at=first_card_at(db, paper=is_paper),
@@ -112,7 +113,7 @@ def create_app(
             state,
             open_cards(db, paper=is_paper),
             closed_trades(db, paper=is_paper),
-            capital(mode) or limits.capital.module_usd,
+            capital(mode, db) or limits.capital.module_usd,
         )
 
     @app.get("/api/trades/{card_id}")
