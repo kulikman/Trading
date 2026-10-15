@@ -311,10 +311,15 @@ class ModelVersion(Timestamps, Base):
 
 class Decision(Timestamps, Base):
     __tablename__ = "decision"
-    __table_args__ = (CheckConstraint(_one_of("status", DecisionStatus), name="status"),)
+    # Входов у события может быть несколько — по одному на стратегию (сбор данных, решение
+    # заказчика 15.10.2026); итог без входа (SKIPPED, strategy_id пуст) — один.
+    __table_args__ = (
+        CheckConstraint(_one_of("status", DecisionStatus), name="status"),
+        UniqueConstraint("event_id", "strategy_id", postgresql_nulls_not_distinct=True),
+    )
 
     id: Mapped[int] = _pk_id()
-    event_id: Mapped[int] = mapped_column(ForeignKey("event.id"), unique=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("event.id"), index=True)
     status: Mapped[str]
     # Коды пропуска проверяет core.domain (SkipReason): новый код не требует миграции.
     reasons: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))

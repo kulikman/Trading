@@ -107,7 +107,7 @@ def test_paper_proposal_enters_shadow_only_records(session: Session, event: orm.
     strategies: dict[str, Strategy] = {
         "mode_b": FakeStrategy("mode_b", proposal("mode_b", edge=0.3, p=0.9, mode="B")),
         "iron_condor": condor,
-        "straddle": FakeStrategy("straddle", Skip("straddle", ["EDGE_LOW"])),
+        "straddle": FakeStrategy("straddle", proposal("straddle")),
     }
     run_decision(
         session,
@@ -119,15 +119,15 @@ def test_paper_proposal_enters_shadow_only_records(session: Session, event: orm.
     )
     assert steps(session) == [
         ("mode_b", "proposal", True, []),  # shadow: считается, но не входит
-        ("straddle", "skip", False, ["EDGE_LOW"]),
+        ("straddle", "proposal", False, []),
         ("iron_condor", "proposal", False, []),
     ]
-    decision = session.scalars(select(orm.Decision)).one()
-    assert (decision.status, decision.strategy_id, decision.mode) == (
-        "ENTERED",
-        "iron_condor",
-        "move",
-    )
+    decisions = session.scalars(select(orm.Decision).order_by(orm.Decision.id)).all()
+    assert [(d.status, d.strategy_id) for d in decisions] == [
+        ("ENTERED", "straddle"),  # сбор данных: вход на каждую прошедшую paper-стратегию
+        ("ENTERED", "iron_condor"),
+    ]
+    assert finalize(session, event.id, NOW) == list(decisions)  # входы есть — SKIPPED не нужен
     sized = session.scalars(
         select(orm.DecisionStep).where(orm.DecisionStep.strategy_id == "iron_condor")
     ).one()
@@ -185,9 +185,9 @@ def test_gates_after_learning_and_finalize_collects_reasons(
         ("iron_condor", "skip", False, ["EDGE_LOW", "CONF_LOW"])  # 0,04 ≤ 0,02 + 0,03; 0,45 < θ
     ]
     assert session.scalars(select(orm.Decision)).first() is None
-    decision = finalize(session, event.id, NOW)
+    [decision] = finalize(session, event.id, NOW)
     assert (decision.status, sorted(decision.reasons)) == ("SKIPPED", ["CONF_LOW", "EDGE_LOW"])
-    assert finalize(session, event.id, NOW).id == decision.id  # повтор не создаёт второго
+    assert finalize(session, event.id, NOW) == [decision]  # повтор не создаёт второго
 
 
 def test_kelly_after_learning(session: Session, event: orm.Event) -> None:
@@ -200,8 +200,20 @@ def test_kelly_after_learning(session: Session, event: orm.Event) -> None:
     assert step.risk_fraction == pytest.approx(0.25 * (0.64 - 0.36))  # ¼ Келли после сезонов 1–2
 
 
+def test_mode_c_without_model_keeps_signal_entry_after_learning(
+    session: Session, event: orm.Event
+) -> None:
+    learned_models(session)
+    signal = proposal("mode_c", edge=0.0, p=0.0, mode="C")  # у режима C нет модели
+    strategies: dict[str, Strategy] = {"mode_c": FakeStrategy("mode_c", signal)}
+    run_decision(session, job(event.id), ["mode_c"], strategies, config=CONFIG, now=NOW)
+    step = session.scalars(select(orm.DecisionStep)).one()
+    assert step.outcome == "proposal"
+    assert step.risk_fraction == pytest.approx(0.01)  # фиксированный риск, без Келли
+
+
 def test_finalize_without_steps_is_data_calendar(session: Session, event: orm.Event) -> None:
-    assert finalize(session, event.id, NOW).reasons == ["DATA_CALENDAR"]
+    assert finalize(session, event.id, NOW)[0].reasons == ["DATA_CALENDAR"]
 
 
 def test_rerun_does_not_duplicate_steps_or_decisions(session: Session, event: orm.Event) -> None:
