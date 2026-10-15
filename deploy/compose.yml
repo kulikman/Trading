@@ -1,0 +1,104 @@
+# Earnings Engine на сервере (E9, решение заказчика 15.10.2026): всё в docker рядом с signals.
+# Наружу — только сайт через Traefik (trading.aurioncode.com); база, Redis и API — во внутренней сети.
+# Запуск: make deploy (секреты — ~/.config/trading/env на сервере, в репозиторий не попадают).
+
+x-app: &app
+  build: {context: .., dockerfile: deploy/app.Dockerfile}
+  image: trading-app:local
+  env_file:
+    - "${HOME}/.config/trading/env"
+  environment:
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-earnings}:${POSTGRES_PASSWORD:?нужен POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-earnings}
+    REDIS_URL: redis://redis:6379/0
+  networks: [internal]
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: trading-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-earnings}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?нужен POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-earnings}
+    volumes: [trading_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+    mem_limit: 512m
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: trading-redis
+    command: ["redis-server", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes: [trading_redis:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+    mem_limit: 128m
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    container_name: trading-migrate
+    command: ["alembic", "upgrade", "head"]
+    depends_on: {postgres: {condition: service_healthy}}
+    restart: "no"
+
+  scheduler:
+    <<: *app
+    container_name: trading-scheduler
+    command: ["python", "-m", "core.scheduler"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    mem_limit: 768m
+
+  api:
+    <<: *app
+    container_name: trading-api
+    command: ["python", "-m", "api"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-earnings}:${POSTGRES_PASSWORD:?нужен POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-earnings}
+      REDIS_URL: redis://redis:6379/0
+      API_HOST: 0.0.0.0
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    mem_limit: 256m
+
+  web:
+    build: {context: .., dockerfile: deploy/web.Dockerfile}
+    image: trading-web:local
+    container_name: trading-web
+    environment:
+      DASHBOARD_API_URL: http://api:8000
+      DASHBOARD_API_TOKEN: ${DASHBOARD_API_TOKEN:?нужен DASHBOARD_API_TOKEN}
+    depends_on: [api]
+    networks: [internal, web]
+    mem_limit: 256m
+    restart: unless-stopped
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: web
+      traefik.http.routers.trading.rule: "Host(`trading.aurioncode.com`)"
+      traefik.http.routers.trading.entrypoints: websecure
+      traefik.http.routers.trading.tls.certresolver: letsencrypt
+      traefik.http.services.trading.loadbalancer.server.port: "3000"
+      traefik.http.routers.trading-http.rule: "Host(`trading.aurioncode.com`)"
+      traefik.http.routers.trading-http.entrypoints: web
+      traefik.http.routers.trading-http.middlewares: trading-https
+      traefik.http.middlewares.trading-https.redirectscheme.scheme: https
+
+networks:
+  internal: {}
+  web: {external: true}
+
+volumes:
+  trading_postgres:
+  trading_redis:
