@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
@@ -191,3 +192,24 @@ def test_mode_b_informant_report_is_a_reason(session: Session) -> None:
     )
     after = strategy(ModeBStrategy).evaluate(ctx(session, hot, MOVE, edge.to_ticker))
     assert isinstance(after, Proposal)  # рост с причиной — отчёт информатора
+
+
+class CountingChain:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def option_chain(self, underlying: str, **kwargs: Any) -> list[Any]:
+        self.calls += 1
+        return []
+
+
+def test_chain_requested_only_when_real_plan_wanted(session: Session) -> None:
+    archive(session, [0.12, -0.12, 0.12, -0.12])
+    chain = CountingChain()
+    straddle = StraddleStrategy(Stocks(), COSTS, THRESHOLDS, RATE, chain)
+    paper = straddle.evaluate(ctx(session, OPTIONS, MOVE))
+    assert isinstance(paper, Proposal)
+    assert (chain.calls, paper.plan) == (0, None)  # paper — без запросов цепочки
+    live = straddle.evaluate(replace(ctx(session, OPTIONS, MOVE), wants_plan=True))
+    assert isinstance(live, Proposal)
+    assert (chain.calls, live.plan) == (1, None)  # цепочка пуста — плана нет, предложение есть
