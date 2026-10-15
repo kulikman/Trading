@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from core.config import load_config
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, to_et
@@ -14,7 +15,8 @@ from notify.telegram.client import TelegramClient
 
 @logged_job("digest-morning", lambda: engine())
 def run_morning_digest(now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> bool:
-    return _send(morning_text, now())
+    thresholds = load_config().thresholds
+    return _send(lambda session, moment: morning_text(session, moment, thresholds), now())
 
 
 @logged_job("digest-evening", lambda: engine())

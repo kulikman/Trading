@@ -103,7 +103,7 @@ def create_app(
 
     @app.get("/api/week")
     def week(db: Db) -> events.Week:
-        return events.week_view(db, clock())
+        return events.week_view(db, clock(), limits)
 
     @app.get("/api/week/terminal")
     def terminal(db: Db) -> events.Terminal:
