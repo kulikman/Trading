@@ -163,12 +163,31 @@ def exit_after(position: Entry, daily: Sequence[Bar], entry_day: date, rules: Mo
         if held >= rules.max_hold_days:
             return Exit(bar.close, close_at, "max_hold")
         atr = average_true_range(seen, rules.atr_period) or atr
-        stop = (
-            max(stop, bar.close - rules.trailing_atr_multiple * atr)
-            if side == 1
-            else min(stop, bar.close + rules.trailing_atr_multiple * atr)
-        )
+        stop = ratchet(stop, side, bar.close, atr, rules)
     return None
+
+
+def ratchet(stop: float, side: Direction, close: float, atr: float, rules: ModeC) -> float:
+    """Трейлинг-стоп после закрытия: только в сторону сделки (общий для бэктеста и T17)."""
+    level = close - side * rules.trailing_atr_multiple * atr
+    return max(stop, level) if side == 1 else min(stop, level)
+
+
+def trailing_now(
+    position: Entry, daily: Sequence[Bar], entry_day: date, rules: ModeC
+) -> tuple[float, float] | None:
+    """Текущие (стоп, ATR) открытой позиции по дневным свечам до сегодня — как в exit_after."""
+    history = [b for b in daily if to_et(b.start).date() < entry_day]
+    atr = average_true_range(history, rules.atr_period)
+    if atr is None:
+        return None
+    stop = position.price - position.direction * rules.trailing_atr_multiple * atr
+    seen = list(history)
+    for bar in (b for b in daily if to_et(b.start).date() >= entry_day):
+        seen.append(bar)
+        atr = average_true_range(seen, rules.atr_period) or atr
+        stop = ratchet(stop, position.direction, bar.close, atr, rules)
+    return stop, atr
 
 
 def _on(bar: Bar, day: date) -> bool:

@@ -55,6 +55,14 @@ class ConsensusSnapshotSettings(StrictModel):
     _time = field_validator("run_time_et", mode="before")(_parse_time)
 
 
+class TrailingSettings(StrictModel):
+    """Пересчёт трейлинг-стопа открытых сделок режима C после закрытия (SPEC §10, T17)."""
+
+    run_time_et: time
+
+    _time = field_validator("run_time_et", mode="before")(_parse_time)
+
+
 class EventJobSpec(StrictModel):
     stage: str = Field(pattern=r"^T([+-]\d+|0)$")
     job: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
@@ -77,6 +85,7 @@ class ScheduleConfig(StrictModel):
     calendar: CalendarSettings
     archive: ArchiveSettings
     consensus: ConsensusSnapshotSettings
+    trailing: TrailingSettings
     event_jobs: list[EventJobSpec] = Field(min_length=1)
 
     @model_validator(mode="after")

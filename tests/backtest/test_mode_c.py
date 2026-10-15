@@ -10,6 +10,7 @@ from backtest.mode_c import (
     entry,
     exit_after,
     first_hour,
+    trailing_now,
 )
 from core.config import load_config
 from core.session_guard import ET, next_trading_day, previous_trading_day
@@ -186,6 +187,21 @@ def test_trailing_stop_follows_close_then_gap_exits_at_open() -> None:
     assert result is not None
     assert (result.reason, result.price) == ("trail_stop", 100)
     assert result.at == datetime.combine(day2, time(9, 30), tzinfo=ET)
+
+
+def test_trailing_now_matches_backtest_stop() -> None:
+    day1 = next_trading_day(REACTION)
+    daily = [*flat_history(), day_bar(REACTION, 106, 107, 104), day_bar(day1, 108, 109, 106)]
+    state = trailing_now(Entry(1, 105.0, ENTRY_AT), daily, REACTION, RULES)
+    assert state is not None
+    stop, atr = state
+    # тот же расчёт, что в exit_after: после дня 1 стоп 108 − 2 · 2,4286 = 103,14
+    assert stop == pytest.approx(108 - 2 * atr)
+    assert stop == pytest.approx(103.14, abs=0.01)
+    short = trailing_now(Entry(-1, 105.0, ENTRY_AT), daily, REACTION, RULES)
+    assert short is not None
+    assert short[0] == pytest.approx(105 + 2 * 2.0)  # продажа: стоп не опускается за ростом цены
+    assert trailing_now(Entry(1, 105.0, ENTRY_AT), daily[-3:], REACTION, RULES) is None  # нет ATR
 
 
 def test_close_below_sma_exits() -> None:
