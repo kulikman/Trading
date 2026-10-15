@@ -45,8 +45,9 @@ def handle_callback(session: Session, data: str, broker: CardOrders, now: dateti
     if card.state != "ARMED":
         return f"Карточка уже {card.state}"
     tickets = broker.pending_for_card(card.id)
-    if action == "fill":
-        priced = [(t, t.order.limit_price or t.order.stop_price) for t in tickets]
+    if action == "fill":  # «Исполнено» — вход; стоп-ордер остаётся стоять у брокера
+        entries = [t for t in tickets if t.order.purpose == "entry"]
+        priced = [(t, t.order.limit_price or t.order.stop_price) for t in entries]
         if not priced or any(p is None for _, p in priced):
             return "Нет ордеров с ценой к подтверждению — проверьте карточку"
         fills = [broker.confirm_fill(t.order_id, price=float(p or 0), at=now) for t, p in priced]

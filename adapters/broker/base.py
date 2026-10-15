@@ -45,7 +45,10 @@ class BrokerAdapter(Protocol):
 
 
 class CardOrders(Protocol):
-    """Подтверждение исполнения ордеров карточки человеком (кнопки Telegram, ручной брокер)."""
+    """Ордера карточки с подтверждением человеком (кнопки Telegram, ручной брокер)."""
+
+    def place_for_card(self, order: Order, card_id: int) -> OrderId:
+        """Поставить ордер карточки (проверка сессии, идемпотентность по client_order_id)."""
 
     def pending_for_card(self, card_id: int) -> list["Ticket"]:
         """Ордера карточки, ждущие подтверждения."""

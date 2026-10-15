@@ -20,14 +20,19 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from adapters.broker.base import CardOrders
+from adapters.broker.factory import create_card_orders
+from adapters.errors import DataError
 from core.config import AppConfig
 from core.db import models as orm
+from core.domain.broker import Quote
 from core.domain.earnings import DecisionStepRecord
 from core.domain.schedule import EventJob
 from core.domain.types import FeatureStage, SkipReason
 from core.registry.agent_jobs import REPORT_TIMES, STAGES, feature_stage
 from core.registry.protocols import DecisionContext, EventContext, Proposal, Skip, Strategy
 from core.registry.state import influences_decision, plugin_state
+from core.risk.black_swan import Level
 from core.risk.market import market_level_before
 from core.session_guard import to_et
 from decision.capital import (
@@ -40,6 +45,7 @@ from decision.capital import (
     win_loss_ratio,
 )
 from execution.cards import open_card
+from execution.real import open_real_card
 from models.features import stage_features
 
 NO_DECISION_RUN: list[SkipReason] = ["DATA_CALENDAR"]  # задачи решения не выполнялись
@@ -50,12 +56,15 @@ SOURCE_CODES: dict[str, SkipReason] = {
     "massive": "DATA_MASSIVE",
 }
 NO_MODEL_MODES = ("C",)  # у режима нет модели: вход по сигналу, фиксированный риск (до оценки T20)
+REAL_STAGES = ("live_small", "live")  # стадии, на которых стратегия торгует и Real (E10)
 
 
 @dataclass(frozen=True)
 class Accepted:
     proposal: Proposal
     sizing: Sizing
+    is_real: bool = False  # стадия live_small / live — кроме paper, Real-карточка (E10)
+    weight: float = 1.0
 
 
 def decision_context(
@@ -89,6 +98,7 @@ def run_decision(
     *,
     config: AppConfig,
     now: datetime,
+    orders: CardOrders | None = None,
 ) -> list[DecisionStepRecord]:
     """Решение задачи события: шаги каждой стратегии и, если есть прошедшее предложение, ENTERED."""
     event = session.get(orm.Event, job.event_id)
@@ -131,8 +141,9 @@ def run_decision(
                 thresholds=config.thresholds,
             )
         steps.append(_step(job, strategy.id, is_shadow, now, result, outcome))
-        if isinstance(outcome, Sizing) and not is_shadow:
-            accepted.append(Accepted(result, outcome))
+        if isinstance(outcome, Sizing) and not is_shadow and state is not None:
+            is_real = state.stage in REAL_STAGES
+            accepted.append(Accepted(result, outcome, is_real, state.weight or 1.0))
     for record in steps:
         session.execute(
             insert(orm.DecisionStep)
@@ -158,8 +169,65 @@ def run_decision(
             decision = session.get(orm.Decision, decision_id)
             if decision is not None:
                 open_card(session, decision)
+                if item.is_real:
+                    _open_real(session, decision, item, level, seasons_1_2, config, now, orders)
     session.flush()
     return steps
+
+
+def _open_real(
+    session: Session,
+    decision: orm.Decision,
+    item: Accepted,
+    level: Level,
+    seasons_1_2: bool,
+    config: AppConfig,
+    now: datetime,
+    orders: CardOrders | None,
+) -> None:
+    """Real-карточка стратегии в live_small / live; не открылась — сообщение «СИСТЕМА»."""
+    proposal = item.proposal
+    outcome = open_real_card(
+        session,
+        decision,
+        proposal,
+        level=level,
+        b=win_loss_ratio(session, proposal.construction, config.thresholds),
+        seasons_1_2=seasons_1_2,
+        weight=item.weight,
+        no_model=proposal.mode in NO_MODEL_MODES,
+        thresholds=config.thresholds,
+        orders=orders or _card_orders(session, config, now),
+        now=now,
+    )
+    if outcome.card_id is None:
+        event = session.get(orm.Event, decision.event_id)
+        ticker = event.ticker if event is not None else "?"
+        session.add(
+            orm.SystemMessage(
+                at=now,
+                code="REAL_SKIP",
+                text=(
+                    f"СИСТЕМА · Real не открыт: {ticker} {proposal.strategy_id} — {outcome.reason}"
+                ),
+            )
+        )
+
+
+def _card_orders(session: Session, config: AppConfig, now: datetime) -> CardOrders:
+    """Ручной брокер в той же транзакции, что и решение (savepoint), время — время решения."""
+
+    def no_quotes(symbol: str) -> Quote:
+        raise DataError("broker", f"ручной брокер: котировки {symbol} нет")
+
+    return create_card_orders(
+        quote_source=no_quotes,
+        no_market_orders_first_minutes=config.thresholds.execution.no_market_orders_first_minutes,
+        session_factory=lambda: Session(
+            bind=session.connection(), join_transaction_mode="create_savepoint"
+        ),
+        clock=lambda: now,
+    )
 
 
 def finalize(session: Session, event_id: int, now: datetime) -> list[orm.Decision]:

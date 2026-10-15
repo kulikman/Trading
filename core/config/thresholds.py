@@ -19,6 +19,8 @@ class Sizing(StrictModel):
     stop_implied_moves: PositiveFloat
     max_risk_per_trade: Fraction | None
     data_collection_risk: Fraction  # сезоны 1–2: фиксированный риск paper-входа по сигналу
+    real_first_days: PositiveInt  # SPEC §14 фаза 4: первые N дней Real (с первого пополнения)
+    real_first_days_multiplier: Fraction  # размер Real в эти дни
 
 
 class LosingStreak(StrictModel):

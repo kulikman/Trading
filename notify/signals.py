@@ -4,6 +4,7 @@
 отправляется заново. ПРОПУСК и СОПРОВОЖДЕНИЕ — без звука. Отправленное помечается и не повторяется.
 """
 
+from collections.abc import Sequence
 from datetime import date, datetime, time
 from typing import Protocol
 from zoneinfo import ZoneInfo
@@ -85,8 +86,12 @@ def signal_text(
     thresholds: Thresholds,
     card: orm.TradeCard | None = None,
     exit_reason: str | None = None,
+    instructions: Sequence[str] = (),
 ) -> str:
-    """Текст сообщения о входе: что, когда войти, когда выйти, сколько под риском."""
+    """Текст сообщения о входе: что, когда войти, когда выйти, сколько под риском.
+
+    Real: строки ордеров для брокера (ручной брокер, SPEC §12) и риск карточки в $.
+    """
     days = EventDays.of(event.report_date, REPORT_TIMES.get(event.report_time or ""))
     construction = decision.construction or ""
     when = REPORT_WORDS.get(event.report_time or "", "время не подтверждено")
@@ -116,7 +121,12 @@ def signal_text(
             f"ВХОД   {_at(days.reaction, time(10, 45))}, {limit}",
             f"ВЫХОД  {trail}, {rest}",
         ]
-    lines.append(f"РИСК   {risk_fraction:.1%} капитала — ${risk_usd:,.0f}".replace(",", " "))
+    if card is not None and not card.paper:
+        lines += [f"ОРДЕР  {line}" for line in instructions]
+        real_risk = float(card.risk_usd or 0)
+        lines.append(f"РИСК   ${real_risk:,.0f} (счёт Real)".replace(",", " "))
+    else:
+        lines.append(f"РИСК   {risk_fraction:.1%} капитала — ${risk_usd:,.0f}".replace(",", " "))
     if card is not None:
         lines.append(f"СТАТУС {status_line(card, exit_reason)}")
     return "\n".join(lines)
@@ -167,7 +177,18 @@ def send_new_signals(session: Session, client: Sender, thresholds: Thresholds) -
             .order_by(orm.TradeCardTransition.id.desc())
             .limit(1)
         ).first()
-        text = signal_text(event, decision, _risk(session, decision), thresholds, card, reason)
+        instructions = (
+            []
+            if card.paper
+            else session.scalars(
+                select(orm.BrokerOrder.instruction)
+                .where(orm.BrokerOrder.card_id == card.id)
+                .order_by(orm.BrokerOrder.client_order_id)
+            ).all()
+        )
+        text = signal_text(
+            event, decision, _risk(session, decision), thresholds, card, reason, instructions
+        )
         buttons = card_buttons(card)
         if card.tg_message_id is None:
             card.tg_message_id = client.send(text, buttons=buttons)

@@ -50,11 +50,13 @@ def create_card_orders(
     quote_source: Callable[[str], Quote],
     no_market_orders_first_minutes: int,
     session_factory: Callable[[], Session],
+    clock: Callable[[], datetime] = utc_now,
 ) -> CardOrders:
     """Ордера карточек с подтверждением человеком: ручной брокер, ордера — в broker_order."""
     return ManualBroker(
         quote_source=quote_source,
         no_market_orders_first_minutes=no_market_orders_first_minutes,
+        clock=clock,
         store=DbOrderStore(session_factory),
     )
 

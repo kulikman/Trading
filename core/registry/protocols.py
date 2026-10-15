@@ -12,7 +12,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from core.domain.trading import TradeCard
+from core.domain.trading import TradeCard, TradePlan
 from core.domain.types import FeatureStage, ReportTime, SkipReason
 
 TriggerKind = Literal["stage", "event"]
@@ -65,6 +65,7 @@ class Proposal:
     probability: float
     cost_fraction: float
     size_multiplier: float = 1.0
+    plan: TradePlan | None = None  # ордера и риск единицы — для Real (E10); у paper не нужен
 
 
 @dataclass(frozen=True)
