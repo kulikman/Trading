@@ -54,11 +54,28 @@ STOP_REASONS = {
 
 
 class Sender(Protocol):
-    def send(self, text: str, *, silent: bool = False) -> int:
+    def send(
+        self,
+        text: str,
+        *,
+        silent: bool = False,
+        buttons: list[tuple[str, str]] | None = None,
+        reply_to: int | None = None,
+    ) -> int:
         """Отправить сообщение; вернуть его id."""
 
-    def edit(self, message_id: int, text: str) -> None:
-        """Изменить текст сообщения."""
+    def edit(
+        self, message_id: int, text: str, *, buttons: list[tuple[str, str]] | None = None
+    ) -> None:
+        """Изменить текст и кнопки сообщения."""
+
+
+def card_buttons(card: orm.TradeCard) -> list[tuple[str, str]]:
+    """Кнопки карточки (SPEC §12): у Real, ждущей исполнения, — подтвердить / не исполнил."""
+    details = ("Детали", f"details:{card.id}")
+    if not card.paper and card.state == "ARMED":
+        return [("Исполнено", f"fill:{card.id}"), ("Не исполнил", f"skip:{card.id}"), details]
+    return [details]
 
 
 def signal_text(
@@ -75,7 +92,8 @@ def signal_text(
     when = REPORT_WORDS.get(event.report_time or "", "время не подтверждено")
     risk_usd = thresholds.capital.module_usd * risk_fraction
     name = NAMES.get(construction, construction)
-    lines = [f"{event.ticker} · отчёт {_day(event.report_date)} {when} · {name} · PAPER"]
+    account = "PAPER" if card is None or card.paper else "REAL"
+    lines = [f"{event.ticker} · отчёт {_day(event.report_date)} {when} · {name} · {account}"]
     if construction in ("straddle", "iron_condor"):
         straddle, condor = thresholds.constructions.straddle, thresholds.constructions.iron_condor
         exit_rule = (
@@ -124,14 +142,16 @@ def status_line(card: orm.TradeCard, exit_reason: str | None = None) -> str:
 
 
 def send_new_signals(session: Session, client: Sender, thresholds: Thresholds) -> int:
-    """Новые paper-входы — сообщением; у отправленных при смене состояния — правка текста."""
+    """Новые входы (Paper и Real) — сообщением с кнопками; при смене состояния — правка."""
     rows = session.execute(
         select(orm.TradeCard, orm.Decision, orm.Event)
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
         .join(orm.Event, orm.Event.id == orm.Decision.event_id)
-        .where(orm.TradeCard.paper.is_(True))
         .where(
-            (orm.TradeCard.tg_message_id.is_(None) & orm.TradeCard.state.in_(("PLANNED", "OPEN")))
+            (
+                orm.TradeCard.tg_message_id.is_(None)
+                & orm.TradeCard.state.in_(("PLANNED", "ARMED", "OPEN"))
+            )
             | (
                 orm.TradeCard.tg_message_id.is_not(None)
                 & (orm.TradeCard.tg_state.is_distinct_from(orm.TradeCard.state))
@@ -148,10 +168,11 @@ def send_new_signals(session: Session, client: Sender, thresholds: Thresholds) -
             .limit(1)
         ).first()
         text = signal_text(event, decision, _risk(session, decision), thresholds, card, reason)
+        buttons = card_buttons(card)
         if card.tg_message_id is None:
-            card.tg_message_id = client.send(text)
+            card.tg_message_id = client.send(text, buttons=buttons)
         else:
-            client.edit(card.tg_message_id, text)
+            client.edit(card.tg_message_id, text, buttons=buttons)
         card.tg_state = card.state
         session.commit()  # отправленное фиксируется сразу: сбой на следующей его не повторит
         done += 1

@@ -19,6 +19,7 @@ from core.scheduler.dispatch import HANDLERS, DispatchResult, Handler, dispatch_
 from decision.jobs import decision_handlers
 from decision.report import report_handlers
 from models.forecast import forecast_handlers
+from notify.bot import send_reminders
 from notify.digest import notify_handlers
 from notify.signals import send_new_signals, send_skips
 from notify.system import collect_error_messages, save_source_health, send_system_messages
@@ -81,5 +82,8 @@ def run_signal_notifications() -> int:
     if client is None:
         return 0
     with Session(engine()) as session:
-        cards = send_new_signals(session, client, load_config().thresholds)
-        return cards + send_skips(session, client)
+        thresholds = load_config().thresholds
+        cards = send_new_signals(session, client, thresholds)
+        remind = timedelta(minutes=thresholds.execution.fill_reminder_minutes)
+        reminders = send_reminders(session, client, datetime.now(UTC), remind)
+        return cards + send_skips(session, client) + reminders

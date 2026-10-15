@@ -69,3 +69,30 @@ def test_edit_and_not_modified_is_ok() -> None:
     bot.edit(7, "новый текст")  # тот же текст — не ошибка
     assert seen[0].url.path == f"/bot{TOKEN}/editMessageText"
     assert json.loads(seen[0].content)["message_id"] == 7
+
+
+def test_buttons_updates_and_answer() -> None:
+    seen: list[httpx.Request] = []
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("getUpdates"):
+            items = [{"update_id": 5, "callback_query": {"id": "c1", "data": "fill:7"}}]
+            return httpx.Response(200, json={"ok": True, "result": items})
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 9}})
+
+    bot = client(httpx.MockTransport(reply))
+    assert bot.send("x", buttons=[("Детали", "details:7")], reply_to=3) == 9
+    sent = json.loads(seen[0].content)
+    assert sent["reply_markup"] == {
+        "inline_keyboard": [[{"text": "Детали", "callback_data": "details:7"}]]
+    }
+    assert sent["reply_parameters"] == {"message_id": 3}
+    assert bot.updates(5) == [{"update_id": 5, "callback_query": {"id": "c1", "data": "fill:7"}}]
+    assert json.loads(seen[1].content)["offset"] == 5
+    bot.answer("c1", "Исполнение подтверждено")
+    assert json.loads(seen[2].content) == {
+        "callback_query_id": "c1",
+        "text": "Исполнение подтверждено",
+    }
+    assert bot.chat_id == "42"

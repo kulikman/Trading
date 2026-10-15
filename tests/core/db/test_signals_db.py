@@ -21,12 +21,21 @@ class Bot:
         self.silent: list[bool] = []
         self.edits: list[tuple[int, str]] = []
 
-    def send(self, text: str, *, silent: bool = False) -> int:
+    def send(
+        self,
+        text: str,
+        *,
+        silent: bool = False,
+        buttons: list[tuple[str, str]] | None = None,
+        reply_to: int | None = None,
+    ) -> int:
         self.texts.append(text)
         self.silent.append(silent)
         return 100 + len(self.texts)
 
-    def edit(self, message_id: int, text: str) -> None:
+    def edit(
+        self, message_id: int, text: str, *, buttons: list[tuple[str, str]] | None = None
+    ) -> None:
         self.edits.append((message_id, text))
 
 

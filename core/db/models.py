@@ -464,6 +464,7 @@ class TradeCard(Timestamps, Base):
     fills: Mapped[Any | None] = mapped_column(JSONB)
     tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
     tg_state: Mapped[str | None]  # состояние, показанное в сообщении (правка при смене, T18)
+    reminded_at: Mapped[datetime | None]  # напоминание: Real-вход не подтверждён 15 минут
     pnl_total: Mapped[Decimal | None]
     pnl_direction: Mapped[Decimal | None]
     pnl_vol: Mapped[Decimal | None]

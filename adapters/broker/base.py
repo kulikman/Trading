@@ -6,9 +6,12 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from core.domain.broker import Fill, Order, OrderId, Position, Quote
+
+if TYPE_CHECKING:
+    from adapters.broker.order_store import Ticket
 from core.session_guard import is_regular_session, session, to_et
 
 
@@ -39,6 +42,19 @@ class BrokerAdapter(Protocol):
 
     def fills(self, since: datetime) -> list[Fill]:
         """Исполнения с момента since."""
+
+
+class CardOrders(Protocol):
+    """Подтверждение исполнения ордеров карточки человеком (кнопки Telegram, ручной брокер)."""
+
+    def pending_for_card(self, card_id: int) -> list["Ticket"]:
+        """Ордера карточки, ждущие подтверждения."""
+
+    def confirm_fill(self, order_id: OrderId, *, price: float, at: datetime) -> Fill:
+        """Подтвердить исполнение."""
+
+    def cancel(self, order_id: OrderId) -> None:
+        """Отменить ордер."""
 
 
 def utc_now() -> datetime:

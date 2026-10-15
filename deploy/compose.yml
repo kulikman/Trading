@@ -1,5 +1,6 @@
 # Earnings Engine на сервере (E9, решение заказчика 15.10.2026): всё в docker рядом с signals.
-# Наружу — только сайт через Traefik (trading.aurioncode.com); база, Redis и API — во внутренней сети.
+# Наружу — только сайт через Traefik (trading.aurioncode.com); база, Redis, API и бот (исходящий опрос
+# Telegram) — во внутренней сети.
 # Запуск: make deploy (секреты — ~/.config/trading/env на сервере, в репозиторий не попадают).
 
 x-app: &app
@@ -60,6 +61,13 @@ services:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
     mem_limit: 768m
+
+  bot:
+    <<: *app
+    container_name: trading-bot
+    command: ["python", "-m", "notify.bot"]
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    mem_limit: 128m
 
   api:
     <<: *app

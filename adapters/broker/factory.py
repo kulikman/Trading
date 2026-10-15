@@ -6,9 +6,11 @@
 from collections.abc import Callable
 from datetime import datetime
 
-from adapters.broker.base import BrokerAdapter, GuardedBroker, utc_now
+from sqlalchemy.orm import Session
+
+from adapters.broker.base import BrokerAdapter, CardOrders, GuardedBroker, utc_now
 from adapters.broker.manual import ManualBroker
-from adapters.broker.order_store import OrderStore
+from adapters.broker.order_store import DbOrderStore, OrderStore
 from adapters.broker.stubs import FreedomBroker, IbBroker
 from core.config.broker import BrokerConfig
 from core.domain.broker import Quote
@@ -41,6 +43,20 @@ def create_broker(
             no_market_orders_first_minutes=no_market_orders_first_minutes, clock=clock
         )
     return broker
+
+
+def create_card_orders(
+    *,
+    quote_source: Callable[[str], Quote],
+    no_market_orders_first_minutes: int,
+    session_factory: Callable[[], Session],
+) -> CardOrders:
+    """Ордера карточек с подтверждением человеком: ручной брокер, ордера — в broker_order."""
+    return ManualBroker(
+        quote_source=quote_source,
+        no_market_orders_first_minutes=no_market_orders_first_minutes,
+        store=DbOrderStore(session_factory),
+    )
 
 
 def create_cost_model(config: BrokerConfig) -> CostModel:
