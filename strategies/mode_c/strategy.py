@@ -17,7 +17,7 @@ from core.config.thresholds import Thresholds
 from core.db import models as orm
 from core.registry.protocols import DecisionContext, Proposal, Skip
 from core.session_guard import reaction_day, to_et
-from decision.report import ReportSource, fetch_report_facts
+from decision.report import ReportSource, event_consensus, fetch_report_facts
 from execution.costs import CostModel
 from strategies.base import StrategyBase, session_of
 from strategies.common import stock_cost_fraction, stock_state
@@ -91,5 +91,8 @@ class ModeCStrategy(StrategyBase):
         )
         if stored is not None:
             return stored
-        facts = fetch_report_facts(self._reports, event.ticker, event.report_date)
+        consensus = event_consensus(
+            session_of(ctx), event.ticker, event.report_date, event.report_time
+        )
+        facts = fetch_report_facts(self._reports, event.ticker, event.report_date, consensus)
         return None if facts is None else facts.eps_surprise_pct
