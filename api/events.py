@@ -5,7 +5,7 @@
 """
 
 from collections.abc import Sequence
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from pydantic import BaseModel
 from sqlalchemy import exists, select
@@ -15,7 +15,7 @@ from api.format import Num, count, day, empty, et_msk, money
 from api.trades import stop_view
 from api.trades_data import OpenCard
 from core.db import models as orm
-from core.session_guard import to_et
+from core.session_guard import ET, to_et
 
 DECISION_LABELS = {
     "ENTERED": "ВХОД",
@@ -296,8 +296,31 @@ def _change_text(change: orm.EventChange, ticker: str) -> str:
         "fiscal_period": "фискальный период",
         "date_check": "сверка даты",
     }.get(change.field, change.field)
-    text = f"{ticker}: {field} {change.old_value or '—'} → {change.new_value or '—'}"
-    return f"{text} ({change.reason})" if change.reason else text
+    old, new = _change_value(change.old_value), _change_value(change.new_value)
+    text = f"{ticker}: {field} {old} → {new}"
+    if not change.reason:
+        return text
+    reason = change.reason.split(": ", 1)[1] if change.reason.startswith("DATA_") else change.reason
+    return f"{text} ({reason.replace(' vs ', ' против ')})"
+
+
+# Сырые значения полей события словами (аудит дашборда 14.10.2026, «Изменилось»).
+CHANGE_VALUES = {
+    "ok": "сходится с 8-K",
+    "mismatch": "даты расходятся",
+    "no_8k": "8-K нет",
+    "projected": "прогноз",
+    "confirmed": "подтверждена",
+    "BMO": "до открытия",
+    "AMC": "после закрытия",
+    "DURING": "во время сессии",
+}
+
+
+def _change_value(value: str | None) -> str:
+    if not value:
+        return "—"
+    return CHANGE_VALUES.get(value, value)
 
 
 def _events(
@@ -352,15 +375,24 @@ def _next_message(session: Session, now: datetime) -> str:
     if upcoming:
         job, ticker = upcoming[0]
         return f"Действий нет. Следующее: {et_msk(job.run_at)} — {HUMAN_JOBS[job.job]} {ticker}"
-    event = session.scalars(
+    candidates = session.scalars(
         select(orm.Event)
         .where(orm.Event.report_date >= to_et(now).date())
         .order_by(orm.Event.report_date, orm.Event.ticker)
-        .limit(1)
-    ).first()
+    ).all()
+    event = next((e for e in candidates if not _report_passed(e, now)), None)
     if event is None:
         return "Действий нет."
     return f"Действий нет. Ближайший отчёт: {event.ticker} {day(event.report_date)}"
+
+
+REPORT_PASSED_AT = {"BMO": time(9, 30), "DURING": time(12, 0), "AMC": time(16, 0)}
+
+
+def _report_passed(event: orm.Event, now: datetime) -> bool:
+    """Отчёт уже вышел: BMO — к открытию, AMC — к закрытию дня (время неизвестно — как BMO)."""
+    at = REPORT_PASSED_AT.get(event.report_time or "BMO", REPORT_PASSED_AT["BMO"])
+    return now >= datetime.combine(event.report_date, at, tzinfo=ET)
 
 
 def _week(now: datetime) -> tuple[date, date]:

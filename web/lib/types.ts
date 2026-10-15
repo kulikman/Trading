@@ -148,6 +148,7 @@ export interface Overview {
   ticker: string;
   name: string;
   sector: string;
+  sector_id: string;
   about: string;
   segments: string[];
   next_report: string;

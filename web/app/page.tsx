@@ -20,7 +20,8 @@ export default function TodayPage({ searchParams }: PageProps<"/">): React.React
 async function TodayContent({
   searchParams,
 }: Pick<PageProps<"/">, "searchParams">): Promise<React.ReactElement> {
-  const mode = modeOf((await searchParams).mode);
+  const query = await searchParams;
+  const mode = modeOf(query.mode);
   const seen = (await cookies()).get(SEEN_COOKIE)?.value;
   const [today, changes] = await Promise.all([
     apiGet<Today>("/api/today"),
@@ -28,7 +29,7 @@ async function TodayContent({
   ]);
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={query} />
       {changes.rows.length > 0 ? (
         <section>
           <h2>Изменилось</h2>

@@ -33,7 +33,7 @@ async function AccountContent({
   const summary = await apiGet<AccountSummary>(`/api/account/summary?mode=${mode}`);
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={params} />
       <SubTabs
         tabs={TABS.map((t) => ({
           href: `/account?tab=${t.key}&mode=${mode}`,

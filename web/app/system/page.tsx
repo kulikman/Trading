@@ -29,7 +29,7 @@ async function SystemContent({
   const tab = TABS.find((t) => t.key === params.tab)?.key ?? "status";
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={params} />
       <SubTabs
         tabs={TABS.map((t) => ({
           href: `/system?tab=${t.key}`,

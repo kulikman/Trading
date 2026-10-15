@@ -35,9 +35,11 @@ async function CompanyContent({
   }
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={query} />
       <p>
-        <Link href="/companies">Сектора</Link> → {overview.sector} → <b>{overview.ticker}</b>
+        <Link href="/companies">Сектора</Link> →{" "}
+        <Link href={`/companies/sector/${overview.sector_id}`}>{overview.sector}</Link> →{" "}
+        <b>{overview.ticker}</b>
       </p>
       <h2>
         {overview.ticker} · {overview.name}

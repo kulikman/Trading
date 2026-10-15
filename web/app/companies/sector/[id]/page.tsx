@@ -23,14 +23,15 @@ async function SectorContent({
   searchParams,
 }: PageProps<"/companies/sector/[id]">): Promise<React.ReactElement> {
   const { id } = await params;
-  const mode = modeOf((await searchParams).mode);
+  const query = await searchParams;
+  const mode = modeOf(query.mode);
   const sector = await apiGetOrNull<SectorDetail>(`/api/sectors/${encodeURIComponent(id)}`);
   if (sector === null) {
     notFound();
   }
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={query} />
       <p>
         <Link href="/companies">Сектора</Link> → <b>{sector.name}</b>
       </p>

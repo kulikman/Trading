@@ -22,7 +22,8 @@ async function CardContent({
   searchParams,
 }: PageProps<"/trades/[id]">): Promise<React.ReactElement> {
   const { id } = await params;
-  const mode = modeOf((await searchParams).mode);
+  const query = await searchParams;
+  const mode = modeOf(query.mode);
   if (!/^\d+$/.test(id)) {
     notFound();
   }
@@ -32,7 +33,7 @@ async function CardContent({
   }
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={query} />
       <h1>
         Карточка {card.ticker} · режим {card.mode} · {card.state} ·{" "}
         {card.is_paper ? "PAPER" : "REAL"}

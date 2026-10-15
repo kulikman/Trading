@@ -30,7 +30,7 @@ async function JournalContent({
   const journal = await apiGet<Journal>(`/api/journal?filter=${filter}`);
   return (
     <>
-      <AccountBar mode={mode} />
+      <AccountBar mode={mode} query={params} />
       <p>
         <b>{journal.summary}</b>
       </p>
