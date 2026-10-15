@@ -1,6 +1,6 @@
 """Решение по событию и карточка сделки (SPEC §5, §10, §11)."""
 
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Any, Literal, Self
 
@@ -170,3 +170,4 @@ class TradePlan(DomainModel):
     orders: tuple[Order, ...] = Field(min_length=1)
     unit_risk: float = Field(gt=0)
     stop_rule: str = Field(min_length=1)
+    entry_until_et: time | None = None  # позже — Real не открывается (окно входа прошло)

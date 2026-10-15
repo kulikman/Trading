@@ -123,6 +123,7 @@ def signal_text(
         ]
     if card is not None and not card.paper:
         lines += [f"ОРДЕР  {line}" for line in instructions]
+        lines.append("       вход — на день; стоп — после исполнения входа, до отмены (GTC)")
         real_risk = float(card.risk_usd or 0)
         lines.append(f"РИСК   ${real_risk:,.0f} (счёт Real)".replace(",", " "))
     else:
@@ -136,6 +137,8 @@ def status_line(card: orm.TradeCard, exit_reason: str | None = None) -> str:
     """Состояние карточки словами — строка, которую правит смена состояния."""
     if card.state == "PLANNED":
         return "ждём вход"
+    if card.state == "ARMED" and not card.paper:
+        return "ордера выставлены — ждём исполнения у брокера"
     if card.state in ("ARMED", "OPEN", "C_MODE", "CLOSING"):
         trailing = (card.trailing or {}).get("stop")
         return "открыта" + (f" · стоп {trailing:.2f}" if trailing is not None else "")
@@ -183,7 +186,7 @@ def send_new_signals(session: Session, client: Sender, thresholds: Thresholds) -
             else session.scalars(
                 select(orm.BrokerOrder.instruction)
                 .where(orm.BrokerOrder.card_id == card.id)
-                .order_by(orm.BrokerOrder.client_order_id)
+                .order_by(orm.BrokerOrder.created_at, orm.BrokerOrder.client_order_id)
             ).all()
         )
         text = signal_text(

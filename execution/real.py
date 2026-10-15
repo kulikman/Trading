@@ -60,6 +60,8 @@ def open_real_card(
     plan = proposal.plan
     if plan is None:
         return RealOutcome(None, f"у конструкции {proposal.construction} нет плана ордеров")
+    if plan.entry_until_et is not None and to_et(now).time() >= plan.entry_until_et:
+        return RealOutcome(None, f"окно входа до {plan.entry_until_et:%H:%M} ET прошло")
     capital = real_capital(session)
     if capital is None or capital <= 0:
         return RealOutcome(None, "счёт Real не пополнен (make cash)")
@@ -83,7 +85,7 @@ def open_real_card(
     units = math.floor(risk_usd / plan.unit_risk)
     if units < 1:
         return RealOutcome(
-            None, f"риск ${risk_usd:,.0f} меньше одной единицы (${plan.unit_risk:,.0f})"
+            None, f"риск ${risk_usd:.2f} меньше одной единицы (${plan.unit_risk:.2f})"
         )
     card = orm.TradeCard(
         decision_id=decision.id,

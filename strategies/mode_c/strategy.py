@@ -8,6 +8,8 @@
 Модели у режима C нет: edge и уверенность 0, вход — по сигналу (сезоны 1–2, сбор данных).
 """
 
+from datetime import time
+
 from sqlalchemy import select
 
 from adapters.errors import DataError
@@ -24,6 +26,8 @@ from decision.report import ReportSource, event_consensus, fetch_report_facts
 from execution.costs import CostModel
 from strategies.base import StrategyBase, session_of
 from strategies.common import stock_cost_fraction, stock_state
+
+ENTRY_DEADLINE = time(11, 0)  # лимит входа режима C — до 11:00 ET (SPEC §10)
 
 
 class ModeCStrategy(StrategyBase):
@@ -139,4 +143,5 @@ def stock_plan(
         ),
         unit_risk=stop_distance * (1 + cost_fraction),
         stop_rule=f"трейлинг 2 × ATR(14), старт {stop:.2f}",
+        entry_until_et=ENTRY_DEADLINE,
     )

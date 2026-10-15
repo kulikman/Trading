@@ -248,7 +248,11 @@ def _theta_kelly(session: Session, config: AppConfig) -> str:
     for card, decision in session.execute(
         select(orm.TradeCard, orm.Decision)
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
-        .where(orm.TradeCard.state.in_(("CLOSED", "STOPPED")), orm.TradeCard.pnl_total.is_not(None))
+        .where(
+            orm.TradeCard.paper.is_(True),  # Real дублирует решение paper
+            orm.TradeCard.state.in_(("CLOSED", "STOPPED")),
+            orm.TradeCard.pnl_total.is_not(None),
+        )
     ).all():
         step = entry_step(session, decision)  # одна сделка — один шаг (у режима B их два)
         risk = capital * (step.risk_fraction or 0.0) if step is not None else 0.0

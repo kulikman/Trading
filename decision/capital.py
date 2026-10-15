@@ -85,6 +85,9 @@ def size_real(
         if level == "red" or swan.manual_red:
             return Rejection(["MACRO_BLOCK"])
         settings = {"yellow": swan.yellow, "orange": swan.orange}.get(level)
+        minimum = None if settings is None else settings.min_confidence
+        if minimum is not None and proposal.confidence <= minimum:
+            return Rejection(["MACRO_BLOCK"])  # оранжевый — только уверенность > 80% (SPEC §10)
         multiplier = settings.size_multiplier if settings is not None else 1.0
         base: Sizing | Rejection = Sizing(
             risk_fraction=thresholds.sizing.data_collection_risk
@@ -133,6 +136,7 @@ def win_loss_ratio(session: Session, construction: str, thresholds: Thresholds) 
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
         .where(
             orm.Decision.construction == construction,
+            orm.TradeCard.paper.is_(True),  # Real дублирует решение paper — не считать дважды
             orm.TradeCard.state.in_(CLOSED_STATES),
             orm.TradeCard.pnl_total.is_not(None),
         )

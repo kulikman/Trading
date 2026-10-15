@@ -71,7 +71,7 @@ def handle_callback(session: Session, data: str, broker: CardOrders, now: dateti
         for ticket in tickets:
             broker.cancel(ticket.order_id)
         transition(session, card, "CANCELLED", now, "не исполнил (кнопка)", check_session=False)
-        return "Вход отменён"
+        return "Вход отменён — снимите ордера у брокера"
     return "Неизвестная кнопка"
 
 

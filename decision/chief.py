@@ -12,6 +12,7 @@ edge > costs + 0,03 (EDGE_LOW), уверенность ≥ θ режима (CONF
 нерешённых сбоев источников по событию (DATA_FINNHUB, DATA_ALPHAVANTAGE, DATA_MASSIVE — E2e).
 """
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -45,8 +46,10 @@ from decision.capital import (
     win_loss_ratio,
 )
 from execution.cards import open_card
-from execution.real import open_real_card
+from execution.real import RealOutcome, open_real_card
 from models.features import stage_features
+
+logger = logging.getLogger(__name__)
 
 NO_DECISION_RUN: list[SkipReason] = ["DATA_CALENDAR"]  # задачи решения не выполнялись
 # Сбой источника по событию (E2e): DataError в журнале, не решённая повтором задачи.
@@ -143,7 +146,8 @@ def run_decision(
         steps.append(_step(job, strategy.id, is_shadow, now, result, outcome))
         if isinstance(outcome, Sizing) and not is_shadow and state is not None:
             is_real = state.stage in REAL_STAGES
-            accepted.append(Accepted(result, outcome, is_real, state.weight or 1.0))
+            weight = state.weight if state.weight is not None else stage_weight(state.stage, config)
+            accepted.append(Accepted(result, outcome, is_real, weight))
     for record in steps:
         session.execute(
             insert(orm.DecisionStep)
@@ -187,19 +191,24 @@ def _open_real(
 ) -> None:
     """Real-карточка стратегии в live_small / live; не открылась — сообщение «СИСТЕМА»."""
     proposal = item.proposal
-    outcome = open_real_card(
-        session,
-        decision,
-        proposal,
-        level=level,
-        b=win_loss_ratio(session, proposal.construction, config.thresholds),
-        seasons_1_2=seasons_1_2,
-        weight=item.weight,
-        no_model=proposal.mode in NO_MODEL_MODES,
-        thresholds=config.thresholds,
-        orders=orders or _card_orders(session, config, now),
-        now=now,
-    )
+    try:  # сбой Real не должен откатить paper-решение (сбор данных)
+        with session.begin_nested():
+            outcome = open_real_card(
+                session,
+                decision,
+                proposal,
+                level=level,
+                b=win_loss_ratio(session, proposal.construction, config.thresholds),
+                seasons_1_2=seasons_1_2,
+                weight=item.weight,
+                no_model=proposal.mode in NO_MODEL_MODES,
+                thresholds=config.thresholds,
+                orders=orders or _card_orders(session, config, now),
+                now=now,
+            )
+    except Exception as exc:
+        logger.exception("real card failed", extra={"decision_id": decision.id})
+        outcome = RealOutcome(None, f"ошибка: {type(exc).__name__}: {exc}"[:300])
     if outcome.card_id is None:
         event = session.get(orm.Event, decision.event_id)
         ticker = event.ticker if event is not None else "?"
@@ -212,6 +221,13 @@ def _open_real(
                 ),
             )
         )
+
+
+def stage_weight(stage: str, config: AppConfig) -> float:
+    """Вес стадии, если promote его не записал (новая версия из registry.yaml): live_small — 5%."""
+    if stage == "live_small":
+        return config.thresholds.lifecycle.live_small_weight
+    return 1.0
 
 
 def _card_orders(session: Session, config: AppConfig, now: datetime) -> CardOrders:

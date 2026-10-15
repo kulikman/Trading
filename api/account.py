@@ -103,7 +103,10 @@ def account_bar(
     pnl_month = _pnl_since(trades, today.replace(day=1))
     limit = thresholds.risk_limits.drawdown.manual_review
     value = sum(c.entry_value or 0.0 for c in open_cards)
-    at_risk = sum((c.risk_fraction or 0.0) * capital for c in open_cards)
+    at_risk = sum(
+        c.risk_usd if c.risk_usd is not None else (c.risk_fraction or 0.0) * capital
+        for c in open_cards
+    )
     in_trades, share = money(value), percent(value / balance if balance else 0.0)
     free, risk = money(balance - value), percent(at_risk / balance if balance else 0.0)
     worst = percent(stopped_drawdown(trades, capital, at_risk))
