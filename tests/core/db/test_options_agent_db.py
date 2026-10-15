@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from adapters.errors import DataError
 from adapters.fred.client import FredObservation
 from adapters.massive.history import years_to_expiration
-from adapters.massive.models import Bar, OptionContract, TickerChange
+from adapters.massive.models import Bar, OptionContract, OptionSnapshot, TickerChange
 from agents.options.agent import OptionsAgentPlugin
 from core.config import load_config
 from core.db import models as orm
@@ -99,6 +99,9 @@ class Source:
 
     def ticker_changes(self, ticker: str) -> list[TickerChange]:
         return []
+
+    def option_chain(self, underlying: str, **kwargs: Any) -> list[OptionSnapshot]:
+        raise DataError("massive", "HTTP 403 NOT_AUTHORIZED")  # тариф без снимка — запасной путь
 
 
 class Fred:
@@ -242,3 +245,92 @@ def test_needs_archive_session() -> None:
     )
     with pytest.raises(DataError, match="archive session"):
         agent.run(no_session)
+
+
+TODAY = date(2026, 10, 14)
+
+
+def snapshot(
+    kind: OptionType, strike: float, expiration: date, close: float | None, iv: float, delta: float
+) -> OptionSnapshot:
+    return OptionSnapshot.model_validate(
+        {
+            "details": {
+                "contract_type": kind,
+                "exercise_style": "american",
+                "expiration_date": expiration,
+                "shares_per_contract": 100,
+                "strike_price": strike,
+                "ticker": contract(kind, strike, expiration).ticker,
+            },
+            "day": {"close": close, "volume": 10},
+            "greeks": {"delta": delta},
+            "implied_volatility": iv,
+            "open_interest": 100,
+        }
+    )
+
+
+CHAIN = [
+    snapshot("call", 100, FRONT, 4.0, 0.58, 0.55),
+    snapshot("put", 100, FRONT, 3.0, 0.62, -0.45),
+    snapshot("call", 101, FRONT, None, 0.57, 0.50),  # без сделки — не ATM, хотя ближе к цене
+    snapshot("put", 101, FRONT, 3.5, 0.61, -0.50),
+    snapshot("put", 95, FRONT, 1.0, 0.66, -0.24),
+    snapshot("put", 90, FRONT, 0.4, 0.70, -0.10),
+    snapshot("call", 107.5, FRONT, 0.9, 0.56, 0.26),
+    snapshot("call", 115, FRONT, 0.2, 0.55, 0.08),
+    snapshot("call", 100, BACK, 6.0, 0.41, 0.55),
+    snapshot("put", 100, BACK, 5.0, 0.39, -0.45),
+]
+
+
+class ChainSource(Source):
+    def __init__(self, chain: list[OptionSnapshot]) -> None:
+        super().__init__()
+        self.chain = chain
+
+    def option_chain(self, underlying: str, **kwargs: Any) -> list[OptionSnapshot]:
+        assert kwargs["expiration_gte"] == date(2026, 10, 21)  # не раньше дня реакции
+        return self.chain
+
+    def aggregates(
+        self,
+        ticker: str,
+        multiplier: int,
+        timespan: Any,
+        start: date,
+        end: date,
+        *,
+        adjusted: bool = True,
+    ) -> list[Bar]:
+        if timespan != "minute":
+            return super().aggregates(ticker, multiplier, timespan, start, end, adjusted=adjusted)
+        assert (ticker, start, end) == ("NFLX", TODAY, TODAY)
+        minute = datetime.combine(TODAY, time(14, 44), tzinfo=ET).timestamp() * 1000
+        late = datetime.combine(TODAY, time(15, 30), tzinfo=ET).timestamp() * 1000
+        return [
+            Bar.model_validate({"o": 1, "h": 1, "l": 1, "c": 101.0, "v": 1, "t": minute}),
+            Bar.model_validate({"o": 1, "h": 1, "l": 1, "c": 999.0, "v": 1, "t": late}),
+        ]
+
+
+def test_chain_features_by_hand(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    source = ChainSource(CHAIN)
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS).run(ctx(session))
+    assert features.implied_move == pytest.approx((4.0 + 3.0) / 101.0)  # цена — минута 14:44
+    assert features.atm_iv == pytest.approx(0.60)
+    assert features.skew_25d == pytest.approx(0.66 - 0.56)  # дельты −0,24 и 0,26
+    assert features.term_slope == pytest.approx(0.60 - 0.40)
+    assert [t for t in source.requests if t != "NFLX"] == []  # свечи контрактов не нужны
+    assert session.scalars(select(orm.OptionDailyBar)).all() == []
+
+
+def test_chain_without_atm_pair_falls_back_to_closes(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    calls_only = [s for s in CHAIN if s.details.contract_type == "call"]
+    source = ChainSource(calls_only)
+    features = OptionsAgentPlugin(source, Fred(), HISTORY, SETTINGS).run(ctx(session))
+    assert features.atm_iv == pytest.approx(0.60, abs=1e-4)  # IV по закрытиям накануне
+    assert "O:NFLX261023C00100000" in source.requests
