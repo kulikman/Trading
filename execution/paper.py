@@ -101,7 +101,7 @@ class PaperBook:
         ).all()
         for card, decision, event in rows:
             days = EventDays.of(event.report_date, REPORT_TIMES.get(event.report_time or ""))
-            step = _entry_step(session, decision)
+            step = entry_step(session, decision)
             if days.reaction >= today or step is None:
                 continue
             outcome = self._calculator.evaluate(session, step, event, days, today)
@@ -204,7 +204,7 @@ def risk_scale(step: orm.DecisionStep, trade: Trade, thresholds: Thresholds) -> 
     return risk_usd / trade.risk if trade.risk > 0 else 0.0
 
 
-def _entry_step(session: Session, decision: orm.Decision) -> orm.DecisionStep | None:
+def entry_step(session: Session, decision: orm.Decision) -> orm.DecisionStep | None:
     """Шаг решения, давший вход: последнее прошедшее предложение стратегии по событию."""
     return session.scalars(
         select(orm.DecisionStep)

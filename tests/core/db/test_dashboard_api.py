@@ -576,9 +576,9 @@ def test_trust_line_costs_paper_vs_real(client: TestClient, session: Session) ->
         side="buy",
         quantity=10,
         multiplier=1,
-        order_type="limit",
+        order_type="stop",
         purpose="entry",
-        limit_price=100.0,
+        stop_price=100.0,
     )
     fill = Fill(
         order_id="m-1",
@@ -588,7 +588,7 @@ def test_trust_line_costs_paper_vs_real(client: TestClient, session: Session) ->
         side="buy",
         quantity=10,
         multiplier=1,
-        price=101.0,  # на доллар хуже лимита — далеко за порогом модели
+        price=101.0,  # на доллар хуже стопа — далеко за порогом модели
         at=NOW,
     )
     session.add(
@@ -603,5 +603,6 @@ def test_trust_line_costs_paper_vs_real(client: TestClient, session: Session) ->
     )
     session.flush()
     after = client.get("/api/trades", headers=AUTH).json()
-    assert "(1 исполнений), вывод — от 20" in after["trust_line"]
-    assert after["trust_tone"] == "negative"
+    assert "реальные выше модели" in after["trust_line"]
+    assert "(1 исполнение), вывод — от 20" in after["trust_line"]
+    assert after["trust_tone"] == "neutral"  # одно исполнение — вывода нет, строка не красная

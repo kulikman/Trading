@@ -10,7 +10,7 @@ from core.db.store import save_reported_earnings, set_implied_move, sync_univers
 from core.domain.earnings import ReportedEarnings
 from core.domain.schedule import EventJob
 from core.registry.state import sync_plugins
-from learning.season import learn_season
+from learning.season import learn_season, write_report
 from models.forecast import run_forecast
 from models.versions import active_models, exploration_models, init_prior
 
@@ -68,7 +68,8 @@ def seed(
 
 def test_season_accepts_better_version(session: Session, tmp_path: Path) -> None:
     seed(session, 60)
-    result = learn_season(session, CONFIG, NOW, tmp_path)
+    result = learn_season(session, CONFIG, NOW)
+    write_report(result, tmp_path)
     assert result.version == "0.2.0"
     assert result.accepted, result.reason
     by_model = {o.model: o for o in result.models}
@@ -87,7 +88,8 @@ def test_season_accepts_better_version(session: Session, tmp_path: Path) -> None
 
 def test_small_season_creates_no_version(session: Session, tmp_path: Path) -> None:
     seed(session, 10)
-    result = learn_season(session, CONFIG, NOW, tmp_path)
+    result = learn_season(session, CONFIG, NOW)
+    write_report(result, tmp_path)
     assert not result.accepted
     assert result.reason.startswith("мало данных — версия не создана")
     assert "мало наблюдений: 10 из 30" in result.reason
@@ -137,3 +139,56 @@ def test_quarantine_by_company_brier(session: Session) -> None:
     assert company.calibration_status == "quarantine"
     stored = session.scalars(select(orm.ModelVersion.version).distinct()).all()
     assert sorted(stored) == ["0.1.0"]  # 8 отчётов — мало для версии, карантин всё равно считается
+
+
+def test_rejected_version_stores_fitted_weights_for_exploration(session: Session) -> None:
+    seed(session, 60)
+    perfect = {
+        "p_up": {
+            "intercept": 0.0,
+            "betas": {"options.skew_25d": -50.0},
+            "scales": {"options.skew_25d": 0.08},
+        },
+        "p_beat": {
+            "intercept": 0.0,
+            "betas": {"options.skew_25d": -50.0},
+            "scales": {"options.skew_25d": 0.08},
+        },
+        "move_ratio": {"intercept": 50.0},
+    }
+    for name, params in perfect.items():  # действующие веса почти без ошибки — новые не лучше
+        session.add(
+            orm.ModelVersion(
+                model=name,
+                version="0.2.0",
+                params=params,
+                trained_at=NOW - timedelta(days=1),
+                accepted=True,
+                reason="test",
+            )
+        )
+    session.flush()
+    result = learn_season(session, CONFIG, NOW)
+    assert result.version == "0.3.0"
+    assert not result.accepted, result.reason
+    explored = exploration_models(session)
+    assert explored is not None
+    assert explored.version == "0.3.0"
+    fitted = next(o.fitted for o in result.models if o.model == "p_up")
+    assert fitted is not None
+    assert explored.params["p_up"] == fitted  # исследуются новые веса, а не копия действующих
+    assert explored.params["p_up"].betas != {"options.skew_25d": -50.0}
+
+
+def test_quarantine_lifts_when_forecasts_improve(session: Session) -> None:
+    ids = seed(session, 8, ticker="TSLA")
+    company = session.get(orm.Company, "TSLA")
+    assert company is not None
+    company.calibration_status = "quarantine"
+    for i, event_id in enumerate(ids):  # прогноз совпал с итогом (рост — при чётном i)
+        p_up = 0.9 if i % 2 == 0 else 0.1
+        session.add(orm.Forecast(event_id=event_id, stage="T-1", model_version="0.1.0", p_up=p_up))
+    session.flush()
+    result = learn_season(session, CONFIG, NOW)
+    assert result.quarantine["TSLA"] == "из карантина (Brier 0.010 на 8 отчётах)"
+    assert company.calibration_status == "active"

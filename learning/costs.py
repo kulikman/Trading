@@ -1,11 +1,17 @@
 """Калибровка издержек (T21, SPEC §17 п.3): издержки Paper (CostModel) против реальных исполнений.
 
-Реальные издержки ноги — насколько исполнение хуже намеченной цены ордера (лимит или стоп): система
-ставит её как опорную, от неё же CostModel считает спред и проскальзывание. Комиссия в сравнение не
-входит — она по тарифу брокера. Не измеряют издержек: рыночный ордер (намеченной цены нет) и
-подтверждение кнопкой «Исполнено» по цене лимита. От `min_fills` исполнений и при расхождении
-больше `costs.paper_vs_real_alert` — сообщение «СИСТЕМА» с поправкой допущения спреда; конфиг
-брокера меняет заказчик.
+Реальные издержки ноги — насколько исполнение хуже намеченной цены ордера (лимит или стоп).
+Допущение: намеченная цена — опорная (середина или теоретическая), от неё же CostModel считает
+спред и проскальзывание; исполнение лучше намеченной — реальные ниже модели. Комиссия в сравнение
+не входит — она по тарифу брокера.
+
+Не считаются: рыночный ордер (намеченной цены нет) и исполнение ровно по намеченной цене — так
+подтверждает кнопка «Исполнено», цены она не измеряет (настоящее исполнение ровно по лимиту
+тоже выпадает — выборка смещена к исполнениям с улучшением). Источника фактических цен пока нет:
+ордера Real в broker_order система не создаёт, ввод цены исполнения — решение заказчика.
+
+От `min_fills` исполнений и расхождении больше `costs.paper_vs_real_alert` — сообщение «СИСТЕМА»
+с поправкой допущения спреда; конфиг брокера меняет заказчик.
 """
 
 from collections.abc import Iterable
@@ -17,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from core.db import models as orm
 from core.domain.broker import Fill, Order
+from core.text import plural
 from execution.costs import CostLeg, CostModel
 
 DRIFT_CODE = "COSTS_DRIFT"
@@ -42,6 +49,7 @@ class CostCalibration:
     real_cost: float  # $, исполнение хуже намеченной цены
     divergence: float | None  # реальные / модельные − 1
     drift: bool
+    enough: bool  # исполнений не меньше min_fills — можно делать вывод
     text: str
 
 
@@ -64,13 +72,18 @@ def compare_costs(
         model_cost += expected.spread + expected.slippage
         fills += 1
     if fills == 0 or model_cost <= 0:
-        return CostCalibration(fills, model_cost, real_cost, None, False, NO_FILLS)
+        return CostCalibration(fills, model_cost, real_cost, None, False, False, NO_FILLS)
     divergence = real_cost / model_cost - 1
-    drift = fills >= min_fills and abs(divergence) > alert
-    text = f"расхождение {abs(divergence):.0%} ({fills} исполнений)"
-    if fills < min_fills:
+    enough = fills >= min_fills
+    drift = enough and abs(divergence) > alert
+    side = "выше" if divergence > 0 else "ниже"
+    text = (
+        f"реальные {side} модели на {abs(divergence):.0%} "
+        f"({fills} {plural(fills, 'исполнение', 'исполнения', 'исполнений')})"
+    )
+    if not enough:
         text += f", вывод — от {min_fills}"
-    return CostCalibration(fills, model_cost, real_cost, divergence, drift, text)
+    return CostCalibration(fills, model_cost, real_cost, divergence, drift, enough, text)
 
 
 def real_executions(session: Session) -> list[RealExecution]:
@@ -96,9 +109,14 @@ def check_costs(
     if not result.drift or result.divergence is None:
         return result
     factor = result.real_cost / result.model_cost
+    advice = (
+        f"допущение спреда × {factor:.2f}"
+        if factor > 0
+        else "исполнения не хуже намеченных цен — допущение спреда можно снизить"
+    )
     text = (
-        f"СИСТЕМА · издержки Paper против реальности — {result.text}, порог {alert:.0%}. "
-        f"Пересчитать CostModel: допущение спреда × {factor:.2f} (config/broker.yaml)"
+        f"СИСТЕМА · издержки Paper против реальности: {result.text}, порог {alert:.0%}. "
+        f"Пересчитать CostModel (config/broker.yaml): {advice}"
     )
     sent = session.scalar(
         select(orm.SystemMessage.id).where(
