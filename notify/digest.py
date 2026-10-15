@@ -25,6 +25,7 @@ from core.session_guard import ET, next_trading_day, previous_trading_day, to_et
 from decision.week import WeekSelection, select_week
 from notify.signals import NAMES, REPORT_WORDS
 
+REAL_STAGES = ("live_small", "live")  # стадии стратегий с Real (E10)
 MSK = ZoneInfo("Europe/Moscow")
 OPEN_STATES = ("OPEN", "C_MODE", "CLOSING")
 CLOSED_STATES = ("CLOSED", "STOPPED")
@@ -78,8 +79,16 @@ def terminal_text(session: Session, event: orm.Event) -> str | None:
         .where(orm.Decision.event_id == event.id, orm.TradeCard.paper.is_(False))
         .where(orm.TradeCard.state.in_(("ARMED", *OPEN_STATES)))
     ).all()
-    if not real:
+    live_c = session.scalar(
+        select(orm.Plugin.id).where(orm.Plugin.id == "mode_c", orm.Plugin.stage.in_(REAL_STAGES))
+    )
+    if not real and live_c is None:
         return None
+    if not real:  # режим C в Real: вход решается в 10:45 ET — карточки ещё нет
+        return (
+            f"БЫТЬ У ТЕРМИНАЛА · {event.ticker} · режим C (Real)\n"
+            "10:45 ET: возможен вход Real по сигналу — карточка «ДЕЙСТВИЕ» с ордерами"
+        )
     names = ", ".join(NAMES.get(c or "", c or "") for c in real)
     reaction = EventDays.of(event.report_date, REPORT_TIMES.get(event.report_time or "")).reaction
     opening = datetime.combine(reaction, time(9, 30), tzinfo=ET)
@@ -101,7 +110,53 @@ def notify_handlers(client_factory: Callable[[], Messenger | None]) -> dict[str,
     def evening(session: Session, job: EventJob) -> None:
         """Покрывается общим вечерним дайджестом 16:30 ET — отдельного сообщения нет."""
 
-    return {"be_at_terminal": terminal, "evening_digest": evening}
+    def close_positions(session: Session, job: EventJob) -> None:
+        """T0 10:45 ET: Real стрэддл / кондор события — закрыть до 11:00 (SPEC §10, E10-3)."""
+        client = client_factory()
+        for text in exit_texts(session, job.event_id):
+            if client is not None:
+                client.send(text)
+
+    return {
+        "be_at_terminal": terminal,
+        "evening_digest": evening,
+        "close_positions": close_positions,
+    }
+
+
+def exit_texts(session: Session, event_id: int) -> list[str]:
+    """Открытые Real-опционы события: «ВЫХОД до 11:00 ET» с ногами для закрытия."""
+    rows = session.execute(
+        select(orm.TradeCard, orm.Decision, orm.Event)
+        .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
+        .join(orm.Event, orm.Event.id == orm.Decision.event_id)
+        .where(
+            orm.Decision.event_id == event_id,
+            orm.TradeCard.paper.is_(False),
+            orm.TradeCard.state.in_(OPEN_STATES),
+            orm.Decision.construction.in_(("straddle", "iron_condor")),
+        )
+    ).all()
+    texts = []
+    for card, decision, event in rows:
+        name = NAMES.get(decision.construction or "", decision.construction or "")
+        legs = [_close_line(leg) for leg in card.legs or []]
+        texts.append(
+            "\n".join(
+                [
+                    f"ВЫХОД до 11:00 ET · {event.ticker} · {name} · REAL #{card.id}",
+                    *legs,
+                    "Закрыли — нажмите «Закрыл» в карточке и ответьте ценами выхода",
+                ]
+            )
+        )
+    return texts
+
+
+def _close_line(leg: dict[str, object]) -> str:
+    """Нога на закрытие: обратная сторона, тот же контракт и количество."""
+    side = "Продать" if leg["side"] == "buy" else "Купить"
+    return f"{side}  {leg['symbol']}  {float(str(leg['quantity'])):g} шт."
 
 
 def _header(title: str, now: datetime) -> str:

@@ -95,3 +95,15 @@ def test_other_cards_untouched(session: Session, mode: str, state: str, with_fil
     other = card(session, mode, state, with_fill)
     assert update_trailing(session, Stocks(), CONFIG.thresholds, NOW) == 0
     assert other.trailing is None
+
+
+def test_real_card_gets_stop_move_note_once(session: Session) -> None:
+    real = card(session, "C", "OPEN")
+    real.paper, real.stop = False, {"rule": "трейлинг", "price": 96.0}
+    session.flush()
+    notes: list[str] = []
+    update_trailing(session, Stocks(), CONFIG.thresholds, NOW, notes)
+    assert notes == [f"REAL NFLX #{real.id}: переставьте стоп на 103.14 (было 96.00)"]
+    again: list[str] = []
+    update_trailing(session, Stocks(), CONFIG.thresholds, NOW, again)
+    assert again == []  # стоп не сдвинулся — сообщать нечего

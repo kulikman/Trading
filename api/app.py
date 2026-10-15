@@ -7,6 +7,7 @@
 
 import secrets
 from collections.abc import Callable, Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
@@ -99,7 +100,10 @@ def create_app(
 
     @app.get("/api/today")
     def today(db: Db) -> events.Today:
-        return events.today_view(db, clock(), open_cards(db, paper=True))
+        real = [  # Real-позиции — рядом с paper, с пометкой (E10-3)
+            replace(c, mode=f"{c.mode or '—'} · REAL") for c in open_cards(db, paper=False)
+        ]
+        return events.today_view(db, clock(), [*open_cards(db, paper=True), *real])
 
     @app.get("/api/week")
     def week(db: Db) -> events.Week:
