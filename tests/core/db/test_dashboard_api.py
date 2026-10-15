@@ -320,7 +320,8 @@ def test_today_week_and_journal(seeded: Session, client: TestClient) -> None:
     assert today["now"]["is_action"] is False
     week = client.get("/api/week", headers=AUTH).json()
     assert [e["ticker"] for e in week["events"]] == ["BAC", "WFC", "C"]  # пн 12.10 – пт 16.10
-    assert week["top"] == []  # отбор недели — T16
+    assert week["top"] == []  # решений с вероятностью модели нет — топ пуст
+    assert week["top_message"].startswith("нет событий с ожидаемой прибылью")
     journal = client.get("/api/journal?filter=skipped", headers=AUTH).json()
     assert journal["summary"] == "Пропуски сэкономили $150 · упустили $80"
     assert {r["code"]: r["times"]["value"] for r in journal["reasons"]} == {

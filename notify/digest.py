@@ -16,11 +16,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from adapters.massive.history import EventDays
+from core.config.thresholds import Thresholds
 from core.db import models as orm
 from core.domain.schedule import EventJob
 from core.registry.agent_jobs import REPORT_TIMES
 from core.scheduler.dispatch import Handler
 from core.session_guard import ET, next_trading_day, previous_trading_day, to_et
+from decision.week import WeekSelection, select_week
 from notify.signals import NAMES, REPORT_WORDS
 
 MSK = ZoneInfo("Europe/Moscow")
@@ -39,8 +41,8 @@ class Messenger(Protocol):
         """Отправить сообщение; вернуть его id."""
 
 
-def morning_text(session: Session, now: datetime) -> str:
-    """Утренний дайджест 08:30 ET."""
+def morning_text(session: Session, now: datetime, thresholds: Thresholds) -> str:
+    """Утренний дайджест 08:30 ET; в понедельник — отбор недели (decision.week)."""
     today = to_et(now).date()
     lines = [_header("ДАЙДЖЕСТ · утро", now)]
     lines += _section("Отчёты сегодня", _reports(session, today, today))
@@ -48,8 +50,10 @@ def morning_text(session: Session, now: datetime) -> str:
     yesterday = previous_trading_day(today)
     lines += _section(f"Закрыто {yesterday:%d.%m}", _closed(session, yesterday, yesterday))
     if today.weekday() == 0:
-        friday = today + timedelta(days=4)
-        lines += _section(f"Неделя {today:%d.%m}–{friday:%d.%m}", _reports(session, today, friday))
+        selection = select_week(session, today, thresholds)
+        lines += _section(
+            f"Неделя {selection.first:%d.%m}–{selection.last:%d.%m}", _week_lines(selection)
+        )
         last_monday = today - timedelta(days=7)
         lines += _section("Итог прошлой недели", [_week_total(session, last_monday)])
     return "\n".join(lines)
@@ -123,6 +127,24 @@ def _reports(session: Session, first: date, last: date) -> list[str]:
         if event.id not in seen or status == "ENTERED":
             seen[event.id] = f"{event.report_date:%d.%m} {event.ticker} · {when} · {state}"
     return list(seen.values())
+
+
+def _week_lines(selection: WeekSelection) -> list[str]:
+    """Отбор недели — тот же список и порядок, что на экране «Неделя» (SPEC §17 п.2)."""
+    lines = []
+    for n, pick in enumerate(selection.top, start=1):
+        name = NAMES.get(pick.construction or "", pick.construction or "—")
+        expected = pick.expected_usd or 0.0
+        sign = "+" if expected >= 0 else "−"
+        lines.append(
+            f"{n}. {pick.event.report_date:%d.%m} {pick.event.ticker} · {name} · "
+            f"ожидаемая прибыль {sign}${abs(expected):,.0f}".replace(",", " ")
+        )
+    for pick in selection.rest:
+        when = REPORT_WORDS.get(pick.event.report_time or "", "время ?")
+        state = STATUS_WORDS.get(pick.decision.status if pick.decision else "", "ждём решения")
+        lines.append(f"{pick.event.report_date:%d.%m} {pick.event.ticker} · {when} · {state}")
+    return lines
 
 
 def _open_positions(session: Session) -> list[str]:

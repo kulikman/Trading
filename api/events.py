@@ -11,11 +11,13 @@ from pydantic import BaseModel
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from api.format import Num, count, day, empty, et_msk, money
+from api.format import Num, count, day, empty, et_msk, money, percent
 from api.trades import stop_view
 from api.trades_data import OpenCard
+from core.config.thresholds import Thresholds
 from core.db import models as orm
 from core.session_guard import ET, to_et
+from decision.week import WeekPick, select_week
 
 DECISION_LABELS = {
     "ENTERED": "ВХОД",
@@ -39,6 +41,18 @@ STATE_STEPS = {
     "CLOSING": "закрытие",
 }
 NO_EVENTS = "нет событий"
+NO_TOP = (
+    "нет событий с ожидаемой прибылью: решения ещё впереди или без модели (режим C — по сигналу T0)"
+)
+MODE_WORDS = {"move": "движение", "A": "A", "B": "B", "C": "C"}
+CONSTRUCTION_WORDS = {
+    "straddle": "стрэддл",
+    "iron_condor": "iron condor",
+    "stock": "акция",
+    "stock_short": "акция, продажа",
+    "stock_collar": "акция + коллар",
+    "put_spread": "пут-спред",
+}
 
 
 class ActionRow(BaseModel):
@@ -180,27 +194,42 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
     )
 
 
-def week_view(session: Session, now: datetime) -> Week:
-    monday, friday = _week(now)
+def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
+    """Отбор недели (SPEC §17 п.2): топ по ожидаемой прибыли и остальные события окна."""
+    selection = select_week(session, to_et(now).date(), thresholds)
+    top = [
+        {
+            "№": str(n),
+            "Тикер": p.event.ticker,
+            "Дата и время": f"{day(p.event.report_date)} {p.event.report_time or ''}".strip(),
+            "Режим": MODE_WORDS.get(p.mode or "", p.mode or "—"),
+            "Конструкция": CONSTRUCTION_WORDS.get(p.construction or "", p.construction or "—"),
+            "Ожидаемая прибыль": money(p.expected_usd, signed=True).display,
+            "Уверенность": percent(p.confidence, digits=0).display,
+        }
+        for n, p in enumerate(selection.top, start=1)
+    ]
     events = [
         WeekEventRow(
-            ticker=e.ticker,
-            date=f"{day(e.report_date)} {e.report_time or ''}".strip(),
-            status=(
-                DECISION_LABELS.get(d.status, WAITING)
-                if d
-                else ("дата подтверждена" if e.date_status == "confirmed" else "дата — прогноз")
-            ),
-            reason=(", ".join(d.reasons) if d and d.reasons else "—"),
+            ticker=p.event.ticker,
+            date=f"{day(p.event.report_date)} {p.event.report_time or ''}".strip(),
+            status=_week_status(p),
+            reason=", ".join(p.reasons) if p.reasons else "—",
         )
-        for e, d in _one_per_event(_events(session, monday, friday))
+        for p in selection.rest
     ]
     return Week(
-        top=[],
-        top_message="Отбор недели появится с модулем решений (T16)",
+        top=top,
+        top_message=None if top else NO_TOP,
         events=events,
-        events_message=None if events else NO_EVENTS,
+        events_message=None if events or top else NO_EVENTS,
     )
+
+
+def _week_status(pick: WeekPick) -> str:
+    if pick.decision is not None:
+        return DECISION_LABELS.get(pick.decision.status, WAITING)
+    return "дата подтверждена" if pick.event.date_status == "confirmed" else "дата — прогноз"
 
 
 def terminal_view(session: Session, now: datetime) -> Terminal:

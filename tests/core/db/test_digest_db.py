@@ -77,7 +77,7 @@ def test_monday_morning_digest(session: Session) -> None:
     )
     card(session, nflx, "OPEN")
     session.flush()
-    lines = morning_text(session, MONDAY).splitlines()
+    lines = morning_text(session, MONDAY, CONFIG.thresholds).splitlines()
     assert lines[0] == "ДАЙДЖЕСТ · утро · 19.10 08:30 ET (15:30 МСК)"
     assert "19.10 NFLX · до открытия · вход" in lines
     assert "NFLX · iron condor · PAPER" in lines  # открытая позиция
