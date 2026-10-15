@@ -63,6 +63,15 @@ class TrailingSettings(StrictModel):
     _time = field_validator("run_time_et", mode="before")(_parse_time)
 
 
+class DigestSettings(StrictModel):
+    """Дайджесты в Telegram (SPEC §12): утро и вечер, ET."""
+
+    morning_et: time
+    evening_et: time
+
+    _times = field_validator("morning_et", "evening_et", mode="before")(_parse_time)
+
+
 class EventJobSpec(StrictModel):
     stage: str = Field(pattern=r"^T([+-]\d+|0)$")
     job: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
@@ -86,6 +95,7 @@ class ScheduleConfig(StrictModel):
     archive: ArchiveSettings
     consensus: ConsensusSnapshotSettings
     trailing: TrailingSettings
+    digest: DigestSettings
     event_jobs: list[EventJobSpec] = Field(min_length=1)
 
     @model_validator(mode="after")
