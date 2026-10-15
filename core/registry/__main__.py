@@ -1,7 +1,8 @@
 """`make promote ARGS="mode_c"`: попытка поднять плагин на одну ступень (SPEC §7).
 
 Сначала синхронизирует реестр с БД (новые плагины появляются со стадией из registry.yaml),
-затем решает по метрикам отложенной выборки и пишет попытку в журнал plugin_stage_change.
+затем решает по метрикам (learning/evidence.py: Sharpe сделок стратегии, Brier агента из
+отчёта сезона) и пишет попытку в журнал plugin_stage_change.
 """
 
 import argparse
@@ -13,8 +14,9 @@ from sqlalchemy.orm import Session
 
 from core.config import load_config
 from core.db.session import create_db_engine, database_url
-from core.registry.promote import NoEvidence, promote
+from core.registry.promote import promote
 from core.registry.state import sync_plugins
+from learning.evidence import DbEvidence
 
 logger = logging.getLogger("core.registry")
 
@@ -35,7 +37,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
             session,
             entry.id,
             entry.version,
-            source=NoEvidence(),  # TODO(T15/T20): метрики моделей и сезона
+            source=DbEvidence(session, config.thresholds),
             lifecycle=config.thresholds.lifecycle,
             now=datetime.now(UTC),
         )

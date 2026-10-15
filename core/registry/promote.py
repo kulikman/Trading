@@ -3,7 +3,7 @@
 Условия: наблюдений ≥ lifecycle.promote_min_obs; у агента Brier на отложенной выборке лучше
 (меньше) базового, у стратегии Sharpe лучше (больше). Иначе — отказ с причиной.
 Каждая попытка (и принятая, и отказ) пишется в журнал plugin_stage_change.
-Метрики подаёт EvidenceSource; до моделей (T15) и обучения сезона (T20) их нет — NoEvidence.
+Метрики подаёт EvidenceSource: по базе — learning.evidence.DbEvidence; NoEvidence — для тестов.
 """
 
 from dataclasses import dataclass
