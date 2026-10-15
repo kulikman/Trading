@@ -49,6 +49,7 @@ from core.domain.types import (
     PromotionMetric,
     QueueStatus,
     ReportTime,
+    ShadowStatus,
     StepOutcome,
 )
 
@@ -359,6 +360,34 @@ class DecisionStep(Timestamps, Base):
     cost_fraction: Mapped[float | None]
     risk_fraction: Mapped[float | None]
     at: Mapped[datetime]
+
+
+class ShadowTrade(Timestamps, Base):
+    """Теневая сделка (T16, SPEC §10): результат предложения, которое не стало входом.
+
+    По одной на событие и стратегию — последнее предложение стратегии по событию. pnl — в $
+    при риске sizing.data_collection_risk капитала, чтобы стратегии были сравнимы.
+    """
+
+    __tablename__ = "shadow_trade"
+    __table_args__ = (
+        UniqueConstraint("event_id", "strategy_id"),
+        CheckConstraint(_one_of("status", ShadowStatus), name="status"),
+    )
+
+    id: Mapped[int] = _pk_id()
+    event_id: Mapped[int] = mapped_column(ForeignKey("event.id"), index=True)
+    strategy_id: Mapped[str]
+    step_id: Mapped[int] = mapped_column(ForeignKey("decision_step.id"))
+    construction: Mapped[str]
+    status: Mapped[str]
+    note: Mapped[str | None]  # причина no_data / open
+    entry_on: Mapped[date | None]
+    exit_at: Mapped[datetime | None]
+    exit_reason: Mapped[str | None]
+    return_on_risk: Mapped[float | None]
+    pnl: Mapped[float | None]
+    brier: Mapped[float | None]
 
 
 class TradeCard(Timestamps, Base):

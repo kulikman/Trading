@@ -18,6 +18,7 @@ from adapters.errors import DataError
 from adapters.fred.client import FredClient, fred_api_key
 from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.history import (
+    EventDays,
     HistoricalStraddle,
     spot_on,
     stock_closes,
@@ -113,12 +114,41 @@ def _trade(
     costs: CostModel,
     condor_stop: CondorStopBasis | None = None,
 ) -> Trade | str:
+    return option_trade(
+        db,
+        item.ticker,
+        item.days,
+        item.implied_move,
+        construction,
+        closes,
+        thresholds=thresholds,
+        history=history,
+        costs=costs,
+        condor_stop=condor_stop,
+    )
+
+
+def option_trade(
+    db: Session,
+    ticker: str,
+    days: EventDays,
+    implied_move: float,
+    construction: Construction,
+    closes: dict[date, float],
+    *,
+    thresholds: Thresholds,
+    history: MassiveHistory,
+    costs: CostModel,
+    condor_stop: CondorStopBasis | None = None,
+) -> Trade | str:
+    """Стрэддл или кондор по архиву: вход по закрытию накануне реакции, выход до exit_time_et.
+
+    Общая для бэктеста и теневых сделок (T16); нет цен — строка-причина.
+    """
     try:
-        spot = spot_on(closes, item.ticker, item.days)
-        archived = option_bars_on(db, item.ticker, item.days.pre)
-        straddle = straddle_from_bars(
-            item.ticker, item.days, spot, archived, history.risk_free_rate
-        )
+        spot = spot_on(closes, ticker, days)
+        archived = option_bars_on(db, ticker, days.pre)
+        straddle = straddle_from_bars(ticker, days, spot, archived, history.risk_free_rate)
     except DataError:
         return "no_entry_price"
     width: float | None = None
@@ -128,15 +158,15 @@ def _trade(
             Leg(straddle.put_ticker, 1, straddle.put_close),
         ]
     else:
-        condor = _condor_legs(item, spot, straddle, archived, thresholds)
+        condor = _condor_legs(implied_move, spot, straddle, archived, thresholds)
         if condor is None:
             return "no_condor_legs"
         legs, width = condor
-    start, end = exit_window(item.days.reaction, thresholds.backtest.exit_time_et)
+    start, end = exit_window(days.reaction, thresholds.backtest.exit_time_et)
     minutes = option_minute_bars(db, [leg.ticker for leg in legs], start, end)
     return simulate(
-        item.ticker,
-        item.days.report_date,
+        ticker,
+        days.report_date,
         construction,
         legs,
         minutes,
@@ -146,12 +176,12 @@ def _trade(
         open_slippage_minutes=thresholds.backtest.open_slippage_minutes,
         width=width,
         condor_stop=condor_stop,
-        entry_on=item.days.pre,  # вход по закрытию накануне реакции
+        entry_on=days.pre,  # вход по закрытию накануне реакции
     )
 
 
 def _condor_legs(
-    item: Signal,
+    implied_move: float,
     spot: float,
     straddle: HistoricalStraddle,
     archived: Sequence[OptionDailyBar],
@@ -166,7 +196,7 @@ def _condor_legs(
         sorted(calls),
         sorted(puts),
         spot,
-        item.implied_move,
+        implied_move,
         rules.short_implied_moves,
         rules.wing_implied_moves,
     )

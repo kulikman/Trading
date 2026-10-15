@@ -11,6 +11,7 @@ from core.config import load_config
 from core.db import models as orm
 from core.db.store import save_reported_earnings, sync_universe
 from core.domain.earnings import ReportedEarnings
+from learning.shadow import ShadowRunResult
 
 CONFIG = load_config()
 TODAY = date(2026, 10, 14)  # среда; 5 торговых дней назад — 07.10
@@ -84,6 +85,24 @@ def archive(builder: Builder, exits: Exits) -> DailyArchive:
         lookback_trading_days=5,
         tickers=UNIVERSE,
     )
+
+
+class Shadows:
+    def __init__(self) -> None:
+        self.calls: list[tuple[date, date]] = []
+
+    def run(self, session: Session, today: date, retry_since: date) -> ShadowRunResult:
+        self.calls.append((today, retry_since))
+        return ShadowRunResult({"closed": 1})
+
+
+def test_run_computes_shadows_after_exit_data(calendar: Session) -> None:
+    shadows = Shadows()
+    result = DailyArchive(
+        builder=Builder(), exits=Exits(), lookback_trading_days=5, tickers=UNIVERSE, shadows=shadows
+    ).run(calendar, TODAY)
+    assert shadows.calls == [(TODAY, date(2026, 10, 7))]  # no_data повторяется 5 торговых дней
+    assert result.shadows == ShadowRunResult({"closed": 1})
 
 
 def test_run_refreshes_dates_only_for_new_reports(calendar: Session) -> None:

@@ -45,6 +45,9 @@ JobKind = Literal["analysis", "execution", "notify"]
 EventJobStatus = Literal["planned", "done", "failed", "missed", "no_handler"]
 # Шаг решения (T16): предложение прошло ворота и размер / отказ с кодами.
 StepOutcome = Literal["proposal", "skip"]
+# Теневая сделка (T16): closed — посчитана; open — позиция ещё не закрылась бы; no_data — нет цен;
+# scored — без P&L, только Brier прогноза направления (режим B, решение заказчика 15.10.2026).
+ShadowStatus = Literal["closed", "open", "no_data", "scored"]
 # Три модели SPEC §9.
 ModelName = Literal["p_beat", "p_up", "move_ratio"]
 # Журнал «Настройки → Логи»: ошибка задачи или её восстановление после ошибки.

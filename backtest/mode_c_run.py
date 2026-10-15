@@ -86,7 +86,7 @@ def run_mode_c(
         closes = stock_closes(daily)
         periods = symbol_periods(ticker, stocks.ticker_changes(ticker))
         for days, direction in candidates:
-            outcome = _trade(
+            outcome = stock_trade(
                 ticker, days, direction, daily, closes, periods, stocks, thresholds, costs, capital
             )
             if isinstance(outcome, Trade):
@@ -96,7 +96,7 @@ def run_mode_c(
     return result
 
 
-def _trade(
+def stock_trade(
     ticker: str,
     days: EventDays,
     direction: Literal[1, -1],
@@ -108,6 +108,7 @@ def _trade(
     costs: CostModel,
     capital: float,
 ) -> Trade | str:
+    """Сделка режима C по правилам бэктеста; общая для бэктеста и теневых сделок (T16)."""
     rules, settings = thresholds.modes.C, thresholds.backtest.mode_c
     pre_close = closes.get(days.pre)
     if pre_close is None:
