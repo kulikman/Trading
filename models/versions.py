@@ -109,9 +109,32 @@ def init_prior(session: Session, settings: Models, *, today: date, now: datetime
 
 def active_models(session: Session) -> ActiveModels:
     """Последняя принятая версия, у которой есть все три модели."""
+    found = _latest(session, accepted=True)
+    if found is None:
+        raise NoModels("no accepted model version: run `make models-init`")
+    return found
+
+
+def exploration_models(session: Session) -> ActiveModels | None:
+    """Отклонённая версия новее действующей — для исследования 20% событий (SPEC §9); нет — None."""
+    rejected = _latest(session, accepted=False)
+    if rejected is None:
+        return None
+    active = session.scalar(
+        select(func.max(orm.ModelVersion.trained_at)).where(orm.ModelVersion.accepted.is_(True))
+    )
+    newest = session.scalar(
+        select(func.max(orm.ModelVersion.trained_at)).where(
+            orm.ModelVersion.version == rejected.version
+        )
+    )
+    return rejected if active is None or (newest is not None and newest > active) else None
+
+
+def _latest(session: Session, *, accepted: bool) -> ActiveModels | None:
     rows = session.scalars(
         select(orm.ModelVersion)
-        .where(orm.ModelVersion.accepted.is_(True))
+        .where(orm.ModelVersion.accepted.is_(accepted))
         .order_by(orm.ModelVersion.trained_at.desc(), orm.ModelVersion.id.desc())
     ).all()
     by_version: dict[str, dict[ModelName, ModelParams]] = {}
@@ -129,4 +152,4 @@ def active_models(session: Session) -> ActiveModels:
     for version in order:
         if set(by_version[version]) == set(MODEL_NAMES):
             return ActiveModels(version, by_version[version], metrics[version])
-    raise NoModels("no accepted model version: run `make models-init`")
+    return None

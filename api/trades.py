@@ -14,12 +14,10 @@ from api.format import price as price_num
 from api.trades_data import ClosedTrade, OpenCard
 from core.db import models as orm
 from core.session_guard import to_et
+from learning.costs import CostCalibration
 
 NO_QUOTES = "котировок нет: ручной брокер"
-TRUST_LINE = (
-    "Калибровка: нет данных до моделей (T15) · "
-    "Издержки Paper против реальности: нет данных до реальных исполнений"
-)
+CALIBRATION = "Калибровка: нет данных до моделей (T15)"
 
 
 class OpenRow(BaseModel):
@@ -69,6 +67,13 @@ class Card(BaseModel):
     transitions: list[Transition]
 
 
+def trust_view(costs: CostCalibration, cost_divergence: float) -> Trades:
+    """Строка доверия (DASHBOARD §4.3): красная, если издержки расходятся больше порога."""
+    line = f"{CALIBRATION} · Издержки Paper против реальности: {costs.text}"
+    over = costs.divergence is not None and abs(costs.divergence) > cost_divergence
+    return Trades(trust_line=line, trust_tone="negative" if over else "neutral")
+
+
 def stop_view(card: OpenCard) -> Num:
     """Стоп открытой сделки: уровень трейлинга, иначе правило стопа словами."""
     if card.stop_price is not None:
@@ -81,8 +86,10 @@ def trades_view(
     open_cards: Sequence[OpenCard],
     closed: Sequence[ClosedTrade],
     capital: float,
+    costs: CostCalibration,
+    cost_divergence: float,
 ) -> Trades:
-    view = Trades(trust_line=TRUST_LINE, trust_tone="neutral")
+    view = trust_view(costs, cost_divergence)
     if state == "open":
         view.open = [
             OpenRow(

@@ -214,6 +214,13 @@ def _brier(metrics: object) -> Num:
 
 def plugins_view(session: Session) -> list[PluginRow]:
     plugins = session.scalars(select(orm.Plugin).order_by(orm.Plugin.kind, orm.Plugin.id)).all()
+    learned = session.scalars(
+        select(orm.ModelVersion)
+        .where(orm.ModelVersion.model == "p_up", orm.ModelVersion.version != "0.1.0")
+        .order_by(orm.ModelVersion.trained_at.desc())
+        .limit(1)
+    ).first()
+    contributions = (learned.metrics or {}).get("contributions", {}) if learned else {}
     return [
         PluginRow(
             name=p.id,
@@ -221,8 +228,14 @@ def plugins_view(session: Session) -> list[PluginRow]:
             version=p.version,
             stage=p.stage,
             enabled="да" if p.enabled else "нет",
-            contribution=empty("нет данных до отчёта сезона (T20)"),
-            flagged="решит отчёт сезона (T20)",
+            contribution=_contribution(p, contributions, learned is not None),
+            flagged=(
+                "да"
+                if contributions.get(p.id, 0.0) < 0
+                else "нет"
+                if p.id in contributions
+                else "решит отчёт сезона (T20)"
+            ),
         )
         for p in plugins
     ]
@@ -296,6 +309,18 @@ def _error_report(entry: orm.ErrorLog, time: str) -> str:
             "Найди причину и предложи исправление.",
         ]
     )
+
+
+def _contribution(plugin: orm.Plugin, contributions: dict[str, float], learned: bool) -> Num:
+    """Вклад агента за сезон: насколько хуже Brier p_up без его признаков (больше — полезнее)."""
+    if plugin.id in contributions:
+        value = float(contributions[plugin.id])
+        return Num(
+            value=value, display=f"{value:+.4f} Brier", tone="positive" if value > 0 else "negative"
+        )
+    if plugin.kind != "agent":
+        return empty("стратегии — по сделкам, правило 30")
+    return empty("мало данных" if learned else "нет данных до отчёта сезона (T20)")
 
 
 class Heartbeat(BaseModel):
