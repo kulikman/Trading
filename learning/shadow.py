@@ -103,7 +103,7 @@ class ShadowCalculator:
             days = EventDays.of(event.report_date, REPORT_TIMES.get(event.report_time or ""))
             if days.reaction >= today or (status == "no_data" and days.reaction < retry_since):
                 continue
-            shadow = self._evaluate(session, step, event, days, today)
+            shadow = self.evaluate(session, step, event, days, today)
             self._save(session, step, shadow)
             result.counts[shadow.status] = result.counts.get(shadow.status, 0) + 1
         mark_skipped_decisions(session)
@@ -111,7 +111,7 @@ class ShadowCalculator:
         logger.info("shadow trades", extra={"counts": result.counts})
         return result
 
-    def _evaluate(
+    def evaluate(
         self,
         session: Session,
         step: orm.DecisionStep,
@@ -119,6 +119,7 @@ class ShadowCalculator:
         days: EventDays,
         today: date,
     ) -> Shadow:
+        """Результат предложения шага по правилам его конструкции (тень и paper-сделка)."""
         construction = step.construction or ""
         track = session.scalars(
             select(orm.EarningsTrack).where(

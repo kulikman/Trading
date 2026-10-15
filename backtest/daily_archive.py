@@ -7,7 +7,7 @@ archive.lookback_trading_days торговых дней — пропущенны
    (лимит 25 запросов в день);
 2. сборка архива: цены опционов и implied move, фактическое движение, выручка SEC, сверка с 8-K;
 3. данные выхода для бэктеста (минутные цены, ноги кондора) — только по свежим отчётам;
-4. теневые сделки (T16) — когда цены выхода уже скачаны.
+4. теневые сделки (T16) и paper-сделки — когда цены выхода уже скачаны.
 """
 
 import logging
@@ -34,6 +34,7 @@ from core.domain.types import ReportTime
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, previous_trading_day, to_et
+from execution.paper import PaperBook, PaperRunResult
 from learning.shadow import ShadowCalculator, ShadowRunResult
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,11 @@ class ArchiveStep(Protocol):
 class ShadowStep(Protocol):
     def run(self, session: Session, today: date, retry_since: date) -> ShadowRunResult:
         """Теневые сделки закрывшихся событий."""
+
+
+class PaperStep(Protocol):
+    def run(self, session: Session, today: date, retry_since: date) -> PaperRunResult:
+        """Paper-сделки закрывшихся событий."""
 
 
 class ExitStep(Protocol):
@@ -71,6 +77,7 @@ class DailyArchiveResult:
     archives: list[TickerArchive] = field(default_factory=list)
     exits: list[ExitDataReport] = field(default_factory=list)
     shadows: ShadowRunResult | None = None
+    paper: PaperRunResult | None = None
 
 
 def due_reports(
@@ -110,10 +117,12 @@ class DailyArchive:
         lookback_trading_days: int,
         tickers: set[str],
         shadows: ShadowStep | None = None,
+        paper: PaperStep | None = None,
     ) -> None:
         self._builder = builder
         self._exits = exits
         self._shadows = shadows
+        self._paper = paper
         self._lookback = lookback_trading_days
         self._tickers = tickers
 
@@ -128,9 +137,11 @@ class DailyArchive:
             result.archives.append(self._builder.build(session, ticker, refresh_dates=refresh))
             since = min(i.report_date for i in items)
             result.exits.append(self._exits.load(session, ticker, since=since))
+        retry_since = lookback_start(today, self._lookback)
         if self._shadows is not None:
-            retry_since = lookback_start(today, self._lookback)
             result.shadows = self._shadows.run(session, today, retry_since)
+        if self._paper is not None:
+            result.paper = self._paper.run(session, today, retry_since)
         logger.info(
             "daily archive",
             extra={"reports": len(result.due), "tickers": len(by_ticker)},
@@ -192,6 +203,7 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
         builder=builder,
         exits=exits,
         shadows=shadows,
+        paper=PaperBook(shadows, config.thresholds),
         lookback_trading_days=config.schedule.archive.lookback_trading_days,
         tickers=set(config.universe.tickers()),
     )
