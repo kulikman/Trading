@@ -70,7 +70,7 @@ def test_job_returns_detached_copy(session: Session, monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(daily, "engine", session.connection)  # своя транзакция теста, без commit
     result = daily.run_market_level(
         now=lambda: datetime(2026, 10, 14, 10, 5, tzinfo=UTC),
-        sources_factory=lambda config: (fred, stocks),
+        sources_factory=lambda config: (fred, stocks, None),
     )
     assert result is not None
     assert (result.day, result.level, result.vix) == (
@@ -78,3 +78,15 @@ def test_job_returns_detached_copy(session: Session, monkeypatch: pytest.MonkeyP
         "red",
         26.0,
     )  # после закрытия сессии
+
+
+class Cboe:
+    def vix_closes(self, start: date, end: date) -> dict[date, float]:
+        return {CLOSE_DAY: 40.0}  # CBOE уже знает закрытие, которого нет у FRED
+
+
+def test_cboe_vix_overrides_fred(session: Session) -> None:
+    fred, stocks = sources()
+    row = update_market_level(session, fred, stocks, THRESHOLDS, TODAY, Cboe())
+    assert row is not None
+    assert (row.vix, row.level) == (40.0, "red")

@@ -108,6 +108,15 @@ fred:                            # FRED, бесплатно; ключ — FRED_A
   cache_ttl_seconds:
     observations: 3600
 
+cboe:                            # CBOE, бесплатно, без ключа: VIX_History.csv — закрытие VIX в тот же вечер (FRED — через сутки+)
+  base_url: https://cdn-api.cboe.com
+  timeout_seconds: 20
+  max_attempts: 3
+  backoff_base_seconds: 1.0
+  user_agent: "EarningsEngine/1.0 (research; signals only)"
+  cache_ttl_seconds:
+    vix_history: 3600
+
 llm:                             # Claude API; ключ — ANTHROPIC_API_KEY. Только извлечение признаков и резюме (CLAUDE.md правило 2)
   model: claude-sonnet-5-5       # решение заказчика 14.10.2026 (дешевле Opus: $2 / $10 за 1M токенов)
   effort: medium
