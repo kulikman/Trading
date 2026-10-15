@@ -38,6 +38,7 @@ from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, previous_trading_day, to_et
 from execution.attribution import MassiveSpots
 from execution.paper import PaperBook, PaperRunResult
+from learning.costs import CostCalibration, check_costs
 from learning.shadow import ShadowCalculator, ShadowRunResult
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class DailyArchiveResult:
     exits: list[ExitDataReport] = field(default_factory=list)
     shadows: ShadowRunResult | None = None
     paper: PaperRunResult | None = None
+    costs: CostCalibration | None = None
 
 
 def due_reports(
@@ -122,12 +124,14 @@ class DailyArchive:
         shadows: ShadowStep | None = None,
         paper: PaperStep | None = None,
         min_atm_pair_volume: float | None = None,
+        costs: Callable[[Session], CostCalibration] | None = None,
     ) -> None:
         self._builder = builder
         self._exits = exits
         self._shadows = shadows
         self._paper = paper
         self._min_atm_pair_volume = min_atm_pair_volume
+        self._costs = costs
         self._lookback = lookback_trading_days
         self._tickers = tickers
 
@@ -151,6 +155,9 @@ class DailyArchive:
             result.shadows = self._shadows.run(session, today, retry_since)
         if self._paper is not None:
             result.paper = self._paper.run(session, today, retry_since)
+        if self._costs is not None:  # T21: издержки Paper против реальных исполнений
+            result.costs = self._costs(session)
+            session.commit()
         logger.info(
             "daily archive",
             extra={"reports": len(result.due), "tickers": len(by_ticker)},
@@ -208,6 +215,7 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
         history=sources.massive.history,
         costs=create_cost_model(config.broker),
     )
+    limits = config.thresholds.costs
     return DailyArchive(
         builder=builder,
         exits=exits,
@@ -221,6 +229,13 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
         min_atm_pair_volume=config.thresholds.liquidity.min_atm_pair_volume,
         lookback_trading_days=config.schedule.archive.lookback_trading_days,
         tickers=set(config.universe.tickers()),
+        costs=lambda session: check_costs(
+            session,
+            create_cost_model(config.broker),
+            alert=limits.paper_vs_real_alert,
+            min_fills=limits.min_real_fills,
+            now=datetime.now(UTC),
+        ),
     )
 
 

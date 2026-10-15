@@ -15,12 +15,15 @@ from sqlalchemy import Connection, Engine
 from sqlalchemy.orm import Session
 
 from adapters.api_model import require_env
+from adapters.broker.factory import create_cost_model
 from api import account, companies, events, system, trades
 from api.trades_data import closed_trades, first_card_at, open_cards
 from core.config import load_config
 from core.config.thresholds import Thresholds
 from core.db.session import create_db_engine
 from execution.cash import real_capital
+from execution.costs import CostModel
+from learning.costs import compare_costs, real_executions
 
 TOKEN_ENV = "DASHBOARD_API_TOKEN"  # noqa: S105 — имя переменной окружения, не секрет
 CHANGES_DEFAULT_DAYS = 7
@@ -35,11 +38,13 @@ def create_app(
     token: str | None = None,
     clock: Clock = lambda: datetime.now(UTC),
     thresholds: Thresholds | None = None,
+    cost_model: CostModel | None = None,
 ) -> FastAPI:
     """Приложение; без токена в окружении не стартует (открытый API с балансом недопустим)."""
     expected = token if token is not None else require_env(TOKEN_ENV)
     db = engine if engine is not None else create_db_engine()
     limits = thresholds if thresholds is not None else load_config().thresholds
+    costs_model = cost_model if cost_model is not None else create_cost_model(load_config().broker)
 
     def authorize(authorization: Annotated[str | None, Header()] = None) -> None:
         scheme, _, given = (authorization or "").partition(" ")
@@ -114,6 +119,13 @@ def create_app(
             open_cards(db, paper=is_paper),
             closed_trades(db, paper=is_paper),
             capital(mode, db) or limits.capital.module_usd,
+            compare_costs(
+                real_executions(db),
+                costs_model,
+                alert=limits.costs.paper_vs_real_alert,
+                min_fills=limits.costs.min_real_fills,
+            ),
+            limits.dashboard.cost_divergence,
         )
 
     @app.get("/api/trades/{card_id}")

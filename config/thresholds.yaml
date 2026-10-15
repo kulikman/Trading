@@ -166,6 +166,7 @@ execution:                           # SPEC §1, §11
 
 costs:                               # SPEC §17 п.3
   paper_vs_real_alert: 0.20
+  min_real_fills: 20                 # T21, стартовое: от 20 реальных исполнений — сообщение и пересчёт
 
 notify:                              # SPEC §12
   watchdog_grace_minutes: 5
