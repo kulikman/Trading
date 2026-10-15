@@ -12,7 +12,7 @@ from core.domain.broker import Fill, Order, OrderId, Quote
 from core.registry.protocols import Proposal
 from decision.chief import run_decision
 from execution.cash import record_cash
-from notify.bot import handle_callback
+from notify.bot import handle_callback, handle_reply
 from notify.signals import send_new_signals
 from strategies.mode_c.strategy import stock_plan
 from tests.core.db.test_decision_db import CONFIG, FakeStrategy, event, job
@@ -106,11 +106,20 @@ class Client:
     def __init__(self) -> None:
         self.sent: list[str] = []
 
-    def send(self, text: str, **kwargs: object) -> int:
+    def send(
+        self,
+        text: str,
+        *,
+        silent: bool = False,
+        buttons: list[tuple[str, str]] | None = None,
+        reply_to: int | None = None,
+    ) -> int:
         self.sent.append(text)
         return len(self.sent)
 
-    def edit(self, message_id: int, text: str, **kwargs: object) -> None:
+    def edit(
+        self, message_id: int, text: str, *, buttons: list[tuple[str, str]] | None = None
+    ) -> None:
         self.sent.append(text)
 
 
@@ -125,9 +134,14 @@ def test_real_message_and_fill_confirms_entry_only(session: Session, event: orm.
     assert "ОРДЕР  Продать  NFLX  12 шт.  стоп 96.00 (только основная сессия)" in real
     assert "РИСК   $48 (счёт Real)" in real
     (card,) = real_cards(session)
+    broker = orders(session)
     assert (
-        handle_callback(session, f"fill:{card.id}", orders(session), NOW)
-        == "Исполнение подтверждено"
+        handle_callback(session, f"fill:{card.id}", broker, NOW, client)
+        == "Ответьте ценой исполнения"
+    )
+    assert card.fill_prompt_id is not None
+    assert handle_reply(session, "100.05", card.fill_prompt_id, broker, NOW) == (
+        "Исполнение записано: 100.05"
     )
     statuses = session.scalars(
         select(orm.BrokerOrder.status)

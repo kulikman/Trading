@@ -1,17 +1,20 @@
-"""Бот Telegram (T18, SPEC §11–12): кнопки карточек и напоминание о неподтверждённом исполнении.
+"""Бот Telegram (T18, SPEC §11–12): кнопки карточек, цена исполнения и напоминание.
 
 Отдельный процесс (`python -m notify.bot`, контейнер trading-bot): долгий опрос getUpdates, только
-нажатия из чата заказчика. «Исполнено» — Real-карточка ARMED: ордера подтверждаются по цене
-лимита (стопа), ARMED → OPEN; «Не исполнил» — ордера отменяются, ARMED → CANCELLED; «Детали» —
-состав, исполнения и история карточки. У paper — только «Детали»: исполнение считает система.
+нажатия и ответы из чата заказчика. «Исполнено» — Real-карточка ARMED: бот спрашивает цену
+исполнения; ответ на его сообщение (числа по ордерам входа или «лимит») записывает исполнения,
+ARMED → OPEN (E10-3). «Не исполнил» — ордера отменяются, ARMED → CANCELLED. «Детали» — состав,
+исполнения и история карточки. У paper — только «Детали»: исполнение считает система.
 Напоминание: Real-вход не подтверждён execution.fill_reminder_minutes (15) — одно сообщение ответом.
 """
 
 import logging
 import time as clock
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Any, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from adapters.broker.base import CardOrders
@@ -20,19 +23,39 @@ from adapters.errors import DataError
 from core.config import load_config
 from core.db import models as orm
 from core.db.session import create_db_engine
-from core.domain.broker import Quote
+from core.domain.broker import Order, OrderId, Quote
 from core.domain.trading import CardFill
 from core.session_guard import to_et
 from core.state_machine.card import transition
+from core.text import plural
 from notify.signals import NAMES, Sender, card_buttons
 from notify.telegram.client import TelegramClient, TelegramError
 
 logger = logging.getLogger(__name__)
 
+
+class PendingOrder(Protocol):
+    """Ордер к подтверждению (ticket ручного брокера) — то, что нужно боту."""
+
+    @property
+    def order_id(self) -> OrderId:
+        """Id ордера у брокера."""
+
+    @property
+    def order(self) -> Order:
+        """Ордер."""
+
+    @property
+    def instruction(self) -> str:
+        """Строка ордера для человека."""
+
+
 RETRY_SECONDS = 5
 
 
-def handle_callback(session: Session, data: str, broker: CardOrders, now: datetime) -> str:
+def handle_callback(
+    session: Session, data: str, broker: CardOrders, now: datetime, sender: Sender
+) -> str:
     """Нажатие кнопки → действие с карточкой; вернуть короткий ответ для всплывающей подсказки."""
     action, _, raw = data.partition(":")
     card = session.get(orm.TradeCard, int(raw)) if raw.isdigit() else None
@@ -45,34 +68,96 @@ def handle_callback(session: Session, data: str, broker: CardOrders, now: dateti
     if card.state != "ARMED":
         return f"Карточка уже {card.state}"
     tickets = broker.pending_for_card(card.id)
-    if action == "fill":  # «Исполнено» — вход; стоп-ордер остаётся стоять у брокера
-        entries = [t for t in tickets if t.order.purpose == "entry"]
-        priced = [(t, t.order.limit_price or t.order.stop_price) for t in entries]
-        if not priced or any(p is None for _, p in priced):
-            return "Нет ордеров с ценой к подтверждению — проверьте карточку"
-        fills = [broker.confirm_fill(t.order_id, price=float(p or 0), at=now) for t, p in priced]
-        card.fills = [
-            *(card.fills or []),
-            *(
-                CardFill(
-                    symbol=f.symbol,
-                    side=f.side,
-                    quantity=f.quantity,
-                    price=f.price,
-                    at=f.at,
-                    purpose=t.order.purpose,
-                ).model_dump(mode="json")
-                for t, f in zip((t for t, _ in priced), fills, strict=True)
-            ),
-        ]
-        transition(session, card, "OPEN", now, "исполнено (кнопка)", check_session=False)
-        return "Исполнение подтверждено"
+    if action == "fill":  # «Исполнено» — цена исполнения ответом на вопрос бота (E10-3)
+        entries = _entries(tickets)
+        if not entries:
+            return "Нет ордеров входа к подтверждению — проверьте карточку"
+        lines = [f"{n}) {t.instruction}" for n, t in enumerate(entries, start=1)]
+        card.fill_prompt_id = sender.send(
+            "Цена исполнения? Ответьте на это сообщение: "
+            f"{len(entries)} {plural(len(entries), 'цена', 'цены', 'цен')} через пробел "
+            "по порядку или «лимит».\n" + "\n".join(lines),
+            reply_to=card.tg_message_id,
+        )
+        return "Ответьте ценой исполнения"
     if action == "skip":
         for ticket in tickets:
             broker.cancel(ticket.order_id)
+        card.fill_prompt_id = None
         transition(session, card, "CANCELLED", now, "не исполнил (кнопка)", check_session=False)
         return "Вход отменён — снимите ордера у брокера"
     return "Неизвестная кнопка"
+
+
+def handle_reply(
+    session: Session, text: str, reply_to: int, broker: CardOrders, now: datetime
+) -> str | None:
+    """Ответ на «Цена исполнения?» → исполнения по фактическим ценам, ARMED → OPEN.
+
+    Числа — по одному на ордер входа, в порядке вопроса (запятая или точка); «лимит» — по ценам
+    лимитов. Не ответ на вопрос бота — None (сообщение не про исполнение).
+    """
+    card = session.scalars(
+        select(orm.TradeCard).where(orm.TradeCard.fill_prompt_id == reply_to)
+    ).first()
+    if card is None:
+        return None
+    if card.state != "ARMED":
+        return f"Карточка уже {card.state}"
+    entries = _entries(broker.pending_for_card(card.id))
+    prices = _prices(text, entries)
+    if isinstance(prices, str):
+        return prices
+    fills = [
+        broker.confirm_fill(t.order_id, price=p, at=now)
+        for t, p in zip(entries, prices, strict=True)
+    ]
+    card.fills = [
+        *(card.fills or []),
+        *(
+            CardFill(
+                symbol=f.symbol,
+                side=f.side,
+                quantity=f.quantity,
+                price=f.price,
+                at=f.at,
+                purpose="entry",
+            ).model_dump(mode="json")
+            for f in fills
+        ),
+    ]
+    card.fill_prompt_id = None
+    transition(session, card, "OPEN", now, "исполнено (цена ответом)", check_session=False)
+    return "Исполнение записано: " + ", ".join(f"{p:.2f}" for p in prices)
+
+
+def _entries[T: PendingOrder](tickets: Sequence[T]) -> list[T]:
+    """Ордера входа в порядке карточки (client_order_id … -0, -1, …)."""
+
+    def position(ticket: PendingOrder) -> int:
+        tail = ticket.order.client_order_id.rsplit("-", 1)[-1]
+        return int(tail) if tail.isdigit() else 0
+
+    return sorted((t for t in tickets if t.order.purpose == "entry"), key=position)
+
+
+def _prices(text: str, entries: Sequence[PendingOrder]) -> list[float] | str:
+    words = text.replace(";", " ").split()
+    if [w.lower() for w in words] in (["лимит"], ["limit"], ["как", "лимит"]):
+        limits = [t.order.limit_price or t.order.stop_price for t in entries]
+        if any(p is None for p in limits):
+            return "У ордера нет цены лимита — укажите цену числом"
+        return [float(p or 0) for p in limits]
+    try:
+        prices = [float(w.replace(",", ".")) for w in words]
+    except ValueError:
+        return f"Не понял цену: «{text[:40]}». Нужны числа через пробел или «лимит»"
+    if len(prices) != len(entries):
+        need = f"{len(entries)} {plural(len(entries), 'цена', 'цены', 'цен')}"
+        return f"Нужно {need}, получено {len(prices)}"
+    if any(p <= 0 for p in prices):
+        return "Цена должна быть больше нуля"
+    return prices
 
 
 def details_text(session: Session, card: orm.TradeCard) -> str:
@@ -158,6 +243,10 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
         for update in updates:
             update_id = update.get("update_id")
             offset = update_id + 1 if isinstance(update_id, int) else offset
+            message = update.get("message")
+            if isinstance(message, dict):
+                _on_message(db, client, broker, message)
+                continue
             query = update.get("callback_query")
             if not isinstance(query, dict):
                 continue
@@ -167,9 +256,25 @@ def main() -> int:  # pragma: no cover — процесс с сетью; лог�
                 continue
             with Session(db) as session, session.begin():
                 reply = handle_callback(
-                    session, str(query.get("data", "")), broker, datetime.now(UTC)
+                    session, str(query.get("data", "")), broker, datetime.now(UTC), client
                 )
             client.answer(str(query.get("id")), reply)
+
+
+def _on_message(
+    db: Engine, client: TelegramClient, broker: CardOrders, message: dict[str, Any]
+) -> None:  # pragma: no cover — сеть; логика — handle_reply
+    """Ответ заказчика на вопрос о цене исполнения; остальные сообщения не трогаем."""
+    if str((message.get("chat") or {}).get("id")) != client.chat_id:
+        return
+    original = message.get("reply_to_message") or {}
+    reply_to, text = original.get("message_id"), message.get("text")
+    if not isinstance(reply_to, int) or not isinstance(text, str):
+        return
+    with Session(db) as session, session.begin():
+        answer = handle_reply(session, text, reply_to, broker, datetime.now(UTC))
+    if answer is not None:
+        client.send(answer, reply_to=message.get("message_id"))
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -79,7 +79,7 @@ class TelegramClient:
         """Новые события бота (долгий опрос); offset — id последнего обработанного + 1."""
         payload: dict[str, object] = {
             "timeout": POLL_SECONDS,
-            "allowed_updates": ["callback_query"],
+            "allowed_updates": ["callback_query", "message"],  # message — цена исполнения ответом
         }
         if offset is not None:
             payload["offset"] = offset
