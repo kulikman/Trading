@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash learn-season
 
 -include .env
 
@@ -79,6 +79,9 @@ promote:  ## поднять плагин на ступень: make promote ARGS=
 
 run-bot:
 	@echo "run-bot: available after T18 (Telegram bot)"; exit 1
+
+learn-season:  ## обучение сезона (SPEC §9): версия моделей, θ и Келли, карантин; отчёт reports/season_*.md
+	uv run python -m learning.season
 
 cash:  ## счёт Real: make cash ARGS="deposit 10000 комментарий" / ARGS="withdraw 2000"
 	uv run python -m execution.cash $(ARGS)
