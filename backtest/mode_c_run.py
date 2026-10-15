@@ -17,7 +17,7 @@ from adapters.massive.history import EventDays, stock_closes
 from adapters.massive.models import Bar, TickerChange
 from adapters.massive.symbols import daily_bars, symbol_on, symbol_periods
 from backtest.mode_c import Entry, average_true_range, direction_of, entry, exit_after
-from backtest.simulate import Trade
+from backtest.simulate import LegFill, Trade
 from core.config.sources import MassiveHistory
 from core.config.thresholds import Thresholds
 from core.db.store import earnings_history
@@ -149,6 +149,7 @@ def stock_trade(
         risk=shares * stop_distance + entry_cost.total,
         variant="long" if direction == 1 else "short",
         entry_on=days.reaction,
+        legs=(LegFill(ticker, "stock", direction, shares, 1, position.price, closed.price),),
     )
 
 

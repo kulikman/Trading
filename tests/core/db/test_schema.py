@@ -31,7 +31,7 @@ from core.domain.news import NewsItem
 from core.domain.options import OptionDailyBar, OptionMinuteBar
 from core.domain.plugin import Plugin, PluginStageChange
 from core.domain.schedule import ErrorLogEntry, EventChange, EventJob
-from core.domain.trading import Decision, TradeCard, TradeCardTransition
+from core.domain.trading import CardLeg, CardStop, Decision, TradeCard, TradeCardTransition
 
 EXPECTED_TABLES = {
     "sector",
@@ -137,7 +137,7 @@ def ctx(session: Session) -> dict[str, int]:
     card = _save(
         session,
         orm.TradeCard,
-        TradeCard(decision_id=decision.id, state="PLANNED", legs=[{"symbol": "GS"}]),
+        TradeCard(decision_id=decision.id, state="PLANNED"),
     )
     return {"event": event.id, "decision": decision.id, "card": card.id}
 
@@ -314,8 +314,8 @@ CASES: dict[str, Builder] = {
             decision_id=c["decision"],
             state="ARMED",
             paper=True,
-            legs=[{"side": "buy", "symbol": "GS", "qty": 17, "limit": 897.0}],
-            stop={"price": 870.0},
+            legs=[CardLeg(symbol="GS", instrument="stock", side="buy", quantity=17, multiplier=1)],
+            stop=CardStop(rule="стоп-гэп на открытии", price=870.0),
             tg_message_id=42,
             pnl_total=Decimal("12345.67"),
         ),

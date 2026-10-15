@@ -6,6 +6,7 @@ from typing import Any, Self
 from pydantic import AwareDatetime, Field, model_validator
 
 from core.domain.base import DomainModel
+from core.domain.broker import Instrument, OrderPurpose, Side
 from core.domain.types import CardState, DecisionStatus, SkipReason
 
 DATA_REASON_PREFIX = "DATA_"
@@ -35,16 +36,52 @@ class Decision(DomainModel):
         return self
 
 
+class CardLeg(DomainModel):
+    """Нога позиции. У paper количество дробное: позиция — доля, дающая заданный риск."""
+
+    symbol: str = Field(min_length=1)
+    instrument: Instrument
+    side: Side
+    quantity: float = Field(gt=0)
+    multiplier: int = Field(gt=0)
+
+
+class CardFill(DomainModel):
+    """Исполнение ноги: вход или выход (у paper — цена из архива по правилам конструкции)."""
+
+    symbol: str = Field(min_length=1)
+    side: Side
+    quantity: float = Field(gt=0)
+    price: float = Field(ge=0)
+    at: AwareDatetime
+    purpose: OrderPurpose
+
+
+class CardStop(DomainModel):
+    """Правило стопа позиции; price — уровень, если он один (акция)."""
+
+    rule: str = Field(min_length=1)
+    price: float | None = Field(default=None, gt=0)
+
+
+class CardTrailing(DomainModel):
+    """Трейлинг-стоп режима C: multiple × ATR, пересчёт после закрытия (SPEC §10)."""
+
+    atr: float = Field(gt=0)
+    multiple: float = Field(gt=0)
+    stop: float = Field(gt=0)
+    updated_at: AwareDatetime
+
+
 class TradeCard(DomainModel):
     id: int | None = None
     decision_id: int
     state: CardState
     paper: bool = True
-    # TODO(T17): типизировать ноги, стоп и исполнения, когда появится исполнитель.
-    legs: list[dict[str, Any]] = Field(min_length=1)
-    stop: dict[str, Any] | None = None
-    trailing: dict[str, Any] | None = None
-    fills: list[dict[str, Any]] | None = None
+    legs: list[CardLeg] = Field(default_factory=list)  # пусто, пока не было входа
+    stop: CardStop | None = None
+    trailing: CardTrailing | None = None
+    fills: list[CardFill] | None = None
     tg_message_id: int | None = None
     pnl_total: Decimal | None = None
     pnl_direction: Decimal | None = None
