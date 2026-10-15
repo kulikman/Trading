@@ -75,7 +75,9 @@ def test_peer_edge_estimates(session: Session) -> None:
             ),
         ]
     save_reported_earnings(session, rows)
-    estimates = {(e.from_ticker, e.to_ticker): e for e in estimate_peer_edges(session)}
+    estimates = {
+        (e.from_ticker, e.to_ticker): e for e in estimate_peer_edges(session, date(2026, 1, 1))
+    }
     found = estimates[(edge.from_ticker, edge.to_ticker)]
     assert (found.pairs, found.lag_days) == (7, 2)
     assert found.strength == pytest.approx(1.0)
@@ -83,3 +85,29 @@ def test_peer_edge_estimates(session: Session) -> None:
     assert stored is not None
     assert stored.lag_days == 2
     assert stored.strength == pytest.approx(1.0)
+
+
+def test_peer_edges_ignore_old_reports(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    edge = CONFIG.universe.peer_edges[0]
+    save_reported_earnings(
+        session,
+        [
+            ReportedEarnings(
+                ticker=edge.from_ticker,
+                report_date=date(2009, 1, 15),
+                fiscal_period_end=date(2008, 12, 31),
+                eps_surprise_pct=-80.0,
+            ),
+            ReportedEarnings(
+                ticker=edge.to_ticker,
+                report_date=date(2009, 1, 17),
+                fiscal_period_end=date(2008, 12, 31),
+                eps_surprise_pct=-90.0,
+            ),
+        ],
+    )
+    found = {
+        (e.from_ticker, e.to_ticker): e for e in estimate_peer_edges(session, date(2026, 10, 15))
+    }
+    assert found[(edge.from_ticker, edge.to_ticker)].pairs == 0  # 2009 год — за пределами 5 лет
