@@ -19,10 +19,13 @@ from core.scheduler.dispatch import Handler
 from models.features import stage_features
 from models.logistic import clip, predict
 from models.market import market_move_ratio, market_p_up
-from models.versions import active_models
+from models.versions import active_models, exploration_models
 
 FORECAST_JOBS = ("forecast", "final_forecast")
 MARKET_P_BEAT = "polymarket.pm_p_beat"  # рынок предсказаний — после Polymarket (отложен)
+
+
+EXPLORATION_EVERY = 5  # каждое пятое событие — 20% (SPEC §9)
 
 
 def run_forecast(
@@ -32,6 +35,10 @@ def run_forecast(
     stage = feature_stage(job.stage)
     features = stage_features(session, job.event_id, stage, registry)
     models = active_models(session)
+    rejected = exploration_models(session) if job.event_id % EXPLORATION_EVERY == 0 else None
+    exploring = rejected is not None
+    if rejected is not None:
+        models = rejected  # 20% событий — веса отклонённой версии (SPEC §9, Thompson sampling)
     margin = settings.probability_clip
     p_beat = clip(predict(models.params["p_beat"], features), margin)
     p_up = clip(predict(models.params["p_up"], features), margin)
@@ -54,6 +61,7 @@ def run_forecast(
         edge_beat=None if market_beat is None else p_beat - market_beat,
         edge_up=p_up - market_up,
         edge_move=move - market_move,
+        exploration=exploring,
     )
     session.execute(
         insert(orm.Forecast)
