@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from adapters.errors import DataError
 from adapters.finnhub.models import FinnhubEarning
 from adapters.massive.models import Bar, TickerChange
 from backtest.mode_c_run import previous_days
@@ -202,7 +203,19 @@ def test_mode_c_skips(
     assert strategy(stocks).evaluate(ctx(session, as_of)) == Skip("mode_c", [reason])
 
 
-def test_mode_c_without_report_is_not_confirmed(session: Session, event: orm.Event) -> None:
+def test_mode_c_without_report_is_data_finnhub(session: Session, event: orm.Event) -> None:
     assert strategy().evaluate(ctx(session, DECISION.astimezone(UTC))) == Skip(
-        "mode_c", ["C_NOT_CONFIRMED"]
-    )
+        "mode_c", ["DATA_FINNHUB"]
+    )  # отчёта в Finnhub ещё нет — сбой данных, а не «сигнал не подтверждён»
+
+
+class DownReports:
+    def earnings_calendar(
+        self, start: date, end: date, symbol: str | None = None
+    ) -> list[FinnhubEarning]:
+        raise DataError("finnhub", "HTTP 503")
+
+
+def test_mode_c_finnhub_down_is_data_finnhub(session: Session, event: orm.Event) -> None:
+    down = ModeCStrategy(Stocks(), DownReports(), COSTS, CONFIG.thresholds, 0.04)
+    assert down.evaluate(ctx(session)) == Skip("mode_c", ["DATA_FINNHUB"])

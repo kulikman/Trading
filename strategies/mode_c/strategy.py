@@ -10,6 +10,7 @@
 
 from sqlalchemy import select
 
+from adapters.errors import DataError
 from adapters.massive.symbols import symbol_on, symbol_periods
 from backtest.mode_c import confirm, direction_of, entry_limit
 from backtest.mode_c_run import StockData, previous_days
@@ -46,7 +47,12 @@ class ModeCStrategy(StrategyBase):
         reaction = reaction_day(event.report_date, event.report_time)
         if to_et(event.as_of).date() != reaction:
             return self.skip("DATA_CALENDAR")  # решение режима C — только в день реакции
-        surprise = self._surprise(ctx)
+        try:
+            surprise = self._surprise(ctx)
+        except DataError:
+            return self.skip("DATA_FINNHUB")
+        if surprise is None:
+            return self.skip("DATA_FINNHUB")  # отчёта или консенсуса в Finnhub ещё нет
         direction = direction_of(surprise, rules)
         if direction is None:
             return self.skip("C_NOT_CONFIRMED")

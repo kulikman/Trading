@@ -8,7 +8,8 @@ edge > costs + 0,03 (EDGE_LOW), уверенность ≥ θ режима (CONF
 без модели (C) так и считаются после сезонов 1–2, пока T20 не даст им оценку.
 Все шаги пишутся в decision_step; shadow-стратегии считают, но в решение не идут (SPEC §7).
 Входов у события может быть несколько — ENTERED на каждую прошедшую paper-стратегию (сбор
-данных, решение заказчика 15.10.2026); без входов после T0 — один SKIPPED с кодами всех отказов.
+данных, решение заказчика 15.10.2026); без входов после T0 — один SKIPPED с кодами всех отказов и
+нерешённых сбоев источников по событию (DATA_FINNHUB, DATA_ALPHAVANTAGE, DATA_MASSIVE — E2e).
 """
 
 from collections.abc import Mapping, Sequence
@@ -40,6 +41,12 @@ from execution.cards import open_card
 from models.features import stage_features
 
 NO_DECISION_RUN: list[SkipReason] = ["DATA_CALENDAR"]  # задачи решения не выполнялись
+# Сбой источника по событию (E2e): DataError в журнале, не решённая повтором задачи.
+SOURCE_CODES: dict[str, SkipReason] = {
+    "finnhub": "DATA_FINNHUB",
+    "alphavantage": "DATA_ALPHAVANTAGE",
+    "massive": "DATA_MASSIVE",
+}
 NO_MODEL_MODES = ("C",)  # у режима нет модели: вход по сигналу, фиксированный риск (до оценки T20)
 
 
@@ -164,11 +171,25 @@ def finalize(session: Session, event_id: int, now: datetime) -> list[orm.Decisio
             orm.DecisionStep.event_id == event_id, orm.DecisionStep.is_shadow.is_(False)
         )
     ).all()
-    reasons = sorted({r for step in steps for r in step.reasons}) or list(NO_DECISION_RUN)
+    found = {r for step in steps for r in step.reasons} | set(data_failures(session, event_id))
+    reasons = sorted(found) or list(NO_DECISION_RUN)
     decision = orm.Decision(event_id=event_id, status="SKIPPED", reasons=reasons, decided_at=now)
     session.add(decision)
     session.flush()
     return [decision]
+
+
+def data_failures(session: Session, event_id: int) -> list[SkipReason]:
+    """Коды DATA_* источников, которые упали по событию и не восстановились (E2e)."""
+    messages = session.scalars(
+        select(orm.ErrorLog.message).where(
+            orm.ErrorLog.event_id == event_id,
+            orm.ErrorLog.error_type == "DataError",
+            orm.ErrorLog.resolved_at.is_(None),
+        )
+    ).all()
+    codes = {SOURCE_CODES.get(m.split(":", 1)[0].strip()) for m in messages}  # «finnhub: …»
+    return sorted(c for c in codes if c is not None)
 
 
 def _gates(
