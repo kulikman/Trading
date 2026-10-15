@@ -485,6 +485,7 @@ class TradeCard(Timestamps, Base):
     pnl_ivcrush: Mapped[Decimal | None]
     costs: Mapped[Decimal | None]  # издержки входа и выхода, $ (T17)
     risk_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))  # Real: риск сделки, $ (E10)
+    cash_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))  # Real: деньги под позицией, $
 
 
 class TradeCardTransition(Timestamps, Base):

@@ -169,5 +169,6 @@ class TradePlan(DomainModel):
 
     orders: tuple[Order, ...] = Field(min_length=1)
     unit_risk: float = Field(gt=0)
+    unit_cash: float | None = Field(default=None, gt=0)  # деньги счёта на единицу; нет — unit_risk
     stop_rule: str = Field(min_length=1)
     entry_until_et: time | None = None  # позже — Real не открывается (окно входа прошло)

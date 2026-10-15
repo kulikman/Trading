@@ -142,6 +142,7 @@ def stock_plan(
             ),
         ),
         unit_risk=stop_distance * (1 + cost_fraction),
+        unit_cash=limit,  # акция покупается (или берётся в шорт) целиком
         stop_rule=f"трейлинг 2 × ATR(14), старт {stop:.2f}",
         entry_until_et=ENTRY_DEADLINE,
     )

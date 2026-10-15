@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adapters.broker.base import CardOrders
-from adapters.broker.factory import create_card_orders
+from adapters.broker.factory import create_card_orders, create_cost_model
 from adapters.broker.order_store import Ticket
 from core.db import models as orm
 from core.domain.broker import Fill, Order, OrderId, Quote
@@ -266,3 +266,71 @@ def test_short_plan_stop_above_entry() -> None:
         104.0,
     )
     assert round(plan.unit_risk, 2) == 4.04
+
+
+def open_real(
+    session: Session, event: orm.Event, client: Client
+) -> tuple[orm.TradeCard, CardOrders]:
+    go_live(session)
+    record_cash(session, "deposit", Decimal("10000"), None, NOW)
+    run(session, event)
+    (card,) = real_cards(session)
+    broker = orders(session)
+    handle_callback(session, f"fill:{card.id}", broker, NOW, client)
+    assert card.fill_prompt_id is not None
+    handle_reply(session, "100", card.fill_prompt_id, broker, NOW)
+    return card, broker
+
+
+def test_close_by_reply_records_pnl_and_cancels_stop(session: Session, event: orm.Event) -> None:
+    client = Client()
+    card, broker = open_real(session, event, client)
+    assert (
+        handle_callback(session, f"exit:{card.id}", broker, NOW, client) == "Ответьте ценой выхода"
+    )
+    assert client.sent[-1].startswith("Цена выхода? Ответьте на это сообщение: 1 цена")
+    assert "1) Продать  NFLX  12 шт." in client.sent[-1]
+    assert card.fill_prompt_id is not None
+    costs = create_cost_model(CONFIG.broker)
+    answer = handle_reply(session, "103", card.fill_prompt_id, broker, NOW, costs)
+    assert card.state == "CLOSED"
+    # (103 − 100) × 12 = $36 минус комиссия входа и выхода (минимум $1 за ордер акций)
+    assert card.costs == Decimal("2.0000")
+    assert card.pnl_total == Decimal("34.0000")
+    assert answer == "Закрыто: итог +$34"
+    statuses = session.scalars(
+        select(orm.BrokerOrder.status).where(orm.BrokerOrder.card_id == card.id)
+    ).all()
+    assert sorted(statuses) == ["cancelled", "filled"]  # стоп снят
+    assert [f["purpose"] for f in card.fills or []] == ["entry", "exit"]
+
+
+def test_exit_through_stop_is_stopped(session: Session, event: orm.Event) -> None:
+    client = Client()
+    card, broker = open_real(session, event, client)
+    handle_callback(session, f"exit:{card.id}", broker, NOW, client)
+    assert card.fill_prompt_id is not None
+    handle_reply(session, "95.5", card.fill_prompt_id, broker, NOW)  # стоп 96
+    assert card.state == "STOPPED"
+    assert card.pnl_total == Decimal("-54.0000")  # без модели издержек — только валовой
+
+
+def test_position_capped_by_free_cash(session: Session, event: orm.Event) -> None:
+    go_live(session)
+    record_cash(session, "deposit", Decimal("10000"), None, NOW)
+    busy = orm.Decision(
+        event_id=event.id, status="ENTERED", reasons=[], mode="C", strategy_id="x", decided_at=NOW
+    )
+    session.add(busy)
+    session.flush()
+    session.add(
+        orm.TradeCard(
+            decision_id=busy.id, state="OPEN", paper=False, legs=[], cash_usd=Decimal("9950")
+        )
+    )
+    session.flush()
+    run(session, event)
+    assert len(real_cards(session)) == 1  # только занятая
+    assert skips(session) == [
+        "СИСТЕМА · Real не открыт: NFLX mode_c — свободных денег $50 меньше одной единицы"
+    ]
