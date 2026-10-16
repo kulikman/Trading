@@ -86,6 +86,7 @@ class AlphaVantageCacheTtl(StrictModel):
 
 class AlphaVantageSettings(HttpSourceSettings):
     calendar_horizon: Literal["3month", "6month", "12month"]
+    requests_per_minute: PositiveInt
     cache_ttl_seconds: AlphaVantageCacheTtl
 
 
