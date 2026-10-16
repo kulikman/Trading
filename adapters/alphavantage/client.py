@@ -20,7 +20,7 @@ from adapters.alphavantage.models import (
 from adapters.api_model import BlankAsNoneModel, require_env
 from adapters.cache import Cache
 from adapters.errors import DataError
-from adapters.http import JsonHttpClient, Params, RetryPolicy
+from adapters.http import JsonHttpClient, Params, RateLimiter, RetryPolicy
 from core.config.sources import AlphaVantageSettings
 
 SOURCE = "alphavantage"
@@ -56,6 +56,7 @@ class AlphaVantageClient:
             retry=RetryPolicy(settings.max_attempts, settings.backoff_base_seconds),
             cache=cache,
             transport=transport,
+            throttle=RateLimiter(settings.requests_per_minute, 60.0),
         )
         return cls(http, settings)
 
