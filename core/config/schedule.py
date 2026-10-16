@@ -64,12 +64,15 @@ class TrailingSettings(StrictModel):
 
 
 class DigestSettings(StrictModel):
-    """Дайджесты в Telegram (SPEC §12): утро и вечер, ET."""
+    """Дайджесты в Telegram (SPEC §12): утро и вечер ET; еженедельный — пн UTC (09:00 МСК)."""
 
     morning_et: time
     evening_et: time
+    weekly_monday_utc: time
 
-    _times = field_validator("morning_et", "evening_et", mode="before")(_parse_time)
+    _times = field_validator("morning_et", "evening_et", "weekly_monday_utc", mode="before")(
+        _parse_time
+    )
 
 
 class MarketSettings(StrictModel):

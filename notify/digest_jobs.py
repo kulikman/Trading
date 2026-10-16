@@ -1,4 +1,5 @@
-"""Задачи планировщика: утренний (08:30 ET) и вечерний (16:30 ET) дайджест (SPEC §12, T18)."""
+"""Задачи планировщика: утренний (08:30 ET), вечерний (16:30 ET) дайджест и еженедельный
+календарь (пн 06:00 МСК = 06:00 UTC) (SPEC §12, T18)."""
 
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -9,7 +10,7 @@ from core.config import load_config
 from core.error_log import logged_job
 from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, to_et
-from notify.digest import evening_text, morning_text
+from notify.digest import evening_text, morning_text, week_calendar_text
 from notify.telegram.client import TelegramClient
 
 
@@ -22,6 +23,19 @@ def run_morning_digest(now: Callable[[], datetime] = lambda: datetime.now(UTC)) 
 @logged_job("digest-evening", lambda: engine())
 def run_evening_digest(now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> bool:
     return _send(evening_text, now())
+
+
+@logged_job("digest-weekly", lambda: engine())
+def run_weekly_calendar(now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> bool:
+    """Еженедельный календарь отчётов — каждый понедельник 06:00 UTC (09:00 МСК)."""
+    moment = now()
+    client = TelegramClient.from_env()
+    if client is None:
+        return False
+    with Session(engine()) as session:
+        text = week_calendar_text(session, moment)
+    client.send(text, silent=True)
+    return True
 
 
 def _send(render: Callable[[Session, datetime], str], moment: datetime) -> bool:

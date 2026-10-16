@@ -22,6 +22,7 @@ CONSENSUS_JOB_ID = "consensus-daily"
 TRAILING_JOB_ID = "trailing-daily"
 MORNING_DIGEST_JOB_ID = "digest-morning"
 EVENING_DIGEST_JOB_ID = "digest-evening"
+WEEKLY_DIGEST_JOB_ID = "digest-weekly"
 NEWS_JOB_ID = "news-daily"
 MARKET_JOB_ID = "market-daily"
 CALENDAR_FUNC = "agents.calendar.job:run_calendar"
@@ -31,6 +32,7 @@ CONSENSUS_FUNC = "agents.consensus.job:run_consensus_snapshot"
 TRAILING_FUNC = "execution.trailing:run_trailing_update"
 MORNING_DIGEST_FUNC = "notify.digest_jobs:run_morning_digest"
 EVENING_DIGEST_FUNC = "notify.digest_jobs:run_evening_digest"
+WEEKLY_DIGEST_FUNC = "notify.digest_jobs:run_weekly_calendar"
 NEWS_FUNC = "agents.news.job:run_news"
 MARKET_FUNC = "agents.macro.daily:run_market_level"
 JOBS_TABLE = "apscheduler_jobs"
@@ -75,6 +77,16 @@ def register_jobs(scheduler: BaseScheduler, schedule: ScheduleConfig) -> None:
             max_instances=1,
             misfire_grace_time=grace,
         )
+    weekly = schedule.digest.weekly_monday_utc
+    scheduler.add_job(
+        WEEKLY_DIGEST_FUNC,
+        CronTrigger(day_of_week="mon", hour=weekly.hour, minute=weekly.minute),
+        id=WEEKLY_DIGEST_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=grace,
+    )
     scheduler.add_job(
         DISPATCH_FUNC,
         IntervalTrigger(seconds=schedule.scheduler.dispatch_interval_seconds),

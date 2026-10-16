@@ -277,6 +277,37 @@ def _bounds(first: date, last: date) -> tuple[datetime, datetime]:
     return start, end
 
 
+def week_calendar_text(session: Session, now: datetime) -> str:
+    """Еженедельный календарь: пн 06:00 МСК — все отчёты текущей недели по дням."""
+    msk = now.astimezone(MSK)
+    today = msk.date()
+    monday = today - timedelta(days=today.weekday())
+    friday = monday + timedelta(days=4)
+    lines = [f"СОБЫТИЯ НЕДЕЛИ · {monday:%d.%m}–{friday:%d.%m} · {msk:%H:%M} МСК"]
+    day_names = ["Пн", "Вт", "Ср", "Чт", "Пт"]
+    for i, day_name in enumerate(day_names):
+        day = monday + timedelta(days=i)
+        rows = _day_events(session, day)
+        lines.append("")
+        lines.append(f"{day_name} {day:%d.%m}:")
+        lines += rows or ["—"]
+    return "\n".join(lines)
+
+
+def _day_events(session: Session, day: date) -> list[str]:
+    """Тикеры с временем отчёта на дату — без статуса решения (ещё нет)."""
+    rows = (
+        session.execute(
+            select(orm.Event)
+            .where(orm.Event.report_date == day)
+            .order_by(orm.Event.report_time, orm.Event.ticker)
+        )
+        .scalars()
+        .all()
+    )
+    return [f"{e.ticker} · {REPORT_WORDS.get(e.report_time or '', 'время ?')}" for e in rows]
+
+
 def _money(value: float) -> str:
     sign = "+" if value >= 0 else "−"
     return f"{sign}${abs(value):,.0f}".replace(",", " ")
