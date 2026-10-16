@@ -26,9 +26,9 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U earnings -d earnings"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -40,6 +40,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - run: uv sync --locked
       - run: make lint
       - run: make migrate
