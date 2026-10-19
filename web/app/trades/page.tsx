@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
+import { modeOf } from "@/components/account-bar";
 import { Empty, Grid } from "@/components/grid";
 import { N, toneClass } from "@/components/num";
 import { SubTabs } from "@/components/sub-tabs";
@@ -25,7 +25,6 @@ async function TradesContent({
   const trades = await apiGet<Trades>(`/api/trades?state=${state}&mode=${mode}`);
   return (
     <>
-      <AccountBar mode={mode} query={params} />
       <p className={toneClass(trades.trust_tone)}>{trades.trust_line}</p>
       <SubTabs
         tabs={[

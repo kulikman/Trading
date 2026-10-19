@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { Empty, Grid } from "@/components/grid";
 import { N } from "@/components/num";
 import { SubTabs } from "@/components/sub-tabs";
@@ -25,12 +24,10 @@ async function JournalContent({
   searchParams,
 }: Pick<PageProps<"/journal">, "searchParams">): Promise<React.ReactElement> {
   const params = await searchParams;
-  const mode = modeOf(params.mode);
   const filter = FILTERS.find((f) => f.key === params.filter)?.key ?? "all";
   const journal = await apiGet<Journal>(`/api/journal?filter=${filter}`);
   return (
     <>
-      <AccountBar mode={mode} query={params} />
       <p>
         <b>{journal.summary}</b>
       </p>

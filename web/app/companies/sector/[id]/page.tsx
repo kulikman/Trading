@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { Grid } from "@/components/grid";
 import { apiGetOrNull } from "@/lib/api";
 import type { SectorDetail } from "@/lib/types";
@@ -23,15 +22,13 @@ async function SectorContent({
   searchParams,
 }: PageProps<"/companies/sector/[id]">): Promise<React.ReactElement> {
   const { id } = await params;
-  const query = await searchParams;
-  const mode = modeOf(query.mode);
+  await searchParams;
   const sector = await apiGetOrNull<SectorDetail>(`/api/sectors/${encodeURIComponent(id)}`);
   if (sector === null) {
     notFound();
   }
   return (
     <>
-      <AccountBar mode={mode} query={query} />
       <p>
         <Link href="/companies">Сектора</Link> → <b>{sector.name}</b>
       </p>

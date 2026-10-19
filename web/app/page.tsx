@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { Suspense } from "react";
 
 import { AccountBar, modeOf } from "@/components/account-bar";
 import { Empty, Grid } from "@/components/grid";
 import { N } from "@/components/num";
-import { SEEN_COOKIE, SeenButton } from "@/components/seen-button";
 import { apiGet } from "@/lib/api";
-import type { Changes, Today } from "@/lib/types";
+import type { Today } from "@/lib/types";
 
 export default function TodayPage({ searchParams }: PageProps<"/">): React.ReactElement {
   return (
@@ -22,30 +20,10 @@ async function TodayContent({
 }: Pick<PageProps<"/">, "searchParams">): Promise<React.ReactElement> {
   const query = await searchParams;
   const mode = modeOf(query.mode);
-  const seen = (await cookies()).get(SEEN_COOKIE)?.value;
-  const [today, changes] = await Promise.all([
-    apiGet<Today>("/api/today"),
-    apiGet<Changes>(seen ? `/api/changes?since=${encodeURIComponent(seen)}` : "/api/changes"),
-  ]);
+  const today = await apiGet<Today>("/api/today");
   return (
     <>
       <AccountBar mode={mode} query={query} />
-      {changes.rows.length > 0 ? (
-        <section>
-          <h2>Изменилось</h2>
-          <div className="card">
-          <ul className="mb-2 space-y-1">
-            {changes.rows.map((row) => (
-              <li key={`${row.time}-${row.text}`}>
-                <span className="num muted">{row.time}</span> {row.text}
-              </li>
-            ))}
-          </ul>
-          <SeenButton />
-          </div>
-        </section>
-      ) : null}
-
       <h2>Сейчас</h2>
       {today.now.is_action ? (
         <div className="box-action">

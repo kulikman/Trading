@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { CopyButton } from "@/components/copy-button";
 import { Empty, Grid } from "@/components/grid";
 import { toneClass } from "@/components/num";
@@ -21,12 +20,10 @@ export default function SettingsPage({ searchParams }: PageProps<"/settings">): 
 async function SettingsContent({
   searchParams,
 }: Pick<PageProps<"/settings">, "searchParams">): Promise<React.ReactElement> {
-  const query = await searchParams;
-  const mode = modeOf(query.mode);
+  await searchParams;
   return (
     <>
-      <AccountBar mode={mode} query={query} />
-      <SubTabs tabs={[{ href: `/settings?mode=${mode}`, label: "Логи", isActive: true }]} />
+      <SubTabs tabs={[{ href: "/settings", label: "Логи", isActive: true }]} />
       <ErrorLog />
     </>
   );

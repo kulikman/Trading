@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { Empty, Grid } from "@/components/grid";
 import { SubTabs } from "@/components/sub-tabs";
 import { apiGet } from "@/lib/api";
@@ -19,7 +18,6 @@ async function WeekContent({
   searchParams,
 }: Pick<PageProps<"/week">, "searchParams">): Promise<React.ReactElement> {
   const params = await searchParams;
-  const mode = modeOf(params.mode);
   const tab = params.tab === "all" ? "all" : "top";
   const [week, terminal] = await Promise.all([
     apiGet<Week>("/api/week"),
@@ -27,7 +25,6 @@ async function WeekContent({
   ]);
   return (
     <>
-      <AccountBar mode={mode} query={params} />
       <SubTabs
         tabs={[
           { href: "/week", label: "Топ", isActive: tab === "top" },
