@@ -192,13 +192,16 @@ class DossierAgentPlugin:
 
     def _estimate(self, ticker: str, report_date: date) -> FinnhubEarning | None:
         window = timedelta(days=CONSENSUS_WINDOW_DAYS)
-        rows = [
-            r
-            for r in self._consensus.earnings_calendar(
-                report_date - window, report_date + window, ticker
-            )
-            if r.symbol == ticker
-        ]
+        try:
+            rows = [
+                r
+                for r in self._consensus.earnings_calendar(
+                    report_date - window, report_date + window, ticker
+                )
+                if r.symbol == ticker
+            ]
+        except DataError:
+            return None
         return min(rows, key=lambda r: abs((r.date - report_date).days)) if rows else None
 
     def _disclosure(
