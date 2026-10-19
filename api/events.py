@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from api.format import Num, count, day, empty, et_msk, money, percent
+from api.format import Num, count, day, empty, et_msk, money, percent, price
 from api.trades import stop_view
 from api.trades_data import OpenCard
 from core.config.thresholds import Thresholds
@@ -109,6 +109,10 @@ class WeekEventRow(BaseModel):
     date: str
     status: str
     reason: str
+    eps_consensus: Num
+    implied_move: Num
+    eps_actual: Num
+    actual_move: Num
 
 
 class Week(BaseModel):
@@ -220,12 +224,23 @@ def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
         }
         for n, p in enumerate(selection.top, start=1)
     ]
+    all_picks = [*selection.top, *selection.rest]
+    tracks: dict[tuple[str, date], orm.EarningsTrack] = {}
+    if all_picks:
+        track_rows = session.scalars(
+            select(orm.EarningsTrack).where(
+                orm.EarningsTrack.ticker.in_({p.event.ticker for p in all_picks}),
+                orm.EarningsTrack.report_date.in_({p.event.report_date for p in all_picks}),
+            )
+        ).all()
+        tracks = {(t.ticker, t.report_date): t for t in track_rows}
     events = [
         WeekEventRow(
             ticker=p.event.ticker,
             date=f"{day(p.event.report_date)} {p.event.report_time or ''}".strip(),
             status=_week_status(p),
             reason=", ".join(REASON_LABELS.get(r, r) for r in p.reasons) if p.reasons else "—",
+            **_track_fields(tracks.get((p.event.ticker, p.event.report_date))),
         )
         for p in selection.rest
     ]
@@ -235,6 +250,22 @@ def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
         events=events,
         events_message=None if events or top else NO_EVENTS,
     )
+
+
+def _track_fields(track: orm.EarningsTrack | None) -> dict[str, Num]:
+    if track is None:
+        return {
+            "eps_consensus": empty("—"),
+            "implied_move": empty("—"),
+            "eps_actual": empty("—"),
+            "actual_move": empty("—"),
+        }
+    return {
+        "eps_consensus": price(track.eps_consensus),
+        "implied_move": percent(track.implied_move),
+        "eps_actual": price(track.eps_actual),
+        "actual_move": percent(track.actual_move),
+    }
 
 
 def _week_status(pick: WeekPick) -> str:

@@ -18,7 +18,7 @@ async function WeekContent({
   searchParams,
 }: Pick<PageProps<"/week">, "searchParams">): Promise<React.ReactElement> {
   const params = await searchParams;
-  const tab = params.tab === "all" ? "all" : "top";
+  const tab = params.tab === "top" ? "top" : "all";
   const [week, terminal] = await Promise.all([
     apiGet<Week>("/api/week"),
     apiGet<Terminal>("/api/week/terminal"),
@@ -27,8 +27,8 @@ async function WeekContent({
     <>
       <SubTabs
         tabs={[
-          { href: "/week", label: "Топ", isActive: tab === "top" },
-          { href: "/week?tab=all", label: "Все события", isActive: tab === "all" },
+          { href: "/week", label: "Все события", isActive: tab === "all" },
+          { href: "/week?tab=top", label: "Топ", isActive: tab === "top" },
         ]}
       />
       {tab === "top" ? (
@@ -67,7 +67,7 @@ async function WeekContent({
         <>
           <h2>Все события недели</h2>
           {week.events.length > 0 ? (
-            <Grid head={["Тикер", "Дата", "Статус", "Причина пропуска"]}>
+            <Grid head={["Тикер", "Дата", "Статус", "EPS (ожидание)", "Ожид. движение", "EPS (факт)", "Факт. движение", "Причина пропуска"]}>
               {week.events.map((row) => (
                 <tr key={`${row.ticker}-${row.date}`}>
                   <td>
@@ -75,6 +75,10 @@ async function WeekContent({
                   </td>
                   <td>{row.date}</td>
                   <td>{row.status}</td>
+                  <td className="num">{row.eps_consensus.display}</td>
+                  <td className="num">{row.implied_move.display}</td>
+                  <td className="num">{row.eps_actual.display}</td>
+                  <td className="num">{row.actual_move.display}</td>
                   <td>{row.reason}</td>
                 </tr>
               ))}

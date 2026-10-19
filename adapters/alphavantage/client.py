@@ -6,6 +6,7 @@
 
 import csv
 import io
+import time
 from typing import Any
 
 import httpx
@@ -75,12 +76,19 @@ class AlphaVantageClient:
 
     def earnings_estimates(self, symbol: str) -> list[AvEstimate]:
         """Консенсус по фискальным кварталам и годам с пересмотрами 7/30/60/90 дней."""
-        payload = self._http.get_json(
-            QUERY_PATH,
-            {"function": "EARNINGS_ESTIMATES", "symbol": symbol},
-            self._settings.cache_ttl_seconds.earnings_estimates,
-            _reject_notice,
-        )
+        for attempt in range(1, self._settings.max_attempts + 1):
+            try:
+                payload = self._http.get_json(
+                    QUERY_PATH,
+                    {"function": "EARNINGS_ESTIMATES", "symbol": symbol},
+                    self._settings.cache_ttl_seconds.earnings_estimates,
+                    _reject_notice,
+                )
+                break
+            except DataError as exc:
+                if not _is_rate_limit(exc) or attempt == self._settings.max_attempts:
+                    raise
+                time.sleep(self._settings.backoff_base_seconds * 2 ** (attempt - 1))
         rows = payload.get("estimates")
         if not isinstance(rows, list):
             raise DataError(SOURCE, f"{symbol}: expected an estimates list")
@@ -88,12 +96,19 @@ class AlphaVantageClient:
 
     def earnings(self, symbol: str) -> AvEarnings:
         """История EPS по кварталам: факт, оценка, сюрприз, время отчёта."""
-        payload = self._http.get_json(
-            QUERY_PATH,
-            {"function": "EARNINGS", "symbol": symbol},
-            self._settings.cache_ttl_seconds.earnings,
-            _reject_notice,
-        )
+        for attempt in range(1, self._settings.max_attempts + 1):
+            try:
+                payload = self._http.get_json(
+                    QUERY_PATH,
+                    {"function": "EARNINGS", "symbol": symbol},
+                    self._settings.cache_ttl_seconds.earnings,
+                    _reject_notice,
+                )
+                break
+            except DataError as exc:
+                if not _is_rate_limit(exc) or attempt == self._settings.max_attempts:
+                    raise
+                time.sleep(self._settings.backoff_base_seconds * 2 ** (attempt - 1))
         return _validate(AvEarnings, payload)
 
 
@@ -101,6 +116,10 @@ def _reject_notice(payload: dict[str, Any]) -> None:
     for key in NOTICE_KEYS:
         if key in payload:
             raise DataError(SOURCE, f"{key}: {str(payload[key])[:NOTICE_PREVIEW]}")
+
+
+def _is_rate_limit(exc: DataError) -> bool:
+    return exc.detail.startswith("Information:") or exc.detail.startswith("Note:")
 
 
 def _check_calendar(text: str) -> None:

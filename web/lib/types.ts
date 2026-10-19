@@ -76,7 +76,7 @@ export interface Today {
 export interface Week {
   top: Record<string, string>[];
   top_message: string | null;
-  events: { ticker: string; date: string; status: string; reason: string }[];
+  events: { ticker: string; date: string; status: string; reason: string; eps_consensus: Num; implied_move: Num; eps_actual: Num; actual_move: Num }[];
   events_message: string | null;
 }
 
