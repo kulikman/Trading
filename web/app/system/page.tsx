@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { Empty, Grid } from "@/components/grid";
 import { N } from "@/components/num";
 import { SubTabs } from "@/components/sub-tabs";
@@ -25,11 +24,9 @@ async function SystemContent({
   searchParams,
 }: Pick<PageProps<"/system">, "searchParams">): Promise<React.ReactElement> {
   const params = await searchParams;
-  const mode = modeOf(params.mode);
   const tab = TABS.find((t) => t.key === params.tab)?.key ?? "status";
   return (
     <>
-      <AccountBar mode={mode} query={params} />
       <SubTabs
         tabs={TABS.map((t) => ({
           href: `/system?tab=${t.key}`,

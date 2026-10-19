@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { Grid } from "@/components/grid";
 import { apiGet } from "@/lib/api";
 import type { SectorRow } from "@/lib/types";
@@ -17,12 +16,10 @@ export default function SectorsPage({ searchParams }: PageProps<"/companies">): 
 async function SectorsContent({
   searchParams,
 }: Pick<PageProps<"/companies">, "searchParams">): Promise<React.ReactElement> {
-  const query = await searchParams;
-  const mode = modeOf(query.mode);
+  await searchParams;
   const sectors = await apiGet<SectorRow[]>("/api/sectors");
   return (
     <>
-      <AccountBar mode={mode} query={query} />
       <h2>Сектора</h2>
       <Grid head={["Сектор", "Тренд", "Коротко", "Компаний", "Ближайший отчёт"]}>
         {sectors.map((row) => (

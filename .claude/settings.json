@@ -6,7 +6,8 @@
       "Bash(uv:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git push origin --delete *)"
     ],
     "deny": [
       "Write(.env)",

@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { Grid } from "@/components/grid";
 import { apiGetOrNull } from "@/lib/api";
 import type { Card } from "@/lib/types";
@@ -22,8 +21,7 @@ async function CardContent({
   searchParams,
 }: PageProps<"/trades/[id]">): Promise<React.ReactElement> {
   const { id } = await params;
-  const query = await searchParams;
-  const mode = modeOf(query.mode);
+  await searchParams;
   if (!/^\d+$/.test(id)) {
     notFound();
   }
@@ -33,7 +31,6 @@ async function CardContent({
   }
   return (
     <>
-      <AccountBar mode={mode} query={query} />
       <h1>
         Карточка {card.ticker} · режим {card.mode} · {card.state} ·{" "}
         {card.is_paper ? "PAPER" : "REAL"}

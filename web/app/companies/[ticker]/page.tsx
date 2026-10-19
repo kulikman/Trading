@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { AccountBar, modeOf } from "@/components/account-bar";
 import { CompanyTab, TABS, type TabKey } from "@/components/company-tabs";
 import { SubTabs } from "@/components/sub-tabs";
 import { apiGetOrNull } from "@/lib/api";
@@ -25,7 +24,6 @@ async function CompanyContent({
 }: PageProps<"/companies/[ticker]">): Promise<React.ReactElement> {
   const { ticker } = await params;
   const query = await searchParams;
-  const mode = modeOf(query.mode);
   const requested = query.tab;
   const tab: TabKey = TABS.find((t) => t.key === requested)?.key ?? "overview";
   const symbol = encodeURIComponent(ticker.toUpperCase());
@@ -35,7 +33,6 @@ async function CompanyContent({
   }
   return (
     <>
-      <AccountBar mode={mode} query={query} />
       <p>
         <Link href="/companies">Сектора</Link> →{" "}
         <Link href={`/companies/sector/${overview.sector_id}`}>{overview.sector}</Link> →{" "}

@@ -25,6 +25,17 @@ DECISION_LABELS = {
     "CANCELLED": "ОТМЕНА",
     "DATA_FAIL": "СБОЙ ДАННЫХ",
 }
+REASON_LABELS: dict[str, str] = {
+    "DATA_CALENDAR": "дата отчёта не подтверждена (расхождение Finnhub/AV или прогноз)",
+    "DATA_QUOTES": "нет котировок",
+    "DATA_CHAIN": "нет опционной цепочки",
+    "DATA_FINANCIALS": "нет финансовых данных",
+    "DATA_VRP": "нет VRP-сигнала",
+    "NEG_EV": "отрицательное ожидаемое значение",
+    "LOW_CONFIDENCE": "низкая уверенность модели",
+    "VIX_SPIKE": "всплеск VIX",
+    "CAPITAL": "недостаточно капитала",
+}
 WAITING = "ЖДЁМ"
 HUMAN_JOBS = {  # моменты, где нужен человек у терминала (SPEC §8)
     "mode_b_entry": "вход режим B",
@@ -214,7 +225,7 @@ def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
             ticker=p.event.ticker,
             date=f"{day(p.event.report_date)} {p.event.report_time or ''}".strip(),
             status=_week_status(p),
-            reason=", ".join(p.reasons) if p.reasons else "—",
+            reason=", ".join(REASON_LABELS.get(r, r) for r in p.reasons) if p.reasons else "—",
         )
         for p in selection.rest
     ]
@@ -281,7 +292,7 @@ def journal_view(session: Session, now: datetime, filter_: str) -> Journal:
             date=day(e.report_date),
             ticker=e.ticker,
             status=d.status,
-            reasons=", ".join(d.reasons) or "—",
+            reasons=", ".join(REASON_LABELS.get(r, r) for r in d.reasons) if d.reasons else "—",
             shadow_result=(
                 money(_shadow_pnl(d), signed=True) if d.status != "ENTERED" else empty("—")
             ),
@@ -296,7 +307,12 @@ def journal_view(session: Session, now: datetime, filter_: str) -> Journal:
     return Journal(
         summary=summary,
         reasons=[
-            ReasonRow(code=code, times=count(int(n)), saved=money(s), missed=money(m))
+            ReasonRow(
+                code=REASON_LABELS.get(code, code),
+                times=count(int(n)),
+                saved=money(s),
+                missed=money(m),
+            )
             for code, (n, s, m) in sorted(by_code.items())
         ],
         rows=rows,
