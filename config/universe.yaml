@@ -1,4 +1,4 @@
-# Вселенная: 63 компании, 14 секторов (расширена 19.10.2026: +defense, +auto, +telecom, +pharma, +financials).
+# Вселенная: 68 компаний, 16 секторов (расширена 19.10.2026: +defense, +auto, +telecom, +pharma, +financials, +power_infra, +clean_energy).
 #
 # Критерии отбора (не инвестиционная рекомендация):
 #   1. эмитент США, отчитывается через 10-Q / 8-K — дату можно подтвердить по EDGAR;
@@ -147,6 +147,23 @@ sectors:
     companies:
       - {ticker: TMUS, name: T-Mobile US}
 
+  - id: power_infra
+    name: Сетевая инфраструктура и AI-питание
+    key_metrics: [orders growth, backlog, book-to-bill, segment operating margin, revenue guidance raise]
+    macro_sensitivity: [us10y, vix]
+    companies:
+      - {ticker: VRT, name: Vertiv Holdings}
+      - {ticker: ETN, name: Eaton Corporation}
+      - {ticker: GEV, name: GE Vernova}
+
+  - id: clean_energy
+    name: Чистая генерация
+    key_metrics: [average realized power price MWh, PPA contract MW, module ASP per watt, bookings GW]
+    macro_sensitivity: [regime, us10y]
+    companies:
+      - {ticker: CEG, name: Constellation Energy}
+      - {ticker: FSLR, name: First Solar}
+
   - id: industrials
     name: Промышленность и аэрокосмос
     key_metrics: [orders, backlog, deliveries, free cash flow]
@@ -182,3 +199,8 @@ peer_edges:
   - {from_ticker: GM, to_ticker: F, note: американский авторынок}
   - {from_ticker: V, to_ticker: BLK, note: финансовый сектор / аппетит к риску}
   - {from_ticker: GS, to_ticker: SCHW, note: брокерская активность / рынок капитала}
+  - {from_ticker: MSFT, to_ticker: VRT, note: capex гиперскейлеров → спрос на питание/охлаждение}
+  - {from_ticker: NVDA, to_ticker: VRT, note: AI-кластеры → питание и охлаждение дата-центров}
+  - {from_ticker: ETN, to_ticker: VRT, note: сетевое оборудование и питание дата-центров}
+  - {from_ticker: ETN, to_ticker: GEV, note: электрооборудование / трансформаторы}
+  - {from_ticker: CEG, to_ticker: FSLR, note: аппетит к чистой генерации}
