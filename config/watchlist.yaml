@@ -1,0 +1,141 @@
+# Watchlist — расширенная вселенная для динамического юниверса.
+#
+# Тикеры здесь НЕ отслеживаются постоянно. Каждое воскресенье 18:00 ET
+# агент watchlist-refresh проверяет Finnhub: у кого отчёт на текущей неделе —
+# те временно добавляются в активный юниверс до следующего воскресенья.
+#
+# Критерии включения:
+#   1. S&P 500 / Nasdaq 100; ликвидные недельные опционы
+#   2. Высокая волатильность на отчётах (движения ≥ 8%)
+#   3. Интересный бизнес с понятными метриками
+#
+# peer_edges не нужны — добавляются вручную в universe.yaml по мере необходимости.
+
+sectors:
+  - id: semis_equipment
+    name: Оборудование для производства чипов
+    key_metrics: [wafer fab equipment revenue, backlog, gross margin, China revenue share]
+    macro_sensitivity: [vix, us10y]
+    companies:
+      - {ticker: AMAT, name: Applied Materials}
+      - {ticker: LRCX, name: Lam Research}
+      - {ticker: KLAC, name: KLA Corporation}
+      - {ticker: ASML, name: ASML Holding}
+      - {ticker: TXN, name: Texas Instruments}
+      - {ticker: MRVL, name: Marvell Technology}
+      - {ticker: ARM, name: ARM Holdings}
+
+  - id: cybersecurity
+    name: Кибербезопасность
+    key_metrics: [ARR growth, net new ARR, net revenue retention, operating margin]
+    macro_sensitivity: [vix, us10y]
+    companies:
+      - {ticker: PANW, name: Palo Alto Networks}
+      - {ticker: CRWD, name: CrowdStrike Holdings}
+      - {ticker: FTNT, name: Fortinet}
+      - {ticker: ZS, name: Zscaler}
+      - {ticker: OKTA, name: Okta}
+
+  - id: cloud_saas
+    name: Облачный SaaS
+    key_metrics: [ARR growth, net revenue retention, RPO, operating margin, guidance raise]
+    macro_sensitivity: [us10y, vix]
+    companies:
+      - {ticker: DDOG, name: Datadog}
+      - {ticker: SNOW, name: Snowflake}
+      - {ticker: NET, name: Cloudflare}
+      - {ticker: WDAY, name: Workday}
+      - {ticker: TTWO, name: Take-Two Interactive}
+      - {ticker: APP, name: AppLovin}
+      - {ticker: TTD, name: The Trade Desk}
+
+  - id: fintech
+    name: Финтех и биржевая инфраструктура
+    key_metrics: [payment volume, take rate, monthly actives, ADV trading volume]
+    macro_sensitivity: [regime, vix]
+    companies:
+      - {ticker: COIN, name: Coinbase Global}
+      - {ticker: PYPL, name: PayPal Holdings}
+      - {ticker: FI, name: Fiserv}
+      - {ticker: SPGI, name: S&P Global}
+      - {ticker: ICE, name: Intercontinental Exchange}
+      - {ticker: CME, name: CME Group}
+
+  - id: medtech
+    name: Медтех и life sciences
+    key_metrics: [procedure volumes, system placements, recurring revenue, guidance]
+    macro_sensitivity: [vix]
+    companies:
+      - {ticker: ISRG, name: Intuitive Surgical}
+      - {ticker: TMO, name: Thermo Fisher Scientific}
+      - {ticker: DHR, name: Danaher}
+      - {ticker: BSX, name: Boston Scientific}
+      - {ticker: REGN, name: Regeneron Pharmaceuticals}
+      - {ticker: GILD, name: Gilead Sciences}
+
+  - id: ai_servers
+    name: AI-серверы и инфраструктура
+    key_metrics: [AI server revenue, data center backlog, ISG segment margin]
+    macro_sensitivity: [vix, us10y]
+    companies:
+      - {ticker: DELL, name: Dell Technologies}
+      - {ticker: HPE, name: Hewlett Packard Enterprise}
+      - {ticker: AXON, name: Axon Enterprise}
+
+  - id: industrial_automation
+    name: Промышленная автоматизация и климат
+    key_metrics: [organic orders growth, backlog, segment margin, price/cost]
+    macro_sensitivity: [us10y, regime]
+    companies:
+      - {ticker: HON, name: Honeywell International}
+      - {ticker: ROK, name: Rockwell Automation}
+      - {ticker: TT, name: Trane Technologies}
+      - {ticker: CARR, name: Carrier Global}
+      - {ticker: EMR, name: Emerson Electric}
+      - {ticker: PWR, name: Quanta Services}
+
+  - id: consumer_staples
+    name: Потребительские товары первой необходимости
+    key_metrics: [organic sales growth, volume vs price mix, gross margin, guidance]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: PG, name: Procter & Gamble}
+      - {ticker: KO, name: Coca-Cola}
+      - {ticker: PEP, name: PepsiCo}
+      - {ticker: PM, name: Philip Morris International}
+
+  - id: clean_energy_ext
+    name: Чистая энергетика расширенная
+    key_metrics: [uranium realized price, production volumes, installed capacity, storage attach rate]
+    macro_sensitivity: [regime, us10y]
+    companies:
+      - {ticker: VST, name: Vistra Corp}
+      - {ticker: CCJ, name: Cameco Corp}
+      - {ticker: ENPH, name: Enphase Energy}
+
+  - id: travel_leisure
+    name: Туризм и досуг
+    key_metrics: [gross bookings, take rate, room nights, RevPAR]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: BKNG, name: Booking Holdings}
+      - {ticker: MAR, name: Marriott International}
+      - {ticker: HLT, name: Hilton Worldwide}
+      - {ticker: DIS, name: Walt Disney}
+
+  - id: streaming_media
+    name: Стриминг и медиа
+    key_metrics: [paid subscribers, ARPU, engagement hours, ad-tier revenue]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: SPOT, name: Spotify Technology}
+
+  - id: data_center_reits
+    name: Дата-центры и башни (REIT)
+    key_metrics: [same-store NOI growth, leasing volume, churn, leverage]
+    macro_sensitivity: [us10y]
+    companies:
+      - {ticker: EQIX, name: Equinix}
+      - {ticker: AMT, name: American Tower}
+
+peer_edges: []

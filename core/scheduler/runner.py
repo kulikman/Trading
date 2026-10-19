@@ -35,6 +35,8 @@ EVENING_DIGEST_FUNC = "notify.digest_jobs:run_evening_digest"
 WEEKLY_DIGEST_FUNC = "notify.digest_jobs:run_weekly_calendar"
 NEWS_FUNC = "agents.news.job:run_news"
 MARKET_FUNC = "agents.macro.daily:run_market_level"
+WATCHLIST_JOB_ID = "watchlist-refresh"
+WATCHLIST_FUNC = "agents.watchlist.job:run_watchlist_refresh"
 JOBS_TABLE = "apscheduler_jobs"
 
 
@@ -82,6 +84,15 @@ def register_jobs(scheduler: BaseScheduler, schedule: ScheduleConfig) -> None:
         WEEKLY_DIGEST_FUNC,
         CronTrigger(day_of_week="mon", hour=weekly.hour, minute=weekly.minute),
         id=WEEKLY_DIGEST_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=grace,
+    )
+    scheduler.add_job(
+        WATCHLIST_FUNC,
+        CronTrigger(day_of_week="sun", hour=18, minute=0, timezone=ET),
+        id=WATCHLIST_JOB_ID,
         replace_existing=True,
         coalesce=True,
         max_instances=1,
