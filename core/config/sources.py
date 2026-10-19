@@ -157,11 +157,19 @@ class RedisSettings(StrictModel):
     timeout_seconds: PositiveFloat
 
 
+class FmpSettings(HttpSourceSettings):
+    """Financial Modeling Prep: fallback для EPS-консенсуса."""
+
+    estimate_limit: PositiveInt
+    cache_ttl_seconds: int = Field(ge=0)
+
+
 class Sources(StrictModel):
     redis: RedisSettings
     massive: MassiveSettings
     finnhub: FinnhubSettings
     alphavantage: AlphaVantageSettings
+    fmp: FmpSettings
     edgar: EdgarSettings
     fred: FredSettings
     cboe: CboeSettings

@@ -69,6 +69,14 @@ alphavantage:                    # бесплатно 25 запросов в д�
     earnings_estimates: 43200
     earnings: 86400
 
+fmp:                             # Financial Modeling Prep: fallback EPS-консенсус если AV не дал данных; ключ — FMP_API_KEY (параметр apikey)
+  base_url: https://financialmodelingprep.com
+  timeout_seconds: 15
+  max_attempts: 2
+  backoff_base_seconds: 1.0
+  estimate_limit: 8              # последних 8 кварталов (2 года)
+  cache_ttl_seconds: 43200       # 12 часов — те же что у AV
+
 edgar:                           # SEC EDGAR, бесплатно; заголовок User-Agent — SEC_USER_AGENT (название + email, требование SEC)
   data_base_url: https://data.sec.gov
   tickers_url: https://www.sec.gov/files/company_tickers.json

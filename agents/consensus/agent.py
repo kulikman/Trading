@@ -33,6 +33,20 @@ class EstimatesSource(Protocol):
         """Оценки аналитиков по кварталам и годам."""
 
 
+class FallbackEstimatesSource:
+    """Пробует primary; при DataError — fallback. Revision-поля fallback могут быть None."""
+
+    def __init__(self, primary: EstimatesSource, fallback: EstimatesSource) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def earnings_estimates(self, symbol: str) -> list[AvEstimate]:
+        try:
+            return self._primary.earnings_estimates(symbol)
+        except DataError:
+            return self._fallback.earnings_estimates(symbol)
+
+
 class ConsensusFeatures(BaseModel):
     revision_trend_7_90: float | None = None
     revision_trend_7d: float | None = None
