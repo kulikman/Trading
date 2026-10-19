@@ -53,6 +53,9 @@ run-calendar:  ## разовый прогон «Календаря» (то же,
 run-consensus:  ## разовый снимок консенсуса (то же, что в 06:10 ET)
 	uv run python -m agents.consensus
 
+run-watchlist:  ## разовый запуск watchlist-refresh (то же, что в 18:00 ET воскресенья)
+	uv run python -m agents.watchlist
+
 load-options:  ## архив опционов по прошлым отчётам: make load-options ARGS="--ticker NFLX" или ARGS="--all"
 	uv run python -m backtest.load_option_history $(ARGS)
 
