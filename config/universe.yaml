@@ -1,4 +1,4 @@
-# Вселенная первого сезона: 50 компаний, 11 секторов (SPEC §2, §5).
+# Вселенная: 63 компании, 14 секторов (расширена 19.10.2026: +defense, +auto, +telecom, +pharma, +financials).
 #
 # Критерии отбора (не инвестиционная рекомендация):
 #   1. эмитент США, отчитывается через 10-Q / 8-K — дату можно подтвердить по EDGAR;
@@ -24,13 +24,15 @@ sectors:
       - {ticker: MS, name: Morgan Stanley}
 
   - id: payments
-    name: Платёжные сети
-    key_metrics: [payments volume, cross-border volume, processed transactions, card member spend]
-    macro_sensitivity: [regime]
+    name: Платёжные сети и управление активами
+    key_metrics: [payments volume, cross-border volume, processed transactions, card member spend, AUM]
+    macro_sensitivity: [regime, us10y]
     companies:
       - {ticker: V, name: Visa}
       - {ticker: MA, name: Mastercard}
       - {ticker: AXP, name: American Express}
+      - {ticker: BLK, name: BlackRock}
+      - {ticker: SCHW, name: Charles Schwab}
 
   - id: semis
     name: Полупроводники
@@ -109,14 +111,41 @@ sectors:
       - {ticker: HAL, name: Halliburton}
 
   - id: healthcare
-    name: Здравоохранение
-    key_metrics: [medical cost ratio, key product sales, pipeline readouts, guidance]
+    name: Здравоохранение и фарма
+    key_metrics: [medical cost ratio, key product sales, pipeline readouts, guidance, royalty revenue]
     macro_sensitivity: [vix]
     companies:
       - {ticker: UNH, name: UnitedHealth Group}
       - {ticker: LLY, name: Eli Lilly}
       - {ticker: JNJ, name: Johnson & Johnson}
       - {ticker: MRK, name: Merck & Co.}
+      - {ticker: ABBV, name: AbbVie}
+      - {ticker: PFE, name: Pfizer}
+      - {ticker: AMGN, name: Amgen}
+
+  - id: defense
+    name: Оборонно-промышленный комплекс
+    key_metrics: [backlog, book-to-bill, segment operating margin, free cash flow]
+    macro_sensitivity: [regime]
+    companies:
+      - {ticker: RTX, name: RTX Corp}
+      - {ticker: LMT, name: Lockheed Martin}
+      - {ticker: NOC, name: Northrop Grumman}
+
+  - id: auto
+    name: Автомобилестроение
+    key_metrics: [vehicle deliveries, EBIT-adj, EV mix, pricing, inventory]
+    macro_sensitivity: [regime, us10y]
+    companies:
+      - {ticker: GM, name: General Motors}
+      - {ticker: F, name: Ford Motor}
+
+  - id: telecom
+    name: Телекоммуникации
+    key_metrics: [postpaid net adds, ARPU, free cash flow, leverage ratio]
+    macro_sensitivity: [us10y]
+    companies:
+      - {ticker: TMUS, name: T-Mobile US}
 
   - id: industrials
     name: Промышленность и аэрокосмос
@@ -145,3 +174,11 @@ peer_edges:
   - {from_ticker: JNJ, to_ticker: MRK, note: открывает сезон фармы}
   - {from_ticker: GE, to_ticker: BA, note: аэрокосмическая цепочка}
   - {from_ticker: CAT, to_ticker: DE, note: тяжёлая техника}
+  - {from_ticker: JNJ, to_ticker: ABBV, note: крупная фарма открывает сезон}
+  - {from_ticker: JNJ, to_ticker: PFE, note: крупная фарма открывает сезон}
+  - {from_ticker: ABBV, to_ticker: AMGN, note: биологические препараты / иммунология}
+  - {from_ticker: LMT, to_ticker: RTX, note: оборонные контракты}
+  - {from_ticker: LMT, to_ticker: NOC, note: оборонные контракты}
+  - {from_ticker: GM, to_ticker: F, note: американский авторынок}
+  - {from_ticker: V, to_ticker: BLK, note: финансовый сектор / аппетит к риску}
+  - {from_ticker: GS, to_ticker: SCHW, note: брокерская активность / рынок капитала}
