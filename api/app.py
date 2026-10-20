@@ -157,8 +157,10 @@ def create_app(
         return detail
 
     @app.get("/api/companies")
-    def all_companies(db: Db, sector: str | None = None) -> list[companies.CompanyListRow]:
-        return companies.all_companies_view(db, clock(), sector_id=sector)
+    def all_companies(
+        db: Db, sector: str | None = None, letter: str | None = None
+    ) -> list[companies.CompanyListRow]:
+        return companies.all_companies_view(db, clock(), sector_id=sector, letter=letter)
 
     @app.get("/api/companies/{ticker}/{tab}")
     def company(

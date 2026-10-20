@@ -52,6 +52,13 @@ class FinnhubEarning(ApiModel):
         return f"{self.year}Q{self.quarter}"
 
 
+class FinnhubCompanyProfile(ApiModel):
+    """Элемент /stock/profile2: профиль компании (marketCapitalization — в миллионах USD)."""
+
+    ticker: str | None = None
+    market_capitalization: float | None = Field(default=None, alias="marketCapitalization")
+
+
 class FinnhubEpsResult(ApiModel):
     """Элемент /stock/earnings (EarningResult): факт против оценки по фискальным кварталам."""
 

@@ -1,4 +1,4 @@
-.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash learn-season server-learn-season server-promote
+.PHONY: setup db-up db-down migrate lint format test run-scheduler run-calendar run-consensus load-options build-archive backtest-data backtest run-archive-daily promote run-bot run-api run-web rerun-job models-init deploy deploy-status cash learn-season server-learn-season server-promote populate-market-cap
 
 -include .env
 
@@ -55,6 +55,9 @@ run-consensus:  ## разовый снимок консенсуса (то же, 
 
 run-watchlist:  ## разовый запуск watchlist-refresh (то же, что в 18:00 ET воскресенья)
 	uv run python -m agents.watchlist
+
+populate-market-cap:  ## заполнить company.market_cap_usd_m из Finnhub (разовый прогон)
+	uv run python agents/macro/market_cap.py
 
 load-options:  ## архив опционов по прошлым отчётам: make load-options ARGS="--ticker NFLX" или ARGS="--all"
 	uv run python -m backtest.load_option_history $(ARGS)

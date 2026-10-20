@@ -75,6 +75,7 @@ class CompanyListRow(BaseModel):
     sector_name: str
     next_report: str
     queue_status: str
+    market_cap: str
 
 
 class SectorDetail(BaseModel):
@@ -204,12 +205,28 @@ def sector_view(session: Session, sector_id: str, now: datetime) -> SectorDetail
     return SectorDetail(id=sector.id, name=sector.name, companies=rows)
 
 
+def _fmt_market_cap(usd_m: float | None) -> str:
+    """Форматирует капитализацию: 2_800_000 M → $2.8T; 85_000 M → $85B; None → '—'."""
+    if usd_m is None:
+        return "—"
+    if usd_m >= 1_000_000:
+        return f"${usd_m / 1_000_000:.1f}T"
+    if usd_m >= 1_000:
+        return f"${usd_m / 1_000:.0f}B"
+    return f"${usd_m:.0f}M"
+
+
 def all_companies_view(
-    session: Session, now: datetime, sector_id: str | None = None
+    session: Session,
+    now: datetime,
+    sector_id: str | None = None,
+    letter: str | None = None,
 ) -> list[CompanyListRow]:
     query = select(orm.Company, orm.Sector).join(orm.Sector, orm.Company.sector_id == orm.Sector.id)
     if sector_id is not None:
         query = query.where(orm.Company.sector_id == sector_id)
+    if letter is not None:
+        query = query.where(orm.Company.ticker.startswith(letter.upper()))
     query = query.order_by(orm.Sector.name, orm.Company.ticker)
     rows = []
     today = to_et(now).date()
@@ -225,6 +242,7 @@ def all_companies_view(
                 queue_status=QUEUE_LABELS.get(event.queue_status, event.queue_status)
                 if event
                 else "—",
+                market_cap=_fmt_market_cap(company.market_cap_usd_m),
             )
         )
     return rows

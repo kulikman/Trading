@@ -146,6 +146,7 @@ class Company(Timestamps, Base):
     risks: Mapped[Any | None] = mapped_column(JSONB)
     options_liquid: Mapped[bool | None]
     calibration_status: Mapped[str] = mapped_column(server_default="active")
+    market_cap_usd_m: Mapped[float | None]
 
 
 class PeerEdge(Timestamps, Base):

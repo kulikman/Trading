@@ -151,6 +151,7 @@ export interface CompanyListRow {
   sector_name: string;
   next_report: string;
   queue_status: string;
+  market_cap: string;
 }
 
 export interface Overview {

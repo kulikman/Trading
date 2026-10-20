@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from adapters.api_model import ApiModel, require_env
 from adapters.cache import Cache
 from adapters.errors import DataError
-from adapters.finnhub.models import FinnhubEarning, FinnhubEpsResult
+from adapters.finnhub.models import FinnhubCompanyProfile, FinnhubEarning, FinnhubEpsResult
 from adapters.http import JsonHttpClient, Params, RetryPolicy
 from core.config.sources import FinnhubSettings
 
@@ -95,6 +95,11 @@ class FinnhubClient:
         if not isinstance(rows, list):
             raise DataError(SOURCE, "expected an earningsCalendar list")
         return [_parse(FinnhubEarning, row) for row in rows]
+
+    def company_profile(self, symbol: str) -> FinnhubCompanyProfile:
+        """Профиль компании: marketCapitalization в миллионах USD (бесплатный tier)."""
+        payload = self._http.get_json("/stock/profile2", {"symbol": symbol}, ttl_seconds=86400)
+        return _parse(FinnhubCompanyProfile, payload)
 
     def earnings_history(self, symbol: str, limit: int | None = None) -> list[FinnhubEpsResult]:
         """Факт против оценки по кварталам (бесплатно — последние 4 квартала)."""
