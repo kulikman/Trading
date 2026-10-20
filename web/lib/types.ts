@@ -144,6 +144,15 @@ export interface SectorDetail {
   companies: { ticker: string; name: string; next_report: string; queue_status: string }[];
 }
 
+export interface CompanyListRow {
+  ticker: string;
+  name: string;
+  sector_id: string;
+  sector_name: string;
+  next_report: string;
+  queue_status: string;
+}
+
 export interface Overview {
   ticker: string;
   name: string;

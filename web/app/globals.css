@@ -198,6 +198,34 @@ table.data-table tbody tr:hover td {
   background: var(--color-soft);
 }
 
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.filter-btn {
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--color-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  background: var(--color-soft);
+}
+
+.filter-btn.active {
+  background: var(--color-link);
+  border-color: var(--color-link);
+  color: #fff;
+}
+
 /* полоса счёта — плитки */
 .stats {
   display: grid;

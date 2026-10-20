@@ -156,6 +156,10 @@ def create_app(
             raise HTTPException(status_code=404, detail="sector not found")
         return detail
 
+    @app.get("/api/companies")
+    def all_companies(db: Db, sector: str | None = None) -> list[companies.CompanyListRow]:
+        return companies.all_companies_view(db, clock(), sector_id=sector)
+
     @app.get("/api/companies/{ticker}/{tab}")
     def company(
         db: Db,

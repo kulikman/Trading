@@ -68,6 +68,15 @@ class CompanyRow(BaseModel):
     queue_status: str
 
 
+class CompanyListRow(BaseModel):
+    ticker: str
+    name: str
+    sector_id: str
+    sector_name: str
+    next_report: str
+    queue_status: str
+
+
 class SectorDetail(BaseModel):
     id: str
     name: str
@@ -193,6 +202,32 @@ def sector_view(session: Session, sector_id: str, now: datetime) -> SectorDetail
             )
         )
     return SectorDetail(id=sector.id, name=sector.name, companies=rows)
+
+
+def all_companies_view(
+    session: Session, now: datetime, sector_id: str | None = None
+) -> list[CompanyListRow]:
+    query = select(orm.Company, orm.Sector).join(orm.Sector, orm.Company.sector_id == orm.Sector.id)
+    if sector_id is not None:
+        query = query.where(orm.Company.sector_id == sector_id)
+    query = query.order_by(orm.Sector.name, orm.Company.ticker)
+    rows = []
+    today = to_et(now).date()
+    for company, sector in session.execute(query):
+        event = _next_event(session, company.ticker, today)
+        rows.append(
+            CompanyListRow(
+                ticker=company.ticker,
+                name=company.name,
+                sector_id=sector.id,
+                sector_name=sector.name,
+                next_report=_event_text(event),
+                queue_status=QUEUE_LABELS.get(event.queue_status, event.queue_status)
+                if event
+                else "—",
+            )
+        )
+    return rows
 
 
 def company_tab(
