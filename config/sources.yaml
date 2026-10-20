@@ -63,7 +63,7 @@ alphavantage:                    # бесплатно 25 запросов в д�
   max_attempts: 2
   backoff_base_seconds: 2.0
   calendar_horizon: 3month       # 3month | 6month | 12month
-  requests_per_minute: 55        # свободный тариф: 1 запрос/сек = 60/мин; 55 — с запасом
+  requests_per_minute: 4         # свободный тариф: 5 req/min; 4 — с запасом (15 сек между вызовами)
   cache_ttl_seconds:             # долгий кэш бережёт дневной лимит
     earnings_calendar: 43200
     earnings_estimates: 43200
