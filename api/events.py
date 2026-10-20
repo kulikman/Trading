@@ -85,6 +85,8 @@ class ReportRow(BaseModel):
     decision: str
     mode: str
     reason: str
+    eps_consensus: Num
+    eps_actual: Num
 
 
 class PositionRow(BaseModel):
@@ -179,6 +181,17 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
         if actions
         else NowBlock(is_action=False, message=_next_message(session, now))
     )
+    pairs = _events(session, today, today)
+    tickers = {e.ticker for e, _ in pairs}
+    tracks: dict[str, orm.EarningsTrack] = {}
+    if tickers:
+        track_rows = session.scalars(
+            select(orm.EarningsTrack).where(
+                orm.EarningsTrack.ticker.in_(tickers),
+                orm.EarningsTrack.report_date == today,
+            )
+        ).all()
+        tracks = {t.ticker: t for t in track_rows}
     reports = [
         ReportRow(
             ticker=e.ticker,
@@ -186,8 +199,9 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
             decision=DECISION_LABELS.get(d.status, WAITING) if d else WAITING,
             mode=(d.mode if d and d.mode else "—"),
             reason=(", ".join(d.reasons) if d and d.reasons else "—"),
+            **_today_track_fields(tracks.get(e.ticker)),
         )
-        for e, d in _events(session, today, today)
+        for e, d in pairs
     ]
     positions = [
         PositionRow(
@@ -250,6 +264,15 @@ def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
         events=events,
         events_message=None if events or top else NO_EVENTS,
     )
+
+
+def _today_track_fields(track: orm.EarningsTrack | None) -> dict[str, Num]:
+    if track is None:
+        return {"eps_consensus": empty("—"), "eps_actual": empty("—")}
+    return {
+        "eps_consensus": price(track.eps_consensus),
+        "eps_actual": price(track.eps_actual),
+    }
 
 
 def _track_fields(track: orm.EarningsTrack | None) -> dict[str, Num]:

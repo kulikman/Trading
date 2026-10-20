@@ -67,7 +67,7 @@ export interface Today {
     rows: { time: string; ticker: string; action: string; card_id: number | null }[];
     message: string | null;
   };
-  reports: { ticker: string; time: string; decision: string; mode: string; reason: string }[];
+  reports: { ticker: string; time: string; decision: string; mode: string; reason: string; eps_consensus: Num; eps_actual: Num }[];
   reports_message: string | null;
   positions: { card_id: number; ticker: string; mode: string; pnl: Num; stop: Num; next_step: string }[];
   positions_message: string | null;

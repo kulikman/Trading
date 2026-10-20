@@ -46,13 +46,19 @@ async function TodayContent({
 
       <h2>Отчёты сегодня</h2>
       {today.reports.length > 0 ? (
-        <Grid head={["Тикер", "Время", "Решение", "Режим", "Причина"]}>
+        <Grid head={["Тикер", "Время", "EPS ожид.", "EPS факт", "Решение", "Режим", "Причина"]}>
           {today.reports.map((row) => (
             <tr key={row.ticker}>
               <td>
                 <Link href={`/companies/${row.ticker}`}>{row.ticker}</Link>
               </td>
               <td>{row.time}</td>
+              <td>
+                <N value={row.eps_consensus} />
+              </td>
+              <td>
+                <N value={row.eps_actual} />
+              </td>
               <td>{row.decision}</td>
               <td>{row.mode}</td>
               <td>{row.reason}</td>
