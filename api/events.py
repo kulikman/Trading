@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import date, datetime, time, timedelta
 
 from pydantic import BaseModel
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from api.format import Num, count, day, empty, et_msk, money, percent, price
@@ -184,6 +184,7 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
     pairs = _events(session, today, today)
     tickers = {e.ticker for e, _ in pairs}
     tracks: dict[str, orm.EarningsTrack] = {}
+    snapshots: dict[str, float | None] = {}
     if tickers:
         track_rows = session.scalars(
             select(orm.EarningsTrack).where(
@@ -192,6 +193,23 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
             )
         ).all()
         tracks = {t.ticker: t for t in track_rows}
+        snap_subq = (
+            select(
+                orm.ConsensusSnapshot.ticker,
+                func.max(orm.ConsensusSnapshot.as_of).label("max_as_of"),
+            )
+            .where(orm.ConsensusSnapshot.ticker.in_(tickers))
+            .group_by(orm.ConsensusSnapshot.ticker)
+            .subquery()
+        )
+        snap_rows = session.scalars(
+            select(orm.ConsensusSnapshot).join(
+                snap_subq,
+                (orm.ConsensusSnapshot.ticker == snap_subq.c.ticker)
+                & (orm.ConsensusSnapshot.as_of == snap_subq.c.max_as_of),
+            )
+        ).all()
+        snapshots = {s.ticker: s.eps_estimate for s in snap_rows}
     reports = [
         ReportRow(
             ticker=e.ticker,
@@ -199,7 +217,7 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
             decision=DECISION_LABELS.get(d.status, WAITING) if d else WAITING,
             mode=(d.mode if d and d.mode else "—"),
             reason=(", ".join(d.reasons) if d and d.reasons else "—"),
-            **_today_track_fields(tracks.get(e.ticker)),
+            **_today_track_fields(tracks.get(e.ticker), snapshots.get(e.ticker)),
         )
         for e, d in pairs
     ]
@@ -266,12 +284,18 @@ def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
     )
 
 
-def _today_track_fields(track: orm.EarningsTrack | None) -> dict[str, Num]:
-    if track is None:
-        return {"eps_consensus": empty("—"), "eps_actual": empty("—")}
+def _today_track_fields(
+    track: orm.EarningsTrack | None,
+    fallback_consensus: float | None = None,
+) -> dict[str, Num]:
+    if track is not None:
+        return {
+            "eps_consensus": price(track.eps_consensus),
+            "eps_actual": price(track.eps_actual),
+        }
     return {
-        "eps_consensus": price(track.eps_consensus),
-        "eps_actual": price(track.eps_actual),
+        "eps_consensus": price(fallback_consensus),
+        "eps_actual": empty("—"),
     }
 
 
