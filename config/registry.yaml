@@ -20,6 +20,6 @@ plugins:
   - {id: mode_a,            kind: strategy, version: 0.1.0, stage: shadow, enabled: true,  runs: event}  # T16; shadow — бэктеста режима A не было
   - {id: mode_b,            kind: strategy, version: 0.1.0, stage: shadow, enabled: true,  runs: event}  # T16; shadow до 30+ наблюдений с Brier лучше базового
   - {id: mode_c,            kind: strategy, version: 0.1.0, stage: paper,  enabled: true,  runs: event}  # T16; правила бэктеста T12b
-  - {id: straddle,          kind: strategy, version: 0.1.0, stage: paper,  enabled: true,  runs: event}  # T16
-  - {id: iron_condor,       kind: strategy, version: 0.1.0, stage: paper,  enabled: true,  runs: event}  # T16
+  - {id: straddle,          kind: strategy, version: 0.1.0, stage: paper,  enabled: false, runs: event}  # T16; выключен 21.10.2026: бэктест EV −0,145, Sharpe −1,05 (reports/backtest_2026-10-14.md)
+  - {id: iron_condor,       kind: strategy, version: 0.1.0, stage: paper,  enabled: false, runs: event}  # T16; выключен 21.10.2026: бэктест EV +0,005, сырой P&L −$6 563 (reports/backtest_2026-10-14.md)
   - {id: polymarket_binary, kind: strategy, version: 0.1.0, stage: shadow, enabled: false, runs: event}

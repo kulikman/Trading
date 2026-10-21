@@ -18,7 +18,7 @@ from core.session_guard import ET, next_trading_day, previous_trading_day
 THRESHOLDS = load_config().thresholds
 RULES = (
     THRESHOLDS.modes.C
-)  # сюрприз 5%, объём 2×, лимит VWAP ± 0,3%, трейлинг 2 ATR(14), SMA5, 20 дней
+)  # правила режима C из конфига: сюрприз, объём, лимит VWAP, трейлинг ATR, период SMA, срок
 SETTINGS = THRESHOLDS.backtest.mode_c
 REACTION = date(2025, 10, 22)
 ENTRY_AT = datetime.combine(REACTION, time(10, 31), tzinfo=ET)
@@ -114,7 +114,8 @@ def test_open_below_limit_fills_at_open() -> None:
     ("kwargs", "reason"),
     [
         ({"price_1029": 99}, "no_price_confirm"),  # к 10:30 цена ниже закрытия накануне
-        ({"volume": 1800}, "no_volume_confirm"),  # первый час 1800 + 100 ≤ 2 × 1000
+        # первый час ровно на пороге: (порог × 1000 − 100) + 100 ≤ порог × 1000
+        ({"volume": RULES.min_volume_ratio * 1000 - 100}, "no_volume_confirm"),
         ({"low_1031": 105.4}, "not_filled"),  # до 11:00 лимит 105,347 не достигнут
     ],
 )
@@ -211,10 +212,29 @@ def test_close_below_sma_exits() -> None:
         day_bar(REACTION, 106, 107, 104),
         day_bar(day1, 101.4, 106, 101.35),
     ]
-    result = exit_after(Entry(1, 105.0, ENTRY_AT), daily, REACTION, RULES)
+    # арифметика ниже — для SMA5, а не для периода из конфига
+    sma5 = RULES.model_copy(update={"exit_sma_period": 5})
+    result = exit_after(Entry(1, 105.0, ENTRY_AT), daily, REACTION, sma5)
     # стоп 101,29 не задет (минимум 101,35); SMA5 = (100·3 + 106 + 101,4) / 5 = 101,48 > 101,4
     assert result is not None
     assert (result.reason, result.price) == ("sma", 101.4)
+
+
+def test_sma_exit_period_comes_from_rules() -> None:
+    day1 = next_trading_day(REACTION)
+    daily = [
+        *flat_history(),
+        day_bar(REACTION, 106, 107, 104),
+        day_bar(day1, 101.4, 106, 101.35),
+    ]
+    position = Entry(1, 105.0, ENTRY_AT)
+    slow = RULES.model_copy(update={"exit_sma_period": 9})
+    # SMA9 = (100·7 + 106 + 101,4) / 9 = 100,82 < 101,4: закрытие выше средней — выхода нет
+    assert exit_after(position, daily, REACTION, slow) is None
+    fast = RULES.model_copy(update={"exit_sma_period": 5})
+    result = exit_after(position, daily, REACTION, fast)
+    assert result is not None
+    assert result.reason == "sma"
 
 
 def test_max_hold_exits_after_twenty_days() -> None:

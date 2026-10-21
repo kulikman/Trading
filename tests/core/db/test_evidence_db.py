@@ -62,9 +62,9 @@ def trades(session: Session, strategy: str, pnls: list[float], ticker: str = "NF
 def test_paper_strategy_promoted_to_real_by_sharpe(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     sync_plugins(session, CONFIG.registry)
-    trades(session, "straddle", [600.0, -400.0] * 15)  # 30 сделок, средняя +0,1 риска
+    trades(session, "mode_c", [600.0, -400.0] * 15)  # 30 сделок, средняя +0,1 риска
     evidence = DbEvidence(session, CONFIG.thresholds)
-    state = plugin_state(session, "straddle", "0.1.0")
+    state = plugin_state(session, "mode_c", "0.1.0")
     assert state is not None
     found = evidence.evidence(state)
     assert (found.metric, found.observations, found.baseline) == ("sharpe", 30, 0.0)
@@ -72,7 +72,7 @@ def test_paper_strategy_promoted_to_real_by_sharpe(session: Session) -> None:
     assert round(found.candidate, 4) == 0.2  # 0,1 / 0,5
     result = promote(
         session,
-        "straddle",
+        "mode_c",
         "0.1.0",
         source=evidence,
         lifecycle=CONFIG.thresholds.lifecycle,
@@ -81,16 +81,23 @@ def test_paper_strategy_promoted_to_real_by_sharpe(session: Session) -> None:
     assert (result.accepted, result.to_stage) == (True, "live_small")
 
 
-def test_too_few_or_losing_trades_refused(session: Session) -> None:
+def test_too_few_trades_refused(session: Session) -> None:
     sync_universe(session, CONFIG.universe)
     sync_plugins(session, CONFIG.registry)
-    trades(session, "straddle", [600.0, -400.0] * 10)  # 20 сделок
-    trades(session, "iron_condor", [-600.0, 400.0] * 15, "TSLA")  # 30 сделок, Sharpe < 0
+    trades(session, "mode_c", [600.0, -400.0] * 10)  # 20 сделок
     evidence = DbEvidence(session, CONFIG.thresholds)
     lifecycle = CONFIG.thresholds.lifecycle
-    few = promote(session, "straddle", "0.1.0", source=evidence, lifecycle=lifecycle, now=NOW)
+    few = promote(session, "mode_c", "0.1.0", source=evidence, lifecycle=lifecycle, now=NOW)
     assert (few.accepted, few.reason) == (False, "мало наблюдений: 20 из 30")
-    losing = promote(session, "iron_condor", "0.1.0", source=evidence, lifecycle=lifecycle, now=NOW)
+
+
+def test_losing_trades_refused(session: Session) -> None:
+    sync_universe(session, CONFIG.universe)
+    sync_plugins(session, CONFIG.registry)
+    trades(session, "mode_c", [-600.0, 400.0] * 15, "TSLA")  # 30 сделок, Sharpe < 0
+    evidence = DbEvidence(session, CONFIG.thresholds)
+    lifecycle = CONFIG.thresholds.lifecycle
+    losing = promote(session, "mode_c", "0.1.0", source=evidence, lifecycle=lifecycle, now=NOW)
     assert not losing.accepted
     assert losing.reason.startswith("sharpe не лучше базового: -0.2000 против 0.0000")
 

@@ -123,11 +123,11 @@ modes:                               # SPEC §10
   C:
     min_eps_surprise: 0.05
     min_revenue_surprise: 0.05
-    min_volume_ratio: 2.0
+    min_volume_ratio: 1.5            # было 2.0 (SPEC §10); решение заказчика 21.10.2026 по свипу бэктеста: 252 сделки, Sharpe выше на обеих половинах окна
     max_entry_over_vwap: 0.003       # лимит ≤ VWAP первого часа + 0.3%
     trailing_atr_multiple: 2.0
     atr_period: 14
-    exit_sma_period: 5
+    exit_sma_period: 9               # было 5 (SPEC §10); решение заказчика 21.10.2026 по свипу бэктеста: SMA 8–10 лучше SMA 5 на обеих половинах окна
     max_hold_days: 20
 
 pre_run_3d:                          # SPEC §10, «Рост перед отчётом»
