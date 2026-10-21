@@ -44,5 +44,6 @@ def test_env_example_has_no_values() -> None:
     lines = (REPO_ROOT / ".env.example").read_text().splitlines()
     assignments = [line for line in lines if line.strip() and not line.lstrip().startswith("#")]
     assert assignments, ".env.example must list the expected variables"
-    filled = [line for line in assignments if line.split("=", 1)[1].strip()]
+    # комментарий после «=» (FMP_API_KEY=   # пояснение) — не значение
+    filled = [line for line in assignments if line.split("=", 1)[1].split("#", 1)[0].strip()]
     assert filled == []

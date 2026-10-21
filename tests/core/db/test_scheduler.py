@@ -27,10 +27,12 @@ from core.scheduler.runner import (
     DISPATCH_JOB_ID,
     EVENING_DIGEST_JOB_ID,
     JOBS_TABLE,
+    MARKET_CAP_JOB_ID,
     MARKET_JOB_ID,
     MORNING_DIGEST_JOB_ID,
     NEWS_JOB_ID,
     TRAILING_JOB_ID,
+    WATCHLIST_JOB_ID,
     WEEKLY_DIGEST_JOB_ID,
     create_scheduler,
     register_jobs,
@@ -126,6 +128,8 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             WEEKLY_DIGEST_JOB_ID,
             NEWS_JOB_ID,
             MARKET_JOB_ID,
+            WATCHLIST_JOB_ID,
+            MARKET_CAP_JOB_ID,
             DISPATCH_JOB_ID,
         }
         trailing = jobs[TRAILING_JOB_ID].trigger
@@ -152,7 +156,7 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             stored = connection.execute(
                 select(func.count()).select_from(orm.apscheduler_jobs)
             ).scalar_one()
-        assert stored == 10
+        assert stored == len(jobs)  # повторная регистрация не дублирует задачи в хранилище
     finally:
         scheduler.shutdown(wait=False)
         with engine.begin() as connection:
@@ -204,6 +208,8 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
             NEWS_JOB_ID,
             MARKET_JOB_ID,
             WEEKLY_DIGEST_JOB_ID,
+            WATCHLIST_JOB_ID,
+            MARKET_CAP_JOB_ID,
             DISPATCH_JOB_ID,
         ],
         [True],

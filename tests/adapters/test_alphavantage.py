@@ -120,13 +120,14 @@ def test_information_notice_is_data_error_and_not_cached(
     settings: AlphaVantageSettings, function: str
 ) -> None:
     fake = by_function({function: load_json("alphavantage", "information.json")})
-    av = client(settings, fake, cache=MemoryCache())
+    av = client(no_backoff(settings), fake, cache=MemoryCache())
     call = av.earnings_estimates if function == "EARNINGS_ESTIMATES" else av.earnings
     for _ in range(2):
         with pytest.raises(DataError, match="Information") as exc_info:
             call("GS")
         assert KEY not in str(exc_info.value)
-    assert len(fake.requests) == 2
+    # лимит повторяется max_attempts раз за вызов; второй вызов снова в сеть — не кэшировано
+    assert len(fake.requests) == 2 * settings.max_attempts
 
 
 def test_estimates_without_list_is_data_error(settings: AlphaVantageSettings) -> None:

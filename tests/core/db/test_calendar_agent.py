@@ -110,7 +110,8 @@ def test_first_run_creates_events_jobs_and_flags_mismatch(session: Session) -> N
     assert stored["NFLX"].date_status == "projected"  # только один источник
     assert (stored["NFLX"].report_time, stored["GS"].fiscal_period) == ("AMC", "2026Q3")
     assert count(session, orm.EventJob) == 3 * JOBS_PER_EVENT
-    assert count(session, orm.Company) == 50  # вселенная синхронизирована
+    synced = len(CONFIG.universe.tickers())
+    assert count(session, orm.Company) == synced  # вселенная синхронизирована
     [change] = session.scalars(select(orm.EventChange)).all()
     assert (change.field, change.new_value) == ("date_check", "mismatch")
     assert change.reason == "DATA_CALENDAR: finnhub 2026-10-21 vs alphavantage 2026-10-22"
