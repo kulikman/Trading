@@ -126,8 +126,9 @@ def parse_report(session: Session, job: EventJob, *, source: ReportSource) -> Re
 
 
 def report_handlers(source: ReportSource) -> dict[str, Handler]:
-    """Обработчик задачи `parse_report` для диспетчера."""
-    return {"parse_report": partial(_parse, source=source)}
+    """`parse_report` (07:30) и его повтор `parse_report_retry` (10:40) — одна и та же логика."""
+    handler = partial(_parse, source=source)
+    return {"parse_report": handler, "parse_report_retry": handler}
 
 
 def _parse(session: Session, job: EventJob, *, source: ReportSource) -> None:

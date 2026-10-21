@@ -37,6 +37,13 @@ def test_amc_timeline_anchors_on_reaction_day() -> None:
     assert jobs[("T0", "close_positions")].run_at == et(date(2026, 10, 16), 10, 45)
 
 
+def test_parse_report_retry_runs_before_mode_c_decision() -> None:
+    jobs = by_key(plan_event_jobs(1, date(2026, 10, 20), "BMO", SPECS))
+    retry = jobs[("T0", "parse_report_retry")].run_at
+    assert retry == et(date(2026, 10, 20), 10, 40)
+    assert jobs[("T0", "parse_report")].run_at < retry < jobs[("T0", "mode_c_decision")].run_at
+
+
 def test_monday_report_moves_pre_report_jobs_to_friday() -> None:
     jobs = by_key(plan_event_jobs(1, date(2026, 10, 19), "BMO", SPECS))
     friday = date(2026, 10, 16)

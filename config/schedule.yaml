@@ -65,11 +65,14 @@ event_jobs:
   - {stage: T-1,  job: mode_a_exit,        offset_days: -1,  time_et: "15:50", kind: execution, shift: previous}
   - {stage: T-1,  job: evening_digest,     offset_days: -1,  time_et: "16:30", kind: notify}
   - {stage: T0,   job: parse_report,       offset_days: 0,   time_et: "07:30", kind: analysis}
+  # Повтор: утренние отчёты (BMO) доходят до Finnhub позже 07:30 — без строки earnings_track «Досье» T+1 падает (21.10.2026, HAL).
+  - {stage: T0,   job: parse_report_retry, offset_days: 0,   time_et: "10:40", kind: analysis}
   - {stage: T0,   job: be_at_terminal,     offset_days: 0,   time_et: "09:00", kind: notify, shift: next}
   - {stage: T0,   job: stop_gap,           offset_days: 0,   time_et: "09:30", kind: execution}
   - {stage: T0,   job: mode_c_decision,    offset_days: 0,   time_et: "10:45", kind: execution, strategies: [mode_c]}  # 10:45 — минуты с задержкой 15 мин, первый час 09:30–10:30 как в бэктесте (решение заказчика 15.10.2026)
   - {stage: T0,   job: close_positions,    offset_days: 0,   time_et: "10:45", kind: execution}  # «до 11:00», время стартовое
   # Итог T+1 нужен после дня реакции — не может уехать раньше.
   - {stage: T+1,  job: outcome,            offset_days: 1,   time_et: "08:00", kind: analysis, shift: next}  # время стартовое
-  # Итог «Досье»: reaction_cause по пресс-релизу; EPS и движение уже в архиве (задача archive, 18:30 ET дня реакции).
+  # Итог «Досье»: reaction_cause по пресс-релизу; факт EPS — из parse_report (T0 07:30 и повтор 10:40). Архив (18:30 ET) берёт
+  # отчёт только на следующий день после реакции, поэтому к 08:05 T+1 движение и implied move в строке ещё пусты.
   - {stage: T+1,  job: dossier_outcome,    offset_days: 1,   time_et: "08:05", kind: analysis, shift: next, agent: dossier}

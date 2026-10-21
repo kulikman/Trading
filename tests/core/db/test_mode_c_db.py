@@ -16,7 +16,7 @@ from core.domain.schedule import EventJob
 from core.domain.types import SkipReason
 from core.registry.protocols import DecisionContext, EventContext, Proposal, Skip
 from core.session_guard import ET
-from decision.report import parse_report, surprise_pct
+from decision.report import parse_report, report_handlers, surprise_pct
 from execution.costs import BrokerCostModel
 from strategies.mode_c.strategy import ModeCStrategy
 
@@ -136,6 +136,23 @@ def test_parse_report_records_facts(session: Session, event: orm.Event) -> None:
     save_report_facts(session, "NFLX", REPORT, None, {"rev_actual": None})
     session.expire_all()
     assert session.scalars(select(orm.EarningsTrack)).one().rev_actual == 9.5e9  # не затёрто
+
+
+def test_retry_handler_records_facts_the_first_run_missed(
+    session: Session, event: orm.Event
+) -> None:
+    def job(name: str) -> EventJob:
+        return EventJob(event_id=event.id, stage="T0", job=name, kind="analysis", run_at=DECISION)
+
+    early = report_handlers(Reports([earning(eps=None)]))  # 07:30: факта в Finnhub ещё нет
+    assert set(early) == {"parse_report", "parse_report_retry"}
+    early["parse_report"](session, job("parse_report"))
+    assert session.scalars(select(orm.EarningsTrack)).first() is None
+    later = report_handlers(Reports([earning()]))  # 10:40: факт появился
+    later["parse_report_retry"](session, job("parse_report_retry"))
+    row = session.scalars(select(orm.EarningsTrack)).one()
+    assert row.eps_actual == 1.10
+    assert row.eps_surprise_pct == pytest.approx(10.0)
 
 
 def test_surprise_uses_consensus_snapshot_before_reaction(
