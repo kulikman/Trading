@@ -1,8 +1,9 @@
 """APScheduler 3.11 с хранилищем задач в Postgres (SPEC §3, §8).
 
-Постоянные задачи: агент «Календарь» (торговые дни, 06:00 ET), уровень Black Swan (06:05 ET),
-снимок консенсуса (06:10 ET), новости компаний (07:45 ET), трейлинг-стоп режима C (16:20 ET),
-дайджесты (08:30 и 16:30 ET), пополнение архива (18:30 ET) и диспетчер задач событий.
+Постоянные задачи: агент «Календарь» (06:00 ET), уровень Black Swan (06:05 ET),
+снимок консенсуса (06:10 ET), капитализация компаний (07:30 ET), новости (07:45 ET),
+трейлинг-стоп (16:20 ET), дайджесты (08:30 и 16:30 ET), архив (18:30 ET),
+watchlist (воскресенье 18:00 ET) и диспетчер задач событий.
 Сами задачи событий — строки event_job (ключ event_id, stage, job), их берёт диспетчер.
 """
 
@@ -37,6 +38,8 @@ NEWS_FUNC = "agents.news.job:run_news"
 MARKET_FUNC = "agents.macro.daily:run_market_level"
 WATCHLIST_JOB_ID = "watchlist-refresh"
 WATCHLIST_FUNC = "agents.watchlist.job:run_watchlist_refresh"
+MARKET_CAP_JOB_ID = "market-cap-daily"
+MARKET_CAP_FUNC = "agents.macro.market_cap:run_market_cap_refresh"
 JOBS_TABLE = "apscheduler_jobs"
 
 
@@ -93,6 +96,15 @@ def register_jobs(scheduler: BaseScheduler, schedule: ScheduleConfig) -> None:
         WATCHLIST_FUNC,
         CronTrigger(day_of_week="sun", hour=18, minute=0, timezone=ET),
         id=WATCHLIST_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=grace,
+    )
+    scheduler.add_job(
+        MARKET_CAP_FUNC,
+        CronTrigger(day_of_week="mon-fri", hour=7, minute=30, timezone=ET),
+        id=MARKET_CAP_JOB_ID,
         replace_existing=True,
         coalesce=True,
         max_instances=1,

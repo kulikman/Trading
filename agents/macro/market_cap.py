@@ -1,7 +1,7 @@
-"""Заполнение company.market_cap_usd_m из Finnhub /stock/profile2.
+"""Обновление company.market_cap_usd_m из Finnhub /stock/profile2.
 
-Запуск: make populate-market-cap
-Безопасно запускать повторно — обновляет только ненулевые значения.
+Запуск вручную: make populate-market-cap
+Автоматически: задача market-cap-daily в APScheduler (07:30 ET, пн-пт).
 """
 
 import logging
@@ -15,6 +15,8 @@ from adapters.finnhub.client import FinnhubClient, finnhub_api_key
 from core.config import load_config
 from core.db import models as orm
 from core.db.session import create_db_engine
+from core.error_log import logged_job
+from core.scheduler.jobs import engine
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,12 @@ def populate_market_caps(pause_seconds: float = 0.5) -> dict[str, float | None]:
 
     logger.info("готово")
     return results
+
+
+@logged_job("market-cap-daily", lambda: engine())
+def run_market_cap_refresh() -> None:
+    """Точка входа для APScheduler: обновляет капитализацию всех компаний из Finnhub."""
+    populate_market_caps()
 
 
 if __name__ == "__main__":
