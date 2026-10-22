@@ -167,7 +167,37 @@ class Changes(BaseModel):
     rows: list[ChangeRow]
 
 
-def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> Today:
+def pending_hint(
+    surprise_pct: float | None, decision_at: datetime | None, min_surprise: float, now: datetime
+) -> tuple[str, str]:
+    """«Режим» и «Причина» для отчёта без решения: что ждём и когда (время ET и МСК).
+
+    surprise_pct — сюрприз EPS в процентах (6.1 = +6,1%); min_surprise — порог режима C (долей).
+    """
+    if surprise_pct is None:
+        head = "факт отчёта ещё не получен"
+    else:
+        shown = percent(surprise_pct / 100, signed=True).display
+        threshold = percent(min_surprise, digits=0).display
+        if abs(surprise_pct) / 100 > min_surprise:
+            side = "покупку" if surprise_pct > 0 else "продажу"
+            head = f"кандидат на {side}: сюрприз EPS {shown} выше порога {threshold}"
+        else:
+            head = f"сюрприз EPS {shown} не выше порога {threshold} — вход не ожидается"
+    if decision_at is None:
+        return "C", head
+    when = et_msk(decision_at)
+    tail = (
+        f"решение режима C в {when}"
+        if decision_at > now
+        else f"решение режима C было в {when}, записи ещё нет"
+    )
+    return "C", f"{head}; {tail}"
+
+
+def today_view(
+    session: Session, now: datetime, cards: Sequence[OpenCard], thresholds: Thresholds
+) -> Today:
     today = to_et(now).date()
     actions = _human_jobs(session, today, today + timedelta(days=1), entered_only=True)
     now_block = (
@@ -210,17 +240,40 @@ def today_view(session: Session, now: datetime, cards: Sequence[OpenCard]) -> To
             )
         ).all()
         snapshots = {s.ticker: s.eps_estimate for s in snap_rows}
-    reports = [
-        ReportRow(
-            ticker=e.ticker,
-            time=e.report_time or "—",
-            decision=DECISION_LABELS.get(d.status, WAITING) if d else WAITING,
-            mode=(d.mode if d and d.mode else "—"),
-            reason=(", ".join(d.reasons) if d and d.reasons else "—"),
-            **_today_track_fields(tracks.get(e.ticker), snapshots.get(e.ticker)),
+    decision_at = {
+        job.event_id: job.run_at
+        for job in session.scalars(
+            select(orm.EventJob).where(
+                orm.EventJob.event_id.in_({e.id for e, _ in pairs}),
+                orm.EventJob.stage == "T0",
+                orm.EventJob.job == "mode_c_decision",
+            )
         )
-        for e, d in pairs
-    ]
+    }
+    min_surprise = thresholds.modes.C.min_eps_surprise
+    reports = []
+    for e, d in pairs:
+        track = tracks.get(e.ticker)
+        if d is None:  # решения ещё нет: показываем, чего ждём и когда
+            mode, reason = pending_hint(
+                None if track is None else track.eps_surprise_pct,
+                decision_at.get(e.id),
+                min_surprise,
+                now,
+            )
+        else:
+            mode = d.mode or "—"
+            reason = ", ".join(d.reasons) if d.reasons else "—"
+        reports.append(
+            ReportRow(
+                ticker=e.ticker,
+                time=e.report_time or "—",
+                decision=DECISION_LABELS.get(d.status, WAITING) if d else WAITING,
+                mode=mode,
+                reason=reason,
+                **_today_track_fields(track, snapshots.get(e.ticker)),
+            )
+        )
     positions = [
         PositionRow(
             card_id=c.card_id,

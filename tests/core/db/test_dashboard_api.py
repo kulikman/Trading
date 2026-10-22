@@ -10,6 +10,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from api.app import create_app
+from api.events import pending_hint
 from core.config import load_config
 from core.db import models as orm
 from core.db.store import save_reported_earnings, sync_universe, update_earnings
@@ -328,6 +329,61 @@ def test_today_week_and_journal(seeded: Session, client: TestClient) -> None:
         "EDGE_LOW": 1,
         "PRE_RUN": 1,
     }
+
+
+def test_pending_hint_explains_what_is_awaited_and_when() -> None:
+    now = datetime(2026, 10, 22, 12, 29, tzinfo=UTC)
+    at = datetime(2026, 10, 22, 14, 45, tzinfo=UTC)  # 10:45 ET = 17:45 МСК
+    when = "решение режима C в 10:45 ET / 17:45 МСК"
+    assert pending_hint(6.139, at, 0.05, now) == (
+        "C",
+        f"кандидат на покупку: сюрприз EPS +6,1% выше порога 5%; {when}",
+    )
+    assert pending_hint(-8.0, at, 0.05, now)[1].startswith("кандидат на продажу: сюрприз EPS −8,0%")
+    assert pending_hint(2.0, at, 0.05, now)[1] == (
+        f"сюрприз EPS +2,0% не выше порога 5% — вход не ожидается; {when}"
+    )
+    assert pending_hint(None, at, 0.05, now)[1] == f"факт отчёта ещё не получен; {when}"
+    assert pending_hint(6.1, None, 0.05, now)[1] == (
+        "кандидат на покупку: сюрприз EPS +6,1% выше порога 5%"  # задачи решения нет — без времени
+    )
+    after = datetime(2026, 10, 22, 15, 0, tzinfo=UTC)
+    assert pending_hint(6.1, at, 0.05, after)[1].endswith(
+        "решение режима C было в 10:45 ET / 17:45 МСК, записи ещё нет"
+    )
+
+
+def test_today_shows_candidate_and_decision_time_for_event_without_decision(
+    seeded: Session, client: TestClient
+) -> None:
+    event = add_event(seeded, "LMT", date(2026, 10, 14))  # отчёт сегодня, решения ещё нет
+    seeded.add_all(
+        [
+            orm.EarningsTrack(
+                ticker="LMT",
+                report_date=date(2026, 10, 14),
+                eps_consensus=7.509,
+                eps_actual=7.97,
+                eps_surprise_pct=6.139,
+            ),
+            orm.EventJob(
+                event_id=event.id,
+                stage="T0",
+                job="mode_c_decision",
+                kind="execution",
+                run_at=datetime(2026, 10, 14, 19, 45, tzinfo=UTC),  # позже «сейчас» (18:00 UTC)
+            ),
+        ]
+    )
+    seeded.flush()
+    rows = client.get("/api/today", headers=AUTH).json()["reports"]
+    [lmt] = [r for r in rows if r["ticker"] == "LMT"]
+    assert lmt["decision"] == "ЖДЁМ"
+    assert lmt["mode"] == "C"
+    assert lmt["reason"] == (
+        "кандидат на покупку: сюрприз EPS +6,1% выше порога 5%; "
+        "решение режима C в 15:45 ET / 22:45 МСК"
+    )
 
 
 def test_several_entries_per_event(seeded: Session, client: TestClient) -> None:

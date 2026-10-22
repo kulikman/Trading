@@ -103,7 +103,7 @@ def create_app(
         real = [  # Real-позиции — рядом с paper, с пометкой (E10-3)
             replace(c, mode=f"{c.mode or '—'} · REAL") for c in open_cards(db, paper=False)
         ]
-        return events.today_view(db, clock(), [*open_cards(db, paper=True), *real])
+        return events.today_view(db, clock(), [*open_cards(db, paper=True), *real], limits)
 
     @app.get("/api/week")
     def week(db: Db) -> events.Week:
