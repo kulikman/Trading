@@ -73,13 +73,28 @@ class MacroAgentPlugin:
 def vix_closes(
     fred: FredSource, cboe: VixSource | None, start: date, end: date
 ) -> dict[date, float]:
-    """Закрытия VIX: FRED, поверх — CBOE (без задержки FRED); сбой CBOE — только FRED."""
-    values = observed_values(fred.observations(VIX_SERIES, start, end))
+    """Закрытия VIX: FRED, поверх — CBOE (без задержки FRED).
+
+    Сбой одного источника не роняет задачу, пока работает другой; оба недоступны — DataError.
+    """
+    values: dict[date, float] = {}
+    fred_error: DataError | None = None
+    try:
+        values = observed_values(fred.observations(VIX_SERIES, start, end))
+    except DataError as exc:
+        if cboe is None:
+            raise
+        fred_error = exc
+        logger.warning("fred vix unavailable, using cboe", extra={"detail": exc.detail})
     if cboe is None:
         return values
     try:
         return values | cboe.vix_closes(start, end)
     except DataError as exc:
+        if fred_error is not None:
+            raise DataError(
+                "macro", f"VIX: fred — {fred_error.detail}; cboe — {exc.detail}"
+            ) from exc
         logger.warning("cboe vix unavailable, using fred", extra={"detail": exc.detail})
         return values
 

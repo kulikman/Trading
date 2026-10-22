@@ -6,7 +6,7 @@ import pytest
 from adapters.errors import DataError
 from adapters.fred.client import FredObservation
 from adapters.massive.models import Bar, ShortInterest, TickerChange
-from agents.macro.agent import MacroAgentPlugin
+from agents.macro.agent import MacroAgentPlugin, vix_closes
 from agents.positioning.agent import PositioningAgentPlugin
 from core.config import load_config
 from core.registry.protocols import EventContext
@@ -81,6 +81,40 @@ def test_macro_features_at_previous_close() -> None:
     assert features.vix == 26.0
     assert features.us10y == pytest.approx(0.0425)  # пропуск FRED (".") не значение
     assert features.regime == 3  # рост VIX 15 → 26 за день (+73%) — красный
+
+
+class DownFred:
+    def observations(
+        self, series_id: str, start: date | None = None, end: date | None = None
+    ) -> list[FredObservation]:
+        raise DataError("fred", "invalid JSON from https://api.stlouisfed.org/...")
+
+
+class Cboe:
+    def __init__(self, closes: dict[date, float] | None) -> None:
+        self.closes = closes
+
+    def vix_closes(self, start: date, end: date) -> dict[date, float]:
+        if self.closes is None:
+            raise DataError("cboe", "HTTP 503")
+        return self.closes
+
+
+def test_vix_uses_cboe_when_fred_is_down() -> None:
+    cboe = Cboe({CLOSE_DAY: 16.7})
+    assert vix_closes(DownFred(), cboe, CLOSE_DAY, CLOSE_DAY) == {CLOSE_DAY: 16.7}
+
+
+def test_vix_uses_fred_when_cboe_is_down() -> None:
+    fred = Fred({"VIXCLS": [(CLOSE_DAY, 16.0)]})
+    assert vix_closes(fred, Cboe(None), CLOSE_DAY, CLOSE_DAY) == {CLOSE_DAY: 16.0}
+
+
+def test_vix_fails_only_when_both_sources_are_down() -> None:
+    with pytest.raises(DataError, match=r"fred — invalid JSON.*cboe — HTTP 503"):
+        vix_closes(DownFred(), Cboe(None), CLOSE_DAY, CLOSE_DAY)
+    with pytest.raises(DataError, match="invalid JSON"):
+        vix_closes(DownFred(), None, CLOSE_DAY, CLOSE_DAY)  # CBOE не подключён — запасного нет
 
 
 def test_macro_without_data_returns_empty_fields() -> None:

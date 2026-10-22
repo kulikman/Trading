@@ -54,6 +54,26 @@ def test_bad_payload(settings: FredSettings, body: dict[str, object], message: s
         client(settings, FakeApi({PATH: lambda _: body})).observations(VIX)
 
 
+def no_backoff(settings: FredSettings) -> FredSettings:
+    return settings.model_copy(update={"backoff_base_seconds": 0})
+
+
+def test_non_json_success_response_is_retried(settings: FredSettings) -> None:
+    answers = iter(["<html>maintenance</html>", load_json("fred", "vixcls.json")])
+    fake = FakeApi({PATH: lambda _: next(answers)})  # код 200, но тело не JSON, затем нормальный
+    rows = client(no_backoff(settings), fake).observations(VIX)
+    assert len(rows) == 6
+    assert len(fake.requests) == 2
+
+
+def test_persistent_non_json_response_fails_after_max_attempts(settings: FredSettings) -> None:
+    fake = FakeApi({PATH: lambda _: "<html>maintenance</html>"})
+    with pytest.raises(DataError, match="invalid JSON") as exc_info:
+        client(no_backoff(settings), fake).observations(VIX)
+    assert len(fake.requests) == settings.max_attempts
+    assert KEY not in str(exc_info.value)
+
+
 def test_http_error_hides_api_key(settings: FredSettings) -> None:
     fake = FakeApi({PATH: lambda _: (400, {"error_message": "Bad Request"})})
     with pytest.raises(DataError, match="HTTP 400") as exc_info:

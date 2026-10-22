@@ -1,5 +1,6 @@
 """Клиент FRED: наблюдения рядов (VIXCLS, DGS10) для агента «Макро» (SPEC §6, §8)."""
 
+import time
 from datetime import date
 from typing import Any, Protocol
 
@@ -83,9 +84,7 @@ class FredClient:
             params = {**params, "observation_start": start.isoformat()}
         if end is not None:
             params = {**params, "observation_end": end.isoformat()}
-        payload = self._http.get_json(
-            "/fred/series/observations", params, self._settings.cache_ttl_seconds.observations
-        )
+        payload = self._observations_payload(params)
         rows = payload.get("observations")
         if not isinstance(rows, list):
             raise DataError(SOURCE, f"{series_id}: expected an observations list")
@@ -93,6 +92,27 @@ class FredClient:
             return [FredObservation.model_validate(row) for row in rows]
         except ValidationError as exc:
             raise DataError(SOURCE, f"{series_id}: unexpected observation shape") from exc
+
+    def _observations_payload(self, params: Params) -> dict[str, Any]:
+        """Ответ FRED; код 2xx с телом не-JSON (заглушка, сбой на стороне FRED) повторяется.
+
+        HTTP-клиент повторяет только сетевые ошибки и коды 429 / 5xx; такой ответ он принимает
+        как успешный и падает на разборе (21.10.2026: три задачи «Макро» подряд). Повтор — как у
+        Alpha Vantage; неудачный ответ в кэш не попадает.
+        """
+        attempts = self._settings.max_attempts
+        for attempt in range(1, attempts + 1):
+            try:
+                return self._http.get_json(
+                    "/fred/series/observations",
+                    params,
+                    self._settings.cache_ttl_seconds.observations,
+                )
+            except DataError as exc:
+                if not exc.detail.startswith("invalid JSON") or attempt == attempts:
+                    raise
+                time.sleep(self._settings.backoff_base_seconds * 2 ** (attempt - 1))
+        raise AssertionError("unreachable: the last attempt returns or raises")  # pragma: no cover
 
     def latest(self, series_id: str, as_of: date, lookback_days: int) -> FredObservation:
         """Последнее непустое значение не позже as_of. Нет — DataError (не угадываем)."""
