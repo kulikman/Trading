@@ -15,10 +15,12 @@ from sqlalchemy.orm import Session
 from adapters.massive.history import EventDays
 from core.config.thresholds import Thresholds
 from core.db import models as orm
+from core.domain.trading import CardFill, CardPlan
 from core.registry.agent_jobs import REPORT_TIMES
-from core.session_guard import ET, to_et
+from core.session_guard import ET, reaction_day, to_et
 
 MSK = ZoneInfo("Europe/Moscow")
+STOCK_CONSTRUCTIONS = ("stock", "stock_short")
 REPORT_WORDS = {"BMO": "до открытия", "AMC": "после закрытия", "DURING": "во время сессии"}
 NAMES = {
     "straddle": "стрэддл",
@@ -100,6 +102,8 @@ def signal_text(
     risk_usd = thresholds.capital.module_usd * risk_fraction
     name = NAMES.get(construction, construction)
     account = "PAPER" if card is None or card.paper else "REAL"
+    if card is not None and card.paper and card.plan and construction in STOCK_CONSTRUCTIONS:
+        return stock_signal_text(event, decision, thresholds, card, exit_reason)
     lines = [f"{event.ticker} · отчёт {_day(event.report_date)} {when} · {name} · {account}"]
     if construction in ("straddle", "iron_condor"):
         straddle, condor = thresholds.constructions.straddle, thresholds.constructions.iron_condor
@@ -133,6 +137,125 @@ def signal_text(
     if card is not None:
         lines.append(f"СТАТУС {status_line(card, exit_reason)}")
     return "\n".join(lines)
+
+
+def stock_signal_text(
+    event: orm.Event,
+    decision: orm.Decision,
+    thresholds: Thresholds,
+    card: orm.TradeCard,
+    exit_reason: str | None = None,
+) -> str:
+    """Сигнал paper-акции режима C: цена, количество, стоп, выход — для ручного исполнения.
+
+    Целей (TP) у режима C нет, вероятностей касания и R:R система не считает — их в тексте нет.
+    """
+    plan = CardPlan.model_validate(card.plan, strict=False)
+    c = thresholds.modes.C
+    is_long = decision.construction == "stock"
+    when = REPORT_WORDS.get(event.report_time or "", "время не подтверждено")
+    until = plan.entry_until or time(11, 0)
+    deadline = datetime.combine(
+        reaction_day(event.report_date, REPORT_TIMES.get(event.report_time or "")), until, tzinfo=ET
+    )
+    stop_pct = (plan.stop_price - plan.limit_price) / plan.limit_price
+    trail = f"{c.trailing_atr_multiple:g} × ATR({c.atr_period})"
+    head = f"#{card.id} {'🟢' if is_long else '🔴'} {event.ticker}"
+    limit_rule = f"лимит: VWAP первого часа ± {c.max_entry_over_vwap:.1%}"
+    limit_until = f"до {until:%H:%M} ET / {deadline.astimezone(MSK):%H:%M} МСК"
+    position = f"{plan.shares} целых акций, {_usd(plan.shares * plan.limit_price)}"
+    risk = f"{_usd(plan.risk_usd)} ({plan.risk_usd / thresholds.capital.module_usd:.1%} капитала)"
+    exit_rule = f"трейлинг {trail} после закрытия · закрытие хуже SMA({c.exit_sma_period})"
+    lines = [
+        f"{head} · {'ЛОНГ' if is_long else 'ШОРТ'}",
+        "",
+        "📡 PAPER-сигнал · ручное исполнение",
+        "Цена сигнала — лимит эмуляции, не брокерский fill; проверь цену перед заявкой.",
+        "",
+        f"📅 Отчёт {_day(event.report_date)} {when}",
+        f"⏱ Сигнал: {_moment(decision.decided_at)}",
+        f"💵 Цена сигнала:  {_usd(plan.limit_price)}  ({limit_rule}, {limit_until})",
+        f"📦 План: {position} · риск {risk}",
+        f"🛑 Стоп:  {_usd(plan.stop_price)}  ({_pct(stop_pct)}) · стартовый, {trail}",
+        f"🚪 Выход: {exit_rule} · не дольше {c.max_hold_days} дн.",
+        "🎯 Фиксированных целей (TP) нет: позицию ведёт трейлинг-стоп.",
+        "",
+        f"СТАТУС {_stock_status(card, until, exit_reason)}",
+    ]
+    return "\n".join(lines)
+
+
+def closed_text(
+    event: orm.Event, decision: orm.Decision, card: orm.TradeCard, exit_reason: str | None
+) -> str | None:
+    """«СИГНАЛ ЗАКРЫТ» paper-акции: цена закрытия, итог, что сделать у брокера; нет входа — None."""
+    entries = _fills(card, "entry")
+    exits = _fills(card, "stop", "exit")
+    if not entries or not exits:
+        return None
+    entry, out = entries[0], exits[-1]
+    sign = 1 if decision.construction == "stock" else -1
+    result = sign * (out.price - entry.price) / entry.price
+    reason = STOP_REASONS.get(exit_reason or "", exit_reason or "")
+    lines = [
+        f"#{card.id} 🔵 {event.ticker} · СИГНАЛ ЗАКРЫТ · {reason}",
+        "",
+        f"🏁 Цена закрытия позиции: {_usd(out.price)} ({_pct(result)}).",
+        f"💵 Цена входа: {_usd(entry.price)} · {_moment(entry.at)} · {entry.quantity:g} акц.",
+    ]
+    if card.pnl_total is not None:
+        pnl = float(card.pnl_total)
+        lines.append(f"📊 Итог paper: {'+' if pnl >= 0 else '−'}{_usd(abs(pnl))}")
+    if exit_reason in ("sma", "max_hold"):
+        lines.append(
+            f"Условие выхода выполнено по закрытию {out.at:%d.%m} — закрой на следующем открытии."
+        )
+    elif exit_reason in ("trail_stop", "stop"):
+        lines.append(f"Стоп сработал {out.at:%d.%m}.")
+    lines += ["", "Если позиция открыта: сверь текущую цену и закрой оставшуюся позицию у брокера."]
+    return "\n".join(lines)
+
+
+def _stock_status(card: orm.TradeCard, until: time, exit_reason: str | None) -> str:
+    entry = next(iter(_fills(card, "entry")), None)
+    if card.state == "PLANNED":
+        return (
+            f"ждём исполнения лимита до {until:%H:%M} ET — "
+            "эмуляция проверяет бары, сообщение обновится"
+        )
+    if card.state in ("ARMED", "OPEN", "C_MODE", "CLOSING"):
+        if entry is None:
+            return "вход исполняется"
+        stop = (card.trailing or {}).get("stop") or (card.stop or {}).get("price")
+        return (
+            f"✅ вход исполнен {_moment(entry.at)} по {_usd(entry.price)} · {entry.quantity:g} акц."
+            + (f" · стоп {_usd(stop)}" if stop else "")
+        )
+    if card.state in ("CLOSED", "STOPPED"):
+        return status_line(card, exit_reason)
+    return f"⛔ вход не исполнен: {exit_reason or 'отменён'} — позицию не открываем"
+
+
+def _fills(card: orm.TradeCard, *purposes: str) -> list[CardFill]:
+    return [
+        CardFill.model_validate(f, strict=False)
+        for f in card.fills or []
+        if f.get("purpose") in purposes
+    ]
+
+
+def _moment(value: datetime) -> str:
+    return (
+        f"{_day(to_et(value).date())} {to_et(value):%H:%M} ET ({value.astimezone(MSK):%H:%M} МСК)"
+    )
+
+
+def _usd(value: float) -> str:
+    return f"${value:,.2f}".replace(",", " ")
+
+
+def _pct(value: float) -> str:
+    return f"{value:+.1%}".replace(".", ",").replace("-", "−")
 
 
 def status_line(card: orm.TradeCard, exit_reason: str | None = None) -> str:
@@ -199,6 +322,14 @@ def send_new_signals(session: Session, client: Sender, thresholds: Thresholds) -
             card.tg_message_id = client.send(text, buttons=buttons)
         else:
             client.edit(card.tg_message_id, text, buttons=buttons)
+        if (
+            card.paper
+            and card.state in ("CLOSED", "STOPPED")
+            and decision.construction in STOCK_CONSTRUCTIONS
+        ):  # отдельное сообщение со звуком: позицию нужно закрыть у брокера
+            closing = closed_text(event, decision, card, reason)
+            if closing is not None:
+                client.send(closing)
         card.tg_state = card.state
         session.commit()  # отправленное фиксируется сразу: сбой на следующей его не повторит
         done += 1

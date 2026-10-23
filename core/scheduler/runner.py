@@ -3,7 +3,8 @@
 Постоянные задачи: агент «Календарь» (06:00 ET), уровень Black Swan (06:05 ET),
 снимок консенсуса (06:10 ET), капитализация компаний (07:30 ET), новости (07:45 ET),
 трейлинг-стоп (16:20 ET), дайджесты (08:30 и 16:30 ET), архив (18:30 ET),
-watchlist (воскресенье 18:00 ET) и диспетчер задач событий.
+эмуляция входа paper (каждые несколько минут 10:46–16:30 ET), watchlist (воскресенье 18:00 ET)
+и диспетчер задач событий.
 Сами задачи событий — строки event_job (ключ event_id, stage, job), их берёт диспетчер.
 """
 
@@ -40,6 +41,8 @@ WATCHLIST_JOB_ID = "watchlist-refresh"
 WATCHLIST_FUNC = "agents.watchlist.job:run_watchlist_refresh"
 MARKET_CAP_JOB_ID = "market-cap-daily"
 MARKET_CAP_FUNC = "agents.macro.market_cap:run_market_cap_refresh"
+PAPER_FILL_JOB_ID = "paper-fill"
+PAPER_FILL_FUNC = "execution.paper_fill:run_paper_fill"
 JOBS_TABLE = "apscheduler_jobs"
 
 
@@ -105,6 +108,21 @@ def register_jobs(scheduler: BaseScheduler, schedule: ScheduleConfig) -> None:
         MARKET_CAP_FUNC,
         CronTrigger(day_of_week="mon-fri", hour=7, minute=30, timezone=ET),
         id=MARKET_CAP_JOB_ID,
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=grace,
+    )
+    fill = schedule.paper_fill
+    scheduler.add_job(
+        PAPER_FILL_FUNC,
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour=f"{fill.from_et.hour}-{fill.until_et.hour}",
+            minute=f"*/{fill.every_minutes}",
+            timezone=ET,
+        ),
+        id=PAPER_FILL_JOB_ID,
         replace_existing=True,
         coalesce=True,
         max_instances=1,

@@ -63,6 +63,22 @@ class TrailingSettings(StrictModel):
     _time = field_validator("run_time_et", mode="before")(_parse_time)
 
 
+class PaperFillSettings(StrictModel):
+    """Эмуляция входа paper режима C по минутным барам: частота и окно проверки (ET)."""
+
+    every_minutes: PositiveInt
+    from_et: time
+    until_et: time
+
+    _time = field_validator("from_et", "until_et", mode="before")(_parse_time)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if self.until_et <= self.from_et:
+            raise ValueError("paper_fill.until_et must be after from_et")
+        return self
+
+
 class DigestSettings(StrictModel):
     """Дайджесты в Telegram (SPEC §12): утро и вечер ET; еженедельный — пн UTC (09:00 МСК)."""
 
@@ -114,6 +130,7 @@ class ScheduleConfig(StrictModel):
     archive: ArchiveSettings
     consensus: ConsensusSnapshotSettings
     trailing: TrailingSettings
+    paper_fill: PaperFillSettings
     digest: DigestSettings
     news: NewsSettings
     market: MarketSettings

@@ -140,7 +140,9 @@ class PaperBook:
         scale = risk_scale(step, trade, self._thresholds)
         if card.state == "PLANNED" and trade.entry_on is not None:
             entry_time = STOCK_ENTRY if trade.construction in ("mode_c", "mode_a") else OPTION_ENTRY
-            at = datetime.combine(trade.entry_on, entry_time, tzinfo=ET)
+            # акция режима C — фактическая минута исполнения из баров; константа — только там,
+            # где времени исполнения нет (опционы по закрытию накануне, режим A)
+            at = trade.entry_at or datetime.combine(trade.entry_on, entry_time, tzinfo=ET)
             transition(session, card, "ARMED", at, "ордер на вход", check_session=False)
             transition(session, card, "OPEN", at, "вход", check_session=False)
             card.legs = [leg.model_dump(mode="json") for leg in legs_of(trade, scale)]
@@ -152,10 +154,11 @@ class PaperBook:
             return card.state
         card.pnl_total = Decimal(str(round(trade.return_on_risk * risk_usd, 2)))
         card.costs = Decimal(str(round(trade.costs * scale, 4)))
-        card.fills = [
-            *(card.fills or []),
-            *(f.model_dump(mode="json") for f in exit_fills(trade, scale)),
-        ]
+        held = {f["symbol"]: f["quantity"] for f in card.fills or [] if f.get("purpose") == "entry"}
+        exits = [f.model_dump(mode="json") for f in exit_fills(trade, scale)]
+        for fill in exits:  # выходим тем количеством, которым вошли (целые акции плана)
+            fill["quantity"] = held.get(fill["symbol"], fill["quantity"])
+        card.fills = [*(card.fills or []), *exits]
         if trade.exit_reason in STOP_REASONS:
             transition(
                 session, card, "STOPPED", trade.exit_at, trade.exit_reason, check_session=False

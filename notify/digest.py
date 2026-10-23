@@ -215,15 +215,21 @@ def _open_positions(session: Session) -> list[str]:
         select(orm.TradeCard, orm.Decision, orm.Event)
         .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
         .join(orm.Event, orm.Event.id == orm.Decision.event_id)
-        .where(orm.TradeCard.state.in_(OPEN_STATES))
+        .where(orm.TradeCard.state.in_(("PLANNED", *OPEN_STATES)))
         .order_by(orm.TradeCard.id)
     ).all()
     out = []
     for card, decision, event in rows:
         name = NAMES.get(decision.construction or "", decision.construction or "")
-        stop = (card.trailing or {}).get("stop")
+        stop = (card.trailing or {}).get("stop") or (card.stop or {}).get("price")
         kind = "PAPER" if card.paper else "REAL"
-        out.append(f"{event.ticker} · {name} · {kind}" + (f" · стоп {stop:.2f}" if stop else ""))
+        line = f"{event.ticker} · {name} · {kind}"
+        entry = next((f for f in card.fills or [] if f.get("purpose") == "entry"), None)
+        if card.state == "PLANNED":
+            line += " · ждём входа"
+        elif entry is not None and decision.construction in ("stock", "stock_short"):
+            line += f" · вход {entry['price']:.2f} · {entry['quantity']:g} акц."
+        out.append(line + (f" · стоп {stop:.2f}" if stop else ""))
     return out
 
 

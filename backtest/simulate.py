@@ -63,6 +63,7 @@ class Trade:
     risk: float  # $, максимальный убыток с издержками входа
     variant: str = ""  # у кондора — толкование стопа (cost / loss)
     entry_on: date | None = None  # день входа (уровень Black Swan — на закрытии дня до него)
+    entry_at: datetime | None = None  # фактическая минута исполнения входа, если известна (акция)
     legs: tuple[LegFill, ...] = ()
 
     @property

@@ -149,6 +149,7 @@ def stock_trade(
         risk=shares * stop_distance + entry_cost.total,
         variant="long" if direction == 1 else "short",
         entry_on=days.reaction,
+        entry_at=position.at,
         legs=(LegFill(ticker, "stock", direction, shares, 1, position.price, closed.price),),
     )
 

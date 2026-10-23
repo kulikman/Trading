@@ -45,7 +45,7 @@ from decision.capital import (
     size_data_collection,
     win_loss_ratio,
 )
-from execution.cards import open_card
+from execution.cards import open_card, stock_plan_of
 from execution.real import RealOutcome, open_real_card
 from models.features import stage_features
 
@@ -173,7 +173,8 @@ def run_decision(
         if decision_id is not None:  # новый вход — карточка paper-сделки
             decision = session.get(orm.Decision, decision_id)
             if decision is not None:
-                open_card(session, decision)
+                risk_usd = config.thresholds.capital.module_usd * item.sizing.risk_fraction
+                open_card(session, decision, stock_plan_of(item.proposal.plan, risk_usd))
                 if item.is_real:
                     _open_real(session, decision, item, level, seasons_1_2, config, now, orders)
     session.flush()

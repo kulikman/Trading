@@ -476,6 +476,9 @@ class TradeCard(Timestamps, Base):
     stop: Mapped[Any | None] = mapped_column(JSONB)
     trailing: Mapped[Any | None] = mapped_column(JSONB)
     fills: Mapped[Any | None] = mapped_column(JSONB)
+    plan: Mapped[Any | None] = mapped_column(
+        JSONB
+    )  # paper-акция: лимит, стоп, количество (CardPlan)
     tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
     tg_state: Mapped[str | None]  # состояние, показанное в сообщении (правка при смене, T18)
     reminded_at: Mapped[datetime | None]  # напоминание: Real-вход не подтверждён 15 минут

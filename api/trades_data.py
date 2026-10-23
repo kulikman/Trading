@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from core.db import models as orm
 
 CLOSED_STATES = ("CLOSED", "STOPPED")
-OPEN_STATES = ("ARMED", "OPEN", "C_MODE", "CLOSING")
+OPEN_STATES = ("PLANNED", "ARMED", "OPEN", "C_MODE", "CLOSING")  # PLANNED — ждём входа (paper)
 
 
 @dataclass(frozen=True)

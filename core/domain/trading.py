@@ -66,6 +66,17 @@ class CardStop(DomainModel):
     price: float | None = Field(default=None, gt=0)
 
 
+class CardPlan(DomainModel):
+    """План paper-входа в акцию: то, что показывает сигнал и с чем сверяется эмуляция входа."""
+
+    limit_price: float = Field(gt=0)  # лимит входа: VWAP первого часа ± допуск
+    stop_price: float = Field(gt=0)  # стартовый стоп от лимита
+    stop_distance: float = Field(gt=0)  # 2 × ATR на момент решения, $ на акцию
+    shares: int = Field(ge=1)  # целых акций под риск карточки
+    risk_usd: float = Field(gt=0)
+    entry_until: time | None = None  # лимит действует до этого времени ET
+
+
 class CardTrailing(DomainModel):
     """Трейлинг-стоп режима C: multiple × ATR, пересчёт после закрытия (SPEC §10)."""
 
@@ -84,6 +95,7 @@ class TradeCard(DomainModel):
     stop: CardStop | None = None
     trailing: CardTrailing | None = None
     fills: list[CardFill] | None = None
+    plan: CardPlan | None = None
     tg_message_id: int | None = None
     tg_state: CardState | None = None
     reminded_at: AwareDatetime | None = None

@@ -31,6 +31,7 @@ from core.scheduler.runner import (
     MARKET_JOB_ID,
     MORNING_DIGEST_JOB_ID,
     NEWS_JOB_ID,
+    PAPER_FILL_JOB_ID,
     TRAILING_JOB_ID,
     WATCHLIST_JOB_ID,
     WEEKLY_DIGEST_JOB_ID,
@@ -130,8 +131,17 @@ def test_register_jobs_in_postgres_store_is_idempotent(
             MARKET_JOB_ID,
             WATCHLIST_JOB_ID,
             MARKET_CAP_JOB_ID,
+            PAPER_FILL_JOB_ID,
             DISPATCH_JOB_ID,
         }
+        fill = jobs[PAPER_FILL_JOB_ID].trigger
+        assert isinstance(fill, CronTrigger)
+        fill_fields = {f.name: str(f) for f in fill.fields}
+        assert (fill_fields["day_of_week"], fill_fields["hour"], fill_fields["minute"]) == (
+            "mon-fri",
+            "10-16",
+            "*/2",
+        )
         trailing = jobs[TRAILING_JOB_ID].trigger
         assert isinstance(trailing, CronTrigger)
         trailing_fields = {f.name: str(f) for f in trailing.fields}
@@ -210,6 +220,7 @@ def test_main_registers_and_starts(monkeypatch: pytest.MonkeyPatch, test_databas
             WEEKLY_DIGEST_JOB_ID,
             WATCHLIST_JOB_ID,
             MARKET_CAP_JOB_ID,
+            PAPER_FILL_JOB_ID,
             DISPATCH_JOB_ID,
         ],
         [True],
