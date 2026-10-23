@@ -67,7 +67,7 @@ export interface Today {
     rows: { time: string; ticker: string; action: string; card_id: number | null }[];
     message: string | null;
   };
-  reports: { ticker: string; time: string; decision: string; mode: string; reason: string; eps_consensus: Num; eps_actual: Num }[];
+  reports: { card_id: number | null; ticker: string; time: string; decision: string; mode: string; reason: string; eps_consensus: Num; eps_actual: Num }[];
   reports_message: string | null;
   positions: { card_id: number; ticker: string; mode: string; pnl: Num; stop: Num; next_step: string }[];
   positions_message: string | null;
@@ -76,7 +76,7 @@ export interface Today {
 export interface Week {
   top: Record<string, string>[];
   top_message: string | null;
-  events: { ticker: string; date: string; status: string; reason: string; eps_consensus: Num; implied_move: Num; eps_actual: Num; actual_move: Num }[];
+  events: { card_id: number | null; ticker: string; date: string; status: string; reason: string; eps_consensus: Num; implied_move: Num; eps_actual: Num; actual_move: Num }[];
   events_message: string | null;
 }
 
@@ -125,7 +125,7 @@ export interface Card {
 export interface Journal {
   summary: string;
   reasons: { code: string; times: Num; saved: Num; missed: Num }[];
-  rows: { date: string; ticker: string; status: string; reasons: string; shadow_result: Num }[];
+  rows: { decision_id: number; card_id: number | null; date: string; ticker: string; status: string; reasons: string; shadow_result: Num }[];
   message: string | null;
 }
 

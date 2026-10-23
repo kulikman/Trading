@@ -67,9 +67,16 @@ async function WeekContent({
         <>
           <h2>Все события недели</h2>
           {week.events.length > 0 ? (
-            <Grid head={["Тикер", "Дата", "Статус", "EPS (ожидание)", "Ожид. движение", "EPS (факт)", "Факт. движение", "Причина пропуска"]}>
+            <Grid head={["ID", "Тикер", "Дата", "Статус", "EPS (ожидание)", "Ожид. движение", "EPS (факт)", "Факт. движение", "Причина пропуска"]}>
               {week.events.map((row) => (
                 <tr key={`${row.ticker}-${row.date}`}>
+                  <td className="num">
+                    {row.card_id !== null ? (
+                      <Link href={`/trades/${row.card_id}`}>#{row.card_id}</Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>
                     <Link href={`/companies/${row.ticker}`}>{row.ticker}</Link>
                   </td>

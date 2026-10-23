@@ -32,7 +32,7 @@ async function CardContent({
   return (
     <>
       <h1>
-        Карточка {card.ticker} · режим {card.mode} · {card.state} ·{" "}
+        Сделка #{card.card_id} · {card.ticker} · режим {card.mode} · {card.state} ·{" "}
         {card.is_paper ? "PAPER" : "REAL"}
       </h1>
       <div className="card num">{card.legs}</div>

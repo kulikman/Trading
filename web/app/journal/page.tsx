@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { Empty, Grid } from "@/components/grid";
@@ -32,7 +33,7 @@ async function JournalContent({
         <b>{journal.summary}</b>
       </p>
       {journal.reasons.length > 0 ? (
-        <Grid head={["Код", "Раз", "Сэкономлено", "Упущено"]}>
+        <Grid head={["Причина", "Раз", "Сэкономлено", "Упущено"]}>
           {journal.reasons.map((row) => (
             <tr key={row.code}>
               <td>{row.code}</td>
@@ -57,9 +58,16 @@ async function JournalContent({
         }))}
       />
       {journal.rows.length > 0 ? (
-        <Grid head={["Дата", "Тикер", "Решение", "Коды причин", "Теневая сделка"]}>
+        <Grid head={["ID сделки", "Дата", "Тикер", "Решение", "Причина", "Теневая сделка"]}>
           {journal.rows.map((row) => (
-            <tr key={`${row.date}-${row.ticker}`}>
+            <tr key={row.decision_id}>
+              <td className="num">
+                {row.card_id !== null ? (
+                  <Link href={`/trades/${row.card_id}`}>#{row.card_id}</Link>
+                ) : (
+                  "—"
+                )}
+              </td>
               <td>{row.date}</td>
               <td>{row.ticker}</td>
               <td>{row.status}</td>

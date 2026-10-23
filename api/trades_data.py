@@ -5,6 +5,7 @@
 цены и P&L открытой позиции тоже нет.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -145,6 +146,18 @@ def _risk_fraction(session: Session, card: orm.TradeCard) -> float | None:
         .order_by(orm.DecisionStep.id.desc())
         .limit(1)
     ).first()
+
+
+def card_ids_by_decision(session: Session, decision_ids: Sequence[int]) -> dict[int, int]:
+    """ID сделки (карточки) по ID решения; у решений без входа карточки нет."""
+    if not decision_ids:
+        return {}
+    rows = session.execute(
+        select(orm.TradeCard.decision_id, func.min(orm.TradeCard.id))
+        .where(orm.TradeCard.decision_id.in_(decision_ids))
+        .group_by(orm.TradeCard.decision_id)
+    ).all()
+    return {decision_id: card_id for decision_id, card_id in rows}
 
 
 def has_cards(session: Session, *, paper: bool) -> bool:

@@ -46,9 +46,16 @@ async function TodayContent({
 
       <h2>Отчёты сегодня</h2>
       {today.reports.length > 0 ? (
-        <Grid head={["Тикер", "Время", "EPS ожид.", "EPS факт", "Решение", "Режим", "Причина"]}>
+        <Grid head={["ID", "Тикер", "Время", "EPS ожид.", "EPS факт", "Решение", "Режим", "Причина"]}>
           {today.reports.map((row) => (
             <tr key={row.ticker}>
+              <td className="num">
+                {row.card_id !== null ? (
+                  <Link href={`/trades/${row.card_id}`}>#{row.card_id}</Link>
+                ) : (
+                  "—"
+                )}
+              </td>
               <td>
                 <Link href={`/companies/${row.ticker}`}>{row.ticker}</Link>
               </td>
@@ -71,12 +78,13 @@ async function TodayContent({
 
       <h2>Открытые позиции</h2>
       {today.positions.length > 0 ? (
-        <Grid head={["Тикер", "Режим", "P&L", "Стоп", "Дальше"]}>
+        <Grid head={["ID", "Тикер", "Режим", "P&L", "Стоп", "Дальше"]}>
           {today.positions.map((row) => (
             <tr key={row.card_id}>
-              <td>
-                <Link href={`/trades/${row.card_id}`}>{row.ticker}</Link>
+              <td className="num">
+                <Link href={`/trades/${row.card_id}`}>#{row.card_id}</Link>
               </td>
+              <td>{row.ticker}</td>
               <td>{row.mode}</td>
               <td>
                 <N value={row.pnl} />

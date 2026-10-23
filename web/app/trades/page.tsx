@@ -37,12 +37,13 @@ async function TradesContent({
         ]}
       />
       {state === "open" && trades.open.length > 0 ? (
-        <Grid head={["Тикер", "Режим", "Состояние", "Вход", "Цена", "P&L", "Стоп", "Дальше"]}>
+        <Grid head={["ID", "Тикер", "Режим", "Состояние", "Вход", "Цена", "P&L", "Стоп", "Дальше"]}>
           {trades.open.map((row) => (
             <tr key={row.card_id}>
-              <td>
-                <Link href={`/trades/${row.card_id}`}>{row.ticker}</Link>
+              <td className="num">
+                <Link href={`/trades/${row.card_id}`}>#{row.card_id}</Link>
               </td>
+              <td>{row.ticker}</td>
               <td>{row.mode}</td>
               <td>{row.state}</td>
               <td>
@@ -64,12 +65,13 @@ async function TradesContent({
       ) : null}
       {state === "closed" && trades.closed.length > 0 ? (
         <>
-          <Grid head={["Тикер", "Даты", "Режим", "Итог %", "Итог $", "Причина выхода"]}>
+          <Grid head={["ID", "Тикер", "Даты", "Режим", "Итог %", "Итог $", "Причина выхода"]}>
             {trades.closed.map((row) => (
               <tr key={row.card_id}>
-                <td>
-                  <Link href={`/trades/${row.card_id}`}>{row.ticker}</Link>
+                <td className="num">
+                  <Link href={`/trades/${row.card_id}`}>#{row.card_id}</Link>
                 </td>
+                <td>{row.ticker}</td>
                 <td>{row.dates}</td>
                 <td>{row.mode}</td>
                 <td>

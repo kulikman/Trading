@@ -23,7 +23,7 @@ TOKEN = "test-token-for-contract-tests"  # noqa: S105 — тестовое зн�
 NOW = datetime(2026, 10, 14, 18, 0, tzinfo=UTC)  # среда 14:00 ET, основная сессия
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 # Целые поля, которые не являются числами для показа: идентификаторы, счётчики строк, интервалы.
-PLAIN_INTS = {"card_id", "companies", "refresh_ms"}
+PLAIN_INTS = {"card_id", "decision_id", "companies", "refresh_ms"}
 
 ENDPOINTS = [
     "/api/status",
@@ -326,9 +326,30 @@ def test_today_week_and_journal(seeded: Session, client: TestClient) -> None:
     journal = client.get("/api/journal?filter=skipped", headers=AUTH).json()
     assert journal["summary"] == "Пропуски сэкономили $150 · упустили $80"
     assert {r["code"]: r["times"]["value"] for r in journal["reasons"]} == {
-        "EDGE_LOW": 1,
-        "PRE_RUN": 1,
+        "EDGE_LOW — нет сигнала или преимущество не выше издержек": 1,
+        "PRE_RUN — сильный рост перед отчётом без причины": 1,
     }
+
+
+def test_journal_rows_have_trade_id_status_and_reason(seeded: Session, client: TestClient) -> None:
+    add_event(seeded, "META", date(2026, 10, 14), "SKIPPED", reasons=["C_NOT_CONFIRMED"])
+    rows = client.get("/api/journal", headers=AUTH).json()["rows"]
+    by_ticker = {r["ticker"]: r for r in rows}
+    gs_card = seeded.scalars(
+        select(orm.TradeCard.id)
+        .join(orm.Decision, orm.Decision.id == orm.TradeCard.decision_id)
+        .join(orm.Event, orm.Event.id == orm.Decision.event_id)
+        .where(orm.Event.ticker == "GS")
+    ).one()
+    assert by_ticker["GS"]["status"] == "Открыта"
+    assert by_ticker["GS"]["card_id"] == gs_card  # ID сделки = номер карточки
+    assert by_ticker["GS"]["reasons"].startswith("предложение стратегии прошло ворота решения")
+    assert by_ticker["META"]["status"] == "Пропущена"
+    assert by_ticker["META"]["card_id"] is None  # у пропуска сделки нет
+    assert by_ticker["META"]["reasons"] == (
+        "C_NOT_CONFIRMED — сюрприз не подтвердился ценой и объёмом"
+    )
+    assert len({r["decision_id"] for r in rows}) == len(rows)
 
 
 def test_pending_hint_explains_what_is_awaited_and_when() -> None:

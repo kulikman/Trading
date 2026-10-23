@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from api.format import Num, count, day, empty, et_msk, money, percent, price
 from api.trades import stop_view
-from api.trades_data import OpenCard
+from api.trades_data import OpenCard, card_ids_by_decision
 from core.config.thresholds import Thresholds
 from core.db import models as orm
 from core.session_guard import ET, to_et
@@ -35,6 +35,31 @@ REASON_LABELS: dict[str, str] = {
     "LOW_CONFIDENCE": "низкая уверенность модели",
     "VIX_SPIKE": "всплеск VIX",
     "CAPITAL": "недостаточно капитала",
+}
+# Коды пропуска словами (SPEC §10) — для журнала, как в сообщении «ПРОПУСК».
+SKIP_WORDS: dict[str, str] = {
+    "EDGE_LOW": "нет сигнала или преимущество не выше издержек",
+    "CONF_LOW": "уверенность модели ниже порога",
+    "PRE_RUN": "сильный рост перед отчётом без причины",
+    "PEER_CONFLICT": "сектор против направления",
+    "IV_EXPENSIVE": "опционы дороже, чем в истории",
+    "LIQUIDITY": "спред шире допустимого",
+    "CLUSTER_LIMIT": "в этом секторе на неделе уже есть ставка",
+    "CALIBRATION": "компания в карантине калибровки",
+    "MACRO_BLOCK": "Black Swan: вход запрещён",
+    "C_NOT_CONFIRMED": "сюрприз не подтвердился ценой и объёмом",
+    "DATA_MASSIVE": "нет данных Massive",
+    "DATA_FINNHUB": "нет данных Finnhub",
+    "DATA_ALPHAVANTAGE": "нет данных Alpha Vantage",
+    "DATA_BROKER": "нет данных брокера",
+    "DATA_CALENDAR": "решение не принималось (календарь)",
+    "DATA_MISMATCH": "цена расходится с брокером",
+}
+JOURNAL_STATUS = {
+    "ENTERED": "Открыта",
+    "SKIPPED": "Пропущена",
+    "CANCELLED": "Отменена",
+    "DATA_FAIL": "Сбой данных",
 }
 WAITING = "ЖДЁМ"
 HUMAN_JOBS = {  # моменты, где нужен человек у терминала (SPEC §8)
@@ -81,6 +106,7 @@ class NowBlock(BaseModel):
 
 
 class ReportRow(BaseModel):
+    card_id: int | None = None
     ticker: str
     time: str
     decision: str
@@ -108,6 +134,7 @@ class Today(BaseModel):
 
 
 class WeekEventRow(BaseModel):
+    card_id: int | None = None
     ticker: str
     date: str
     status: str
@@ -138,6 +165,8 @@ class Terminal(BaseModel):
 
 
 class JournalRow(BaseModel):
+    decision_id: int
+    card_id: int | None
     date: str
     ticker: str
     status: str
@@ -252,6 +281,7 @@ def today_view(
         )
     }
     min_surprise = thresholds.modes.C.min_eps_surprise
+    cards_of = card_ids_by_decision(session, [d.id for _, d in pairs if d is not None])
     reports = []
     for e, d in pairs:
         track = tracks.get(e.ticker)
@@ -267,6 +297,7 @@ def today_view(
             reason = ", ".join(d.reasons) if d.reasons else "—"
         reports.append(
             ReportRow(
+                card_id=cards_of.get(d.id) if d else None,
                 ticker=e.ticker,
                 time=e.report_time or "—",
                 decision=DECISION_LABELS.get(d.status, WAITING) if d else WAITING,
@@ -320,8 +351,12 @@ def week_view(session: Session, now: datetime, thresholds: Thresholds) -> Week:
             )
         ).all()
         tracks = {(t.ticker, t.report_date): t for t in track_rows}
+    cards_of = card_ids_by_decision(
+        session, [p.decision.id for p in all_picks if p.decision is not None]
+    )
     events = [
         WeekEventRow(
+            card_id=cards_of.get(p.decision.id) if p.decision else None,
             ticker=p.event.ticker,
             date=f"{day(p.event.report_date)} {p.event.report_time or ''}".strip(),
             status=_week_status(p),
@@ -419,12 +454,16 @@ def journal_view(session: Session, now: datetime, filter_: str) -> Journal:
         "entered": [(e, d) for e, d in pairs if d.status == "ENTERED"],
         "skipped": skipped,
     }[filter_]
+    cards_of = card_ids_by_decision(session, [d.id for _, d in chosen])
+    entry_steps = _entry_steps(session, [(e, d) for e, d in chosen if d.status == "ENTERED"])
     rows = [
         JournalRow(
+            decision_id=d.id,
+            card_id=cards_of.get(d.id),
             date=day(e.report_date),
             ticker=e.ticker,
-            status=d.status,
-            reasons=", ".join(REASON_LABELS.get(r, r) for r in d.reasons) if d.reasons else "—",
+            status=JOURNAL_STATUS.get(d.status, d.status),
+            reasons=_journal_reason(d, entry_steps.get((d.event_id, d.strategy_id))),
             shadow_result=(
                 money(_shadow_pnl(d), signed=True) if d.status != "ENTERED" else empty("—")
             ),
@@ -440,7 +479,7 @@ def journal_view(session: Session, now: datetime, filter_: str) -> Journal:
         summary=summary,
         reasons=[
             ReasonRow(
-                code=REASON_LABELS.get(code, code),
+                code=_reason_text(code),
                 times=count(int(n)),
                 saved=money(s),
                 missed=money(m),
@@ -450,6 +489,48 @@ def journal_view(session: Session, now: datetime, filter_: str) -> Journal:
         rows=rows,
         message=None if rows else "решений ещё нет",
     )
+
+
+def _reason_text(code: str) -> str:
+    """«КОД — пояснение»; нет пояснения — один код."""
+    words = SKIP_WORDS.get(code) or REASON_LABELS.get(code)
+    return f"{code} — {words}" if words else code
+
+
+def _entry_steps(
+    session: Session, entered: Sequence[tuple[orm.Event, orm.Decision]]
+) -> dict[tuple[int, str | None], orm.DecisionStep]:
+    """Шаг-предложение, из которого вошли в сделку: последний по (событие, стратегия)."""
+    if not entered:
+        return {}
+    steps = session.scalars(
+        select(orm.DecisionStep)
+        .where(
+            orm.DecisionStep.event_id.in_({d.event_id for _, d in entered}),
+            orm.DecisionStep.strategy_id.in_({d.strategy_id for _, d in entered}),
+            orm.DecisionStep.outcome == "proposal",
+            orm.DecisionStep.is_shadow.is_(False),
+        )
+        .order_by(orm.DecisionStep.id)
+    ).all()
+    return {(s.event_id, s.strategy_id): s for s in steps}  # поздний шаг перекрывает ранний
+
+
+def _journal_reason(decision: orm.Decision, step: orm.DecisionStep | None) -> str:
+    """Почему сделка открыта или пропущена — словами, по данным решения."""
+    if decision.status != "ENTERED":
+        return "; ".join(_reason_text(r) for r in decision.reasons) if decision.reasons else "—"
+    construction = CONSTRUCTION_WORDS.get(decision.construction or "", decision.construction or "—")
+    if decision.mode == "C":
+        why = "сюрприз EPS подтверждён ценой и объёмом"
+    else:
+        why = "предложение стратегии прошло ворота решения"
+    parts = [why, construction]
+    if step is not None and decision.mode != "C" and step.confidence is not None:
+        parts.append(f"уверенность {percent(step.confidence, digits=0).display}")
+    if step is not None and step.risk_fraction is not None:
+        parts.append(f"риск {percent(step.risk_fraction).display} капитала")
+    return "; ".join(parts)
 
 
 def changes_view(session: Session, since: datetime, limit: int = 5) -> Changes:
