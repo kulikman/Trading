@@ -276,7 +276,7 @@ def status_line(card: orm.TradeCard, exit_reason: str | None = None) -> str:
             else f" · итог {'+' if pnl >= 0 else '−'}${abs(pnl):,.0f}".replace(",", " ")
         )
         return f"закрыта{f' ({reason})' if reason else ''}{result}"
-    return "отменена"
+    return f"отменена: {exit_reason}" if exit_reason else "отменена"
 
 
 def send_new_signals(session: Session, client: Sender, thresholds: Thresholds) -> int:

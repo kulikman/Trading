@@ -242,6 +242,19 @@ def test_signal_text_for_a_cancelled_entry(session: Session) -> None:
     assert "позицию не открываем" in text
 
 
+def test_cancelled_card_without_a_plan_still_shows_the_reason(session: Session) -> None:
+    event, decision, card = planned_card(session, with_plan=False)
+    fill_planned_cards(
+        session,
+        Stocks(low_after_signal=105.4, late_bar=True),
+        THRESHOLDS,
+        NOW,
+        closed_after=time(16, 30),
+    )
+    text = signal_text(event, decision, 0.01, THRESHOLDS, card, last_reason(session, card))
+    assert "СТАТУС отменена: лимит" in text  # карточка до сохранения плана — прежний вид сообщения
+
+
 def stopped(session: Session, card: orm.TradeCard) -> None:
     exit_fill = CardFill(
         symbol="NFLX",
