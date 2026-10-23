@@ -77,6 +77,24 @@ class CardPlan(DomainModel):
     entry_until: time | None = None  # лимит действует до этого времени ET
 
 
+class CardCounterfactual(DomainModel):
+    """Теневой «вход по рынку на сигнале» для paper-карточки, не исполненной по лимиту.
+
+    Только сбор данных (решение заказчика 23.10.2026): в Telegram и итоги paper не входит.
+    """
+
+    status: Literal["open", "closed", "no_data"]
+    note: str | None = None
+    entry_price: float | None = None
+    entry_at: AwareDatetime | None = None
+    exit_price: float | None = None
+    exit_at: AwareDatetime | None = None
+    exit_reason: str | None = None
+    return_on_risk: float | None = None
+    pnl_usd: float | None = None
+    updated_at: AwareDatetime
+
+
 class CardTrailing(DomainModel):
     """Трейлинг-стоп режима C: multiple × ATR, пересчёт после закрытия (SPEC §10)."""
 
@@ -96,6 +114,7 @@ class TradeCard(DomainModel):
     trailing: CardTrailing | None = None
     fills: list[CardFill] | None = None
     plan: CardPlan | None = None
+    counterfactual: CardCounterfactual | None = None
     tg_message_id: int | None = None
     tg_state: CardState | None = None
     reminded_at: AwareDatetime | None = None

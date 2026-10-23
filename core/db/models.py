@@ -479,6 +479,8 @@ class TradeCard(Timestamps, Base):
     plan: Mapped[Any | None] = mapped_column(
         JSONB
     )  # paper-акция: лимит, стоп, количество (CardPlan)
+    # отменённый вход: теневой «вход по рынку на сигнале» (CardCounterfactual), сбор данных
+    counterfactual: Mapped[Any | None] = mapped_column(JSONB)
     tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
     tg_state: Mapped[str | None]  # состояние, показанное в сообщении (правка при смене, T18)
     reminded_at: Mapped[datetime | None]  # напоминание: Real-вход не подтверждён 15 минут

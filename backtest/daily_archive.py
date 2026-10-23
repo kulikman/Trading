@@ -38,6 +38,7 @@ from core.scheduler.jobs import engine
 from core.session_guard import is_trading_day, previous_trading_day, to_et
 from execution.attribution import MassiveSpots
 from execution.paper import PaperBook, PaperRunResult
+from execution.unfilled_shadow import UnfilledRunResult, UnfilledShadow
 from learning.costs import CostCalibration, check_costs
 from learning.shadow import ShadowCalculator, ShadowRunResult
 
@@ -63,6 +64,11 @@ class PaperStep(Protocol):
         """Paper-сделки закрывшихся событий."""
 
 
+class UnfilledStep(Protocol):
+    def run(self, session: Session, today: date, retry_since: date) -> UnfilledRunResult:
+        """Теневой вход по рынку для paper-карточек, не исполненных по лимиту."""
+
+
 class ExitStep(Protocol):
     def load(self, db: Session, ticker: str, *, since: date | None = None) -> ExitDataReport:
         """Данные выхода по сигналам компании."""
@@ -82,6 +88,7 @@ class DailyArchiveResult:
     exits: list[ExitDataReport] = field(default_factory=list)
     shadows: ShadowRunResult | None = None
     paper: PaperRunResult | None = None
+    unfilled: UnfilledRunResult | None = None
     costs: CostCalibration | None = None
 
 
@@ -123,6 +130,7 @@ class DailyArchive:
         tickers: set[str],
         shadows: ShadowStep | None = None,
         paper: PaperStep | None = None,
+        unfilled: UnfilledStep | None = None,
         min_atm_pair_volume: float | None = None,
         costs: Callable[[Session], CostCalibration] | None = None,
     ) -> None:
@@ -130,6 +138,7 @@ class DailyArchive:
         self._exits = exits
         self._shadows = shadows
         self._paper = paper
+        self._unfilled = unfilled
         self._min_atm_pair_volume = min_atm_pair_volume
         self._costs = costs
         self._lookback = lookback_trading_days
@@ -155,6 +164,8 @@ class DailyArchive:
             result.shadows = self._shadows.run(session, today, retry_since)
         if self._paper is not None:
             result.paper = self._paper.run(session, today, retry_since)
+        if self._unfilled is not None:  # теневой вход по рынку для не исполненных по лимиту
+            result.unfilled = self._unfilled.run(session, today, retry_since)
         if self._costs is not None:  # T21: издержки Paper против реальных исполнений
             result.costs = self._costs(session)
             session.commit()
@@ -226,6 +237,7 @@ def build_daily_archive(config: AppConfig, today: date) -> DailyArchive:  # prag
             spots=MassiveSpots(stocks),
             rate=sources.massive.history.risk_free_rate,
         ),
+        unfilled=UnfilledShadow(shadows, stocks, config.thresholds),
         min_atm_pair_volume=config.thresholds.liquidity.min_atm_pair_volume,
         lookback_trading_days=config.schedule.archive.lookback_trading_days,
         tickers=set(config.universe.tickers()),

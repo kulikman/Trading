@@ -12,6 +12,7 @@ from core.db import models as orm
 from core.db.store import save_reported_earnings, sync_universe
 from core.domain.earnings import ReportedEarnings
 from execution.paper import PaperRunResult
+from execution.unfilled_shadow import UnfilledRunResult
 from learning.shadow import ShadowRunResult
 
 CONFIG = load_config()
@@ -106,8 +107,17 @@ class Paper:
         return PaperRunResult({"CLOSED": 1})
 
 
+class Unfilled:
+    def __init__(self) -> None:
+        self.calls: list[tuple[date, date]] = []
+
+    def run(self, session: Session, today: date, retry_since: date) -> UnfilledRunResult:
+        self.calls.append((today, retry_since))
+        return UnfilledRunResult({"closed": 1})
+
+
 def test_run_computes_shadows_after_exit_data(calendar: Session) -> None:
-    shadows, paper = Shadows(), Paper()
+    shadows, paper, unfilled = Shadows(), Paper(), Unfilled()
     result = DailyArchive(
         builder=Builder(),
         exits=Exits(),
@@ -115,11 +125,14 @@ def test_run_computes_shadows_after_exit_data(calendar: Session) -> None:
         tickers=UNIVERSE,
         shadows=shadows,
         paper=paper,
+        unfilled=unfilled,
     ).run(calendar, TODAY)
     assert shadows.calls == [(TODAY, date(2026, 10, 7))]  # no_data повторяется 5 торговых дней
     assert paper.calls == [(TODAY, date(2026, 10, 7))]
+    assert unfilled.calls == [(TODAY, date(2026, 10, 7))]  # теневой вход — после paper
     assert result.shadows == ShadowRunResult({"closed": 1})
     assert result.paper == PaperRunResult({"CLOSED": 1})
+    assert result.unfilled == UnfilledRunResult({"closed": 1})
 
 
 def test_run_refreshes_dates_only_for_new_reports(calendar: Session) -> None:

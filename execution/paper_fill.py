@@ -122,10 +122,8 @@ def _fill_one(
     if state is None or state.atr is None:
         logger.warning("paper fill: no daily history", extra={"card_id": card.id})
         return "pending"
-    history = previous_days(reaction, settings.volume_lookback_days)
-    periods = symbol_periods(event.ticker, stocks.ticker_changes(event.ticker))
-    minutes = stocks.aggregates(
-        symbol_on(periods, reaction), 1, "minute", history[-1], reaction, adjusted=False
+    history, minutes = reaction_minutes(
+        stocks, event.ticker, reaction, settings.volume_lookback_days
     )
     vwap = confirm(direction, state.spot, reaction, minutes, history, rules, settings)
     limit = None if isinstance(vwap, str) else entry_limit(direction, vwap, rules)
@@ -136,7 +134,7 @@ def _fill_one(
         # лимитная заявка живёт только после сигнала: бар раньше сигнала исполнить её не мог
         found = (
             _first_fill(
-                direction, limit, minutes, reaction, _minute_after(decision.decided_at), settings
+                direction, limit, minutes, reaction, minute_after(decision.decided_at), settings
             )
             or "not_filled"
         )
@@ -213,7 +211,19 @@ def _open(
     )
 
 
-def _minute_after(moment: datetime) -> datetime:
+def reaction_minutes(
+    stocks: StockData, ticker: str, reaction: date, lookback_days: int
+) -> tuple[list[date], list[Bar]]:
+    """Дни истории объёма и минутные бары дня реакции (с запасом дней под объём)."""
+    history = previous_days(reaction, lookback_days)
+    periods = symbol_periods(ticker, stocks.ticker_changes(ticker))
+    minutes = stocks.aggregates(
+        symbol_on(periods, reaction), 1, "minute", history[-1], reaction, adjusted=False
+    )
+    return history, minutes
+
+
+def minute_after(moment: datetime) -> datetime:
     """Начало первой полной минуты после момента (10:45:31 → 10:46:00); целая минута — она сама."""
     floor = moment.replace(second=0, microsecond=0)
     return floor if floor == moment else floor + timedelta(minutes=1)
