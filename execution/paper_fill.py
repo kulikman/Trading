@@ -2,8 +2,9 @@
 
 Раньше вход paper считал только вечерний прогон архива, а карточка оставалась PLANNED до выхода.
 Теперь задача `paper-fill` (пн–пт, каждые несколько минут в окне ET из schedule.yaml) берёт
-PLANNED-карточки режима C и по тем же правилам, что бэктест (`backtest.mode_c.entry`), смотрит
-минутные бары дня реакции:
+PLANNED-карточки режима C и смотрит минутные бары дня реакции по правилам входа бэктеста, но
+лимитная заявка живёт только с минуты после сигнала (в бэктесте окно начинается в 10:30, а сигнал
+приходит в 10:45 из-за задержки данных — раньше сигнала человек войти не мог):
 - лимит достигнут — карточка PLANNED → ARMED → OPEN; цена и минута исполнения — из бара, а не
   номинальное время решения;
 - окно лимита закрыто (в данных есть бар не раньше fill_deadline_et или день закончился), а входа
@@ -16,7 +17,7 @@ import logging
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal, Protocol
 
 from sqlalchemy import select
@@ -26,10 +27,10 @@ from adapters.cache import RedisCache
 from adapters.massive.client import MassiveClient, massive_api_key
 from adapters.massive.models import Bar, TickerChange
 from adapters.massive.symbols import StockHistorySource, symbol_on, symbol_periods
-from backtest.mode_c import Entry, confirm, entry, entry_limit
+from backtest.mode_c import Entry, confirm, entry_limit
 from backtest.mode_c_run import previous_days
 from core.config import AppConfig, load_config
-from core.config.thresholds import Thresholds
+from core.config.thresholds import BacktestModeC, Thresholds
 from core.db import models as orm
 from core.domain.broker import Side
 from core.domain.trading import CardFill, CardLeg, CardPlan, CardStop
@@ -128,7 +129,17 @@ def _fill_one(
     )
     vwap = confirm(direction, state.spot, reaction, minutes, history, rules, settings)
     limit = None if isinstance(vwap, str) else entry_limit(direction, vwap, rules)
-    found = entry(direction, state.spot, reaction, minutes, history, rules, settings)
+    found: Entry | str
+    if limit is None:
+        found = str(vwap)  # условия входа при пересчёте не подтвердились
+    else:
+        # лимитная заявка живёт только после сигнала: бар раньше сигнала исполнить её не мог
+        found = (
+            _first_fill(
+                direction, limit, minutes, reaction, _minute_after(decision.decided_at), settings
+            )
+            or "not_filled"
+        )
     if isinstance(found, Entry):
         _open(session, card, decision, event, found, limit, state.atr, thresholds)
         return "opened"
@@ -200,6 +211,40 @@ def _open(
         "paper entry filled",
         extra={"card_id": card.id, "ticker": event.ticker, "price": found.price},
     )
+
+
+def _minute_after(moment: datetime) -> datetime:
+    """Начало первой полной минуты после момента (10:45:31 → 10:46:00); целая минута — она сама."""
+    floor = moment.replace(second=0, microsecond=0)
+    return floor if floor == moment else floor + timedelta(minutes=1)
+
+
+def _first_fill(
+    direction: Literal[1, -1],
+    limit: float,
+    minutes: Sequence[Bar],
+    reaction: date,
+    after: datetime,
+    settings: BacktestModeC,
+) -> Entry | None:
+    """Первая минута с момента after до fill_deadline_et, где лимит достижим.
+
+    Открытие минуты не хуже лимита — вход по открытию; иначе касание лимита — вход по лимиту
+    (те же правила, что `backtest.mode_c.entry`, но окно начинается с сигнала, а не с 10:30).
+    """
+    for bar in minutes:
+        moment = to_et(bar.start)
+        if (
+            moment.date() != reaction
+            or bar.start < after
+            or moment.time() >= settings.fill_deadline_et
+        ):
+            continue
+        if direction * (bar.open - limit) <= 0:
+            return Entry(direction, bar.open, bar.start)
+        if (direction == 1 and bar.low <= limit) or (direction == -1 and bar.high >= limit):
+            return Entry(direction, limit, bar.start)
+    return None
 
 
 def _window_closed(

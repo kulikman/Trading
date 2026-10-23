@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from adapters.massive.history import EventDays, stock_closes
 from adapters.massive.symbols import daily_bars, symbol_periods
 from backtest.mode_a import mode_a_trade
+from backtest.mode_c import Entry
 from backtest.mode_c_run import StockData, stock_trade
 from backtest.run import option_trade
 from backtest.simulate import Trade
@@ -118,8 +119,12 @@ class ShadowCalculator:
         event: orm.Event,
         days: EventDays,
         today: date,
+        fixed_entry: Entry | None = None,
     ) -> Shadow:
-        """Результат предложения шага по правилам его конструкции (тень и paper-сделка)."""
+        """Результат предложения шага по правилам его конструкции (тень и paper-сделка).
+
+        fixed_entry — уже исполненный вход paper-акции режима C: выход считается от него.
+        """
         construction = step.construction or ""
         track = session.scalars(
             select(orm.EarningsTrack).where(
@@ -170,6 +175,7 @@ class ShadowCalculator:
                     self._thresholds,
                     self._costs,
                     self._thresholds.capital.module_usd,
+                    fixed_entry=fixed_entry,
                 )
             )
         return Shadow("no_data", f"no_simulator:{construction}")

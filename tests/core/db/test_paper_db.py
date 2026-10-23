@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adapters.massive.history import EventDays
+from backtest.mode_c import Entry
 from backtest.simulate import ExitReason, LegFill, Trade
 from core.config import load_config
 from core.db import models as orm
@@ -32,6 +33,7 @@ class Calculator:
         event: orm.Event,
         days: EventDays,
         today: date,
+        fixed_entry: Entry | None = None,
     ) -> Shadow:
         self.calls += 1
         return self.outcome

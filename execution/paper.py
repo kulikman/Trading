@@ -18,10 +18,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adapters.massive.history import EventDays
+from backtest.mode_c import Entry
 from backtest.simulate import Trade
 from core.config.thresholds import Thresholds
 from core.db import models as orm
-from core.domain.trading import CardStop
+from core.domain.trading import CardFill, CardStop
 from core.registry.agent_jobs import REPORT_TIMES
 from core.session_guard import ET
 from core.state_machine.card import transition
@@ -63,8 +64,9 @@ class Evaluator(Protocol):
         event: orm.Event,
         days: EventDays,
         today: date,
+        fixed_entry: Entry | None = None,
     ) -> Shadow:
-        """Результат предложения шага по правилам конструкции."""
+        """Результат предложения шага по правилам конструкции (fixed_entry — вход уже исполнен)."""
 
 
 class Spots(Protocol):
@@ -104,7 +106,12 @@ class PaperBook:
             step = entry_step(session, decision)
             if days.reaction >= today or step is None:
                 continue
-            outcome = self._calculator.evaluate(session, step, event, days, today)
+            fixed = _filled_entry(card, decision)
+            outcome = (
+                self._calculator.evaluate(session, step, event, days, today)
+                if fixed is None
+                else self._calculator.evaluate(session, step, event, days, today, fixed_entry=fixed)
+            )
             state = self._apply(session, card, step, outcome, days, today, retry_since)
             if card.state in ("CLOSED", "STOPPED") and outcome.trade is not None:
                 self._attribute(
@@ -199,6 +206,17 @@ class PaperBook:
 
 def _money(value: float) -> Decimal:
     return Decimal(str(round(value, 2)))
+
+
+def _filled_entry(card: orm.TradeCard, decision: orm.Decision) -> Entry | None:
+    """Вход акции режима C, уже исполненный по барам (execution.paper_fill): цена и минута."""
+    if decision.mode != "C" or card.state != "OPEN":
+        return None
+    for f in card.fills or []:
+        if f.get("purpose") == "entry":
+            fill = CardFill.model_validate(f, strict=False)
+            return Entry(1 if fill.side == "buy" else -1, fill.price, fill.at)
+    return None
 
 
 def risk_scale(step: orm.DecisionStep, trade: Trade, thresholds: Thresholds) -> float:

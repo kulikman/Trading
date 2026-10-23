@@ -6,10 +6,13 @@ import pytest
 from sqlalchemy.orm import Session
 
 from adapters.broker.factory import create_cost_model
+from adapters.massive.history import EventDays, stock_closes
 from adapters.massive.models import Bar, TickerChange
-from backtest.mode_c_run import run_mode_c
+from backtest.mode_c import Entry
+from backtest.mode_c_run import run_mode_c, stock_trade
 from backtest.report import render
 from backtest.result import BacktestResult
+from backtest.simulate import Trade
 from core.config import load_config
 from core.db.store import save_reported_earnings, sync_universe
 from core.domain.earnings import ReportedEarnings
@@ -156,3 +159,25 @@ def test_mismatched_and_future_reports_are_skipped(archive: Session) -> None:
         today=REACTION,  # реакция ещё не наступила
     )
     assert result.trades == []
+
+
+def test_trade_from_a_fixed_entry_does_not_look_for_the_backtest_entry() -> None:
+    stocks = Stocks()
+    daily = stocks.aggregates("NFLX", 1, "day", date(2025, 8, 1), TODAY)
+    fixed = Entry(1, 104.0, datetime(2025, 10, 22, 10, 46, tzinfo=ET))
+    trade = stock_trade(
+        "NFLX",
+        EventDays.of(REACTION, "BMO"),
+        1,
+        daily,
+        stock_closes(daily),
+        [],
+        stocks,
+        CONFIG.thresholds,
+        create_cost_model(CONFIG.broker),
+        100_000,
+        fixed_entry=fixed,
+    )
+    assert isinstance(trade, Trade)
+    assert (trade.entry_value, trade.entry_at) == (104.0, fixed.at)  # вход карточки, не бэктеста
+    assert stocks.minute_calls == []  # минутные бары для поиска входа не запрашиваются

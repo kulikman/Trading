@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adapters.massive.models import Bar, TickerChange
+from backtest.mode_c import Entry
 from backtest.simulate import LegFill, Trade
 from core.config import load_config
 from core.db import models as orm
@@ -58,9 +59,15 @@ def days_before(day: date, count: int) -> list[date]:
 class Stocks:
     """Плоская история (ATR 2,0, закрытие накануне 100); минуты дня реакции — по сценарию."""
 
-    def __init__(self, low_1031: float = 105.0, late_bar: bool = False) -> None:
-        self.low_1031 = low_1031  # ниже лимита 105,35 — лимит исполняется в 10:31
+    def __init__(
+        self,
+        low_after_signal: float = 105.0,
+        late_bar: bool = False,
+        early_touch: bool = False,
+    ) -> None:
+        self.low_after_signal = low_after_signal  # ниже лимита 105,35 — исполнение в 10:46
         self.late_bar = late_bar  # бар не раньше 11:00 — окно лимита закрыто в данных
+        self.early_touch = early_touch  # бар 10:31 (до сигнала 10:45:31) задевает лимит
 
     def ticker_changes(self, ticker: str) -> list[TickerChange]:
         return []
@@ -74,9 +81,12 @@ class Stocks:
                 bar(REACTION, 9, 31, 105, 3000, vwap=105),
                 bar(REACTION, 10, 29, 106, 100),
             ]
-            entry = bar(REACTION, 10, 31, 106, 100, low=self.low_1031, high=107)
+            early = (
+                [bar(REACTION, 10, 31, 106, 100, low=105.0, high=107)] if self.early_touch else []
+            )
+            entry = bar(REACTION, 10, 46, 106, 100, low=self.low_after_signal, high=107)
             late = [bar(REACTION, 11, 1, 106, 100)] if self.late_bar else []
-            return [*past, *first_hour, entry, *late]
+            return [*past, *first_hour, *early, entry, *late]
         return [bar(d, 0, 0, 100, 1e6, high=101, low=99) for d in days_before(REACTION, 60)]
 
 
@@ -137,16 +147,24 @@ def test_filled_entry_takes_price_and_time_from_the_bar(session: Session) -> Non
     assert card.stop is not None
     [fill] = card.fills
     assert fill["price"] == pytest.approx(LIMIT)
-    assert datetime.fromisoformat(fill["at"]) == datetime(2025, 10, 22, 10, 31, tzinfo=ET)
+    assert datetime.fromisoformat(fill["at"]) == datetime(2025, 10, 22, 10, 46, tzinfo=ET)
     shares = math.floor(1000 / (2 * 2.0))  # целые акции под риск 1% при стопе 2×ATR
     assert fill["quantity"] == shares
     assert [leg["quantity"] for leg in card.legs] == [250]
     assert card.stop["price"] == pytest.approx(LIMIT - 4.0)  # стартовый стоп — от цены исполнения
 
 
+def test_a_bar_before_the_signal_cannot_fill_the_order(session: Session) -> None:
+    _, _, card = planned_card(session)
+    stocks = Stocks(low_after_signal=105.4, early_touch=True)  # лимит задет в 10:31 — до сигнала
+    result = fill_planned_cards(session, stocks, THRESHOLDS, NOW, closed_after=time(16, 30))
+    assert (result.opened, result.cancelled, result.pending) == (0, 0, 1)
+    assert card.state == "PLANNED"  # заявки ещё не было: окно лимита началось в 10:46
+
+
 def test_entry_is_not_cancelled_while_the_limit_window_is_open(session: Session) -> None:
     _, _, card = planned_card(session)
-    stocks = Stocks(low_1031=105.4)  # лимит 105,35 не достигнут, баров после 11:00 ещё нет
+    stocks = Stocks(low_after_signal=105.4)  # лимит 105,35 не достигнут, баров после 11:00 ещё нет
     result = fill_planned_cards(session, stocks, THRESHOLDS, NOW, closed_after=time(16, 30))
     assert (result.opened, result.cancelled, result.pending) == (0, 0, 1)
     assert card.state == "PLANNED"
@@ -154,7 +172,7 @@ def test_entry_is_not_cancelled_while_the_limit_window_is_open(session: Session)
 
 def test_entry_is_cancelled_when_data_shows_the_window_is_closed(session: Session) -> None:
     _, _, card = planned_card(session)
-    stocks = Stocks(low_1031=105.4, late_bar=True)  # есть бар 11:01 — окно лимита закрыто
+    stocks = Stocks(low_after_signal=105.4, late_bar=True)  # есть бар 11:01 — окно лимита закрыто
     result = fill_planned_cards(session, stocks, THRESHOLDS, NOW, closed_after=time(16, 30))
     assert (result.opened, result.cancelled) == (0, 1)
     assert card.state == "CANCELLED"
@@ -165,7 +183,7 @@ def test_entry_is_cancelled_once_the_day_is_published(session: Session) -> None:
     _, _, card = planned_card(session)
     evening = datetime(2025, 10, 22, 20, 45, tzinfo=UTC)  # 16:45 ET, после closed_after
     fill_planned_cards(
-        session, Stocks(low_1031=105.4), THRESHOLDS, evening, closed_after=time(16, 30)
+        session, Stocks(low_after_signal=105.4), THRESHOLDS, evening, closed_after=time(16, 30)
     )
     assert card.state == "CANCELLED"
 
@@ -206,14 +224,18 @@ def test_signal_text_shows_the_actual_fill_after_entry(session: Session) -> None
     event, decision, card = planned_card(session)
     fill_planned_cards(session, Stocks(), THRESHOLDS, NOW, closed_after=time(16, 30))
     text = signal_text(event, decision, 0.01, THRESHOLDS, card, last_reason(session, card))
-    assert "СТАТУС ✅ вход исполнен 22.10 10:31 ET (17:31 МСК) по $105.35 · 250 акц." in text
+    assert "СТАТУС ✅ вход исполнен 22.10 10:46 ET (17:46 МСК) по $105.35 · 250 акц." in text
     assert "стоп $101.35" in text
 
 
 def test_signal_text_for_a_cancelled_entry(session: Session) -> None:
     event, decision, card = planned_card(session)
     fill_planned_cards(
-        session, Stocks(low_1031=105.4, late_bar=True), THRESHOLDS, NOW, closed_after=time(16, 30)
+        session,
+        Stocks(low_after_signal=105.4, late_bar=True),
+        THRESHOLDS,
+        NOW,
+        closed_after=time(16, 30),
     )
     text = signal_text(event, decision, 0.01, THRESHOLDS, card, last_reason(session, card))
     assert "СТАТУС ⛔ вход не исполнен: лимит" in text
@@ -242,7 +264,7 @@ def test_closed_text_tells_what_to_do_at_the_broker(session: Session) -> None:
     assert text is not None
     assert text.splitlines()[0] == f"#{card.id} 🔵 NFLX · СИГНАЛ ЗАКРЫТ · трейлинг-стоп"
     assert "🏁 Цена закрытия позиции: $101.35 (−3,8%)." in text
-    assert "💵 Цена входа: $105.35 · 22.10 10:31 ET (17:31 МСК) · 250 акц." in text
+    assert "💵 Цена входа: $105.35 · 22.10 10:46 ET (17:46 МСК) · 250 акц." in text
     assert "📊 Итог paper: −$920.00" in text
     assert "Стоп сработал 23.10." in text
     assert text.endswith("закрой оставшуюся позицию у брокера.")
@@ -265,10 +287,18 @@ def test_closed_text_needs_an_entry(session: Session) -> None:
 class Calculator:
     def __init__(self, outcome: Shadow) -> None:
         self.outcome = outcome
+        self.fixed_entry: Entry | None = None
 
     def evaluate(
-        self, session: Session, step: orm.DecisionStep, event: orm.Event, days: Any, today: date
+        self,
+        session: Session,
+        step: orm.DecisionStep,
+        event: orm.Event,
+        days: Any,
+        today: date,
+        fixed_entry: Entry | None = None,
     ) -> Shadow:
+        self.fixed_entry = fixed_entry
         return self.outcome
 
 
@@ -290,13 +320,15 @@ def test_evening_run_keeps_the_filled_entry_and_exits_with_the_same_shares(
         risk=1005.0,
         variant="long",
         entry_on=REACTION,
-        entry_at=datetime(2025, 10, 22, 10, 31, tzinfo=ET),
+        entry_at=datetime(2025, 10, 22, 10, 46, tzinfo=ET),
         legs=(LegFill("NFLX", "stock", 1, 250, 1, LIMIT, 101.35),),
     )
-    result = PaperBook(Calculator(Shadow("closed", trade=closed)), THRESHOLDS).run(
-        session, date(2025, 10, 23), date(2025, 10, 16)
-    )
+    calculator = Calculator(Shadow("closed", trade=closed))
+    result = PaperBook(calculator, THRESHOLDS).run(session, date(2025, 10, 23), date(2025, 10, 16))
     assert result.counts == {"STOPPED": 1}
+    assert calculator.fixed_entry is not None  # выход считается от входа карточки, не бэктеста
+    assert calculator.fixed_entry.price == pytest.approx(LIMIT)
+    assert calculator.fixed_entry.at == datetime(2025, 10, 22, 10, 46, tzinfo=ET)
     assert card.fills is not None
     entry, exit_ = card.fills
     assert (entry["purpose"], entry["quantity"], entry["price"]) == (
@@ -304,7 +336,7 @@ def test_evening_run_keeps_the_filled_entry_and_exits_with_the_same_shares(
         250,
         pytest.approx(LIMIT),
     )
-    assert datetime.fromisoformat(entry["at"]) == datetime(2025, 10, 22, 10, 31, tzinfo=ET)
+    assert datetime.fromisoformat(entry["at"]) == datetime(2025, 10, 22, 10, 46, tzinfo=ET)
     assert (exit_["purpose"], exit_["quantity"]) == ("stop", 250)  # те же целые акции, не доля
     moves = session.scalars(select(orm.TradeCardTransition).order_by(orm.TradeCardTransition.id))
     assert [(m.from_state, m.to_state) for m in moves] == [

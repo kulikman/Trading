@@ -107,24 +107,34 @@ def stock_trade(
     thresholds: Thresholds,
     costs: CostModel,
     capital: float,
+    fixed_entry: Entry | None = None,
 ) -> Trade | str:
-    """Сделка режима C по правилам бэктеста; общая для бэктеста и теневых сделок (T16)."""
+    """Сделка режима C по правилам бэктеста; общая для бэктеста и теневых сделок (T16).
+
+    fixed_entry — уже исполненный вход paper-карточки (цена и минута по барам после сигнала):
+    выход и результат считаются от него, а не от входа бэктеста (окно лимита — с 10:30).
+    """
     rules, settings = thresholds.modes.C, thresholds.backtest.mode_c
     pre_close = closes.get(days.pre)
     if pre_close is None:
         return "no_price"
-    volume_days = previous_days(days.reaction, thresholds.backtest.mode_c.volume_lookback_days)
-    minutes = stocks.aggregates(
-        symbol_on(periods, days.reaction),
-        1,
-        "minute",
-        volume_days[-1],
-        days.reaction,
-        adjusted=False,
-    )
-    position = entry(direction, pre_close, days.reaction, minutes, volume_days, rules, settings)
-    if not isinstance(position, Entry):
-        return position
+    position: Entry
+    if fixed_entry is not None:
+        position = fixed_entry
+    else:
+        volume_days = previous_days(days.reaction, thresholds.backtest.mode_c.volume_lookback_days)
+        minutes = stocks.aggregates(
+            symbol_on(periods, days.reaction),
+            1,
+            "minute",
+            volume_days[-1],
+            days.reaction,
+            adjusted=False,
+        )
+        found = entry(direction, pre_close, days.reaction, minutes, volume_days, rules, settings)
+        if not isinstance(found, Entry):
+            return found
+        position = found
     before = [b for b in daily if to_et(b.start).date() < days.reaction]
     atr = average_true_range(before, rules.atr_period)
     closed = exit_after(position, daily, days.reaction, rules)
